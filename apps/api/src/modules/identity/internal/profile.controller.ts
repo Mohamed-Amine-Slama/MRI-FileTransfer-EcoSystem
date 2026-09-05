@@ -21,19 +21,19 @@ import { ProfileService, type ProfileRow } from './profile.service';
 export class ProfileController {
   constructor(private readonly profile: ProfileService) {}
 
-  @RequiresRole('patient', 'libya_doctor', 'tunisia_doctor', 'admin', 'applicant')
+  @RequiresRole('patient', 'libya_doctor', 'tunisia_doctor', 'admin', 'applicant', 'assistant')
   @Get('profile')
   async get(): Promise<ProfileRow> {
     return this.profile.get();
   }
 
-  @RequiresRole('patient', 'libya_doctor', 'tunisia_doctor', 'admin', 'applicant')
+  @RequiresRole('patient', 'libya_doctor', 'tunisia_doctor', 'admin', 'applicant', 'assistant')
   @Patch('profile')
   async update(@Body() body: unknown): Promise<ProfileRow> {
     return this.profile.update(updateProfileSchema.parse(body));
   }
 
-  @RequiresRole('patient', 'libya_doctor', 'tunisia_doctor', 'admin', 'applicant')
+  @RequiresRole('patient', 'libya_doctor', 'tunisia_doctor', 'admin', 'applicant', 'assistant')
   @Get('preferences')
   async preferences(): Promise<UserPreferences> {
     return this.profile.preferences();
@@ -45,7 +45,7 @@ export class ProfileController {
    * could be wrong — a toggle that silently reverts — is the least forgiving
    * place for it to be.
    */
-  @RequiresRole('patient', 'libya_doctor', 'tunisia_doctor', 'admin', 'applicant')
+  @RequiresRole('patient', 'libya_doctor', 'tunisia_doctor', 'admin', 'applicant', 'assistant')
   @Put('preferences')
   async setPreferences(@Body() body: unknown): Promise<UserPreferences> {
     return this.profile.setPreferences(userPreferencesSchema.parse(body));

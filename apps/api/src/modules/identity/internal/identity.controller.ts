@@ -24,11 +24,24 @@ export class IdentityController {
    * to reach (§5.1 P0: know where your application stands without contacting
    * the platform team).
    *
+   * `assistant` BELONGS HERE TOO, and leaving it off repeated the same defect
+   * one role later. An assistant could obtain a valid token and was then shown
+   * the signed-out screen, because this endpoint answered 403 and the client
+   * reads that as "nobody is signed in". A role added to `ROLES` without being
+   * added here can authenticate and still not be able to log in.
+   *
    * Listing a role here grants REACHABILITY only. The response is built from
    * the caller's own row, which row-level security already restricts to
    * themselves, so an applicant learns nothing here they should not.
    */
-  @RequiresRole('patient', 'libya_doctor', 'tunisia_doctor', 'admin', 'applicant')
+  @RequiresRole(
+    'patient',
+    'libya_doctor',
+    'tunisia_doctor',
+    'admin',
+    'applicant',
+    'assistant',
+  )
   @Get('me')
   async me(): Promise<CurrentUser> {
     return this.identity.currentUser();

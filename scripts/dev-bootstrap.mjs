@@ -88,6 +88,8 @@ const ACCOUNTS = [
   { username: 'dev-ops@example.test',       role: 'admin',           name: 'Ops Staff',          phone: '+216711000004', password: 'dev-ops-pass-1234' },
   { username: 'dev-applicant@example.test', role: 'applicant',       name: 'Dr Pending Applicant', phone: '+218911000005', password: 'dev-applicant-pass-1234' },
   { username: 'dev-assistant@example.test', role: 'assistant',       name: 'Salma Reception',    phone: '+216711000006', password: 'dev-assist-pass-1234' },
+  { username: 'dev-radiologist@example.test', role: 'tunisia_doctor', name: 'Dr Nadia Radiology', phone: '+216711000007', password: 'dev-radio-pass-1234' },
+  { username: 'dev-cardio@example.test',    role: 'tunisia_doctor',  name: 'Dr Sami Cardiology', phone: '+216711000008', password: 'dev-cardio-pass-1234' },
 ];
 
 /**
@@ -403,7 +405,10 @@ function buildSeedSql(subs) {
   const receiver = id('dev-receiver@example.test');
   const patientUser = id('dev-patient@example.test');
   const applicant = id('dev-applicant@example.test');
+  const ops = id('dev-ops@example.test');
   const assistant = id('dev-assistant@example.test');
+  const radiologist = id('dev-radiologist@example.test');
+  const cardiologist = id('dev-cardio@example.test');
 
   const lines = ['BEGIN;'];
 
@@ -537,6 +542,106 @@ function buildSeedSql(subs) {
            WHERE patient_id = ${patientRef} AND status = ${q(a.status)});`,
     );
   }
+
+  /*
+   * A HOSPITAL, so the provisioning and routing features have something to
+   * stand on.
+   *
+   * The seeded clinic above is the referring side's. This is a receiving-side
+   * HOSPITAL: it owns clinicians of different specialties, and the assistant is
+   * seated in it so `app_assists_doctor` resolves for all of them. Without this
+   * the clinician picker on the booking screen has exactly one name in it and
+   * the specialty filter demonstrates nothing.
+   */
+  const hospitalName = 'Sample Receiving Hospital';
+  lines.push(
+    `INSERT INTO identity_organisations
+       (kind, legal_name, corridor_id, side, verification_status, decided_at, seat_count, credentials)
+     SELECT 'hospital', ${q(hospitalName)}, 'ly-tn', 'destination', 'approved', now(), 20,
+            '{"cnomNumber":"DEV-TN-0002"}'::jsonb
+     WHERE NOT EXISTS (SELECT 1 FROM identity_organisations WHERE legal_name = ${q(hospitalName)});`,
+  );
+
+  const hospitalRef = `(SELECT id FROM identity_organisations WHERE legal_name = ${q(hospitalName)})`;
+  const seat = (user, role, specialty) =>
+    `INSERT INTO identity_memberships (organisation_id, user_id, seat_role, specialty)
+     SELECT ${hospitalRef}, ${q(user)}::uuid, ${q(role)}, ${specialty === null ? 'NULL' : q(specialty)}
+     ON CONFLICT (organisation_id, user_id) DO UPDATE SET specialty = EXCLUDED.specialty;`;
+
+  lines.push(
+    seat(receiver, 'owner', 'General medicine'),
+    seat(radiologist, 'member', 'Radiology'),
+    seat(cardiologist, 'member', 'Cardiology'),
+    seat(assistant, 'assistant', null),
+  );
+
+  // Doctor profiles, so `listDoctors` (which filters on verified_at) offers the
+  // specialists to a referring doctor as well.
+  for (const [who, specialty] of [
+    [radiologist, 'Radiology'],
+    [cardiologist, 'Cardiology'],
+  ]) {
+    lines.push(
+      `INSERT INTO identity_doctor_profiles
+         (user_id, country, license_number, specialty, clinic_name, verified_at, verified_by)
+       SELECT ${q(who)}::uuid, 'TN', 'DEV-TN-LIC-' || substr(${q(who)}, 1, 8), ${q(specialty)},
+              ${q(hospitalName)}, now(), ${q(ops)}::uuid
+       ON CONFLICT (user_id) DO UPDATE SET specialty = EXCLUDED.specialty;`,
+    );
+  }
+
+  /*
+   * TODAY'S AGENDA.
+   *
+   * The appointments above are all days away, so /schedule — whose whole job is
+   * "who is coming today" — opened empty on a freshly seeded database and looked
+   * broken. These are anchored to today's date at fixed local hours, with a
+   * spread of statuses so the per-row actions have something to act on.
+   */
+  const todayAt = (hour, minutes) =>
+    `date_trunc('day', now()) + interval '${hour} hours ${minutes} minutes'`;
+
+  const todays = [
+    { phone: PATIENTS[0].phone, doctor: receiver, hour: 9, status: 'confirmed', kind: 'follow_up', reason: 'Reviewing last scan' },
+    { phone: PATIENTS[1].phone, doctor: radiologist, hour: 10, status: 'confirmed', kind: 'imaging', reason: 'Chest imaging' },
+    { phone: PATIENTS[2].phone, doctor: cardiologist, hour: 11, status: 'confirmed', kind: 'consultation', reason: 'Palpitations' },
+    { phone: PATIENTS[3].phone, doctor: receiver, hour: 8, status: 'completed', kind: 'consultation', reason: 'Routine review' },
+    { phone: PATIENTS[0].phone, doctor: radiologist, hour: 7, status: 'no_show', kind: 'imaging', reason: 'Follow-up imaging' },
+  ];
+  for (const a of todays) {
+    const patientRef = `(SELECT id FROM patients_patients WHERE phone_e164 = ${q(a.phone)} LIMIT 1)`;
+    lines.push(
+      `INSERT INTO scheduling_appointments
+         (patient_id, doctor_id, starts_at, ends_at, status, kind, reason)
+       SELECT ${patientRef}, ${q(a.doctor)}::uuid, ${todayAt(a.hour, 0)},
+              ${todayAt(a.hour, 30)}, ${q(a.status)}, ${q(a.kind)}, ${q(a.reason)}
+       WHERE ${patientRef} IS NOT NULL
+         AND NOT EXISTS (
+           SELECT 1 FROM scheduling_appointments
+           WHERE doctor_id = ${q(a.doctor)}::uuid AND starts_at = ${todayAt(a.hour, 0)});`,
+    );
+  }
+
+  /*
+   * Opening hours for the specialists, and one RECURRING rule, so the
+   * availability tab shows both shapes it supports.
+   */
+  for (const who of [radiologist, cardiologist]) {
+    lines.push(
+      `INSERT INTO scheduling_availability (doctor_id, starts_at, ends_at, slot_minutes)
+       SELECT ${q(who)}::uuid, date_trunc('day', now()) + interval '1 day 8 hours',
+              date_trunc('day', now()) + interval '1 day 13 hours', 30
+       WHERE NOT EXISTS (SELECT 1 FROM scheduling_availability WHERE doctor_id = ${q(who)}::uuid);`,
+    );
+  }
+
+  lines.push(
+    `INSERT INTO scheduling_availability_rules
+       (doctor_id, weekday, start_time, end_time, timezone, slot_minutes, valid_from)
+     SELECT ${q(receiver)}::uuid, 2, '09:00', '12:00', 'Africa/Tunis', 30, CURRENT_DATE
+     WHERE NOT EXISTS (
+       SELECT 1 FROM scheduling_availability_rules WHERE doctor_id = ${q(receiver)}::uuid);`,
+  );
 
   /*
    * Consent, WITHOUT WHICH THE RECEIVING DOCTOR'S INBOX IS EMPTY.
