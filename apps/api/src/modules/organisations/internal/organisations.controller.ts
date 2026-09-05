@@ -15,7 +15,8 @@ import {
   providerKindSchema,
 } from '@mir/contracts';
 import { RequiresRole } from '../../../shared/authz/access-metadata';
-import { OrganisationsService, type MemberRow, type OrganisationRow } from './organisations.service';
+import {
+  type ClinicianRow, OrganisationsService, type MemberRow, type OrganisationRow } from './organisations.service';
 
 /**
  * Organisations — brief §3, §5.1, §5.5, §5.8.
@@ -66,16 +67,35 @@ export class OrganisationsController {
    * "You have not applied yet" is a normal state for an applicant, not an
    * error, and the sign-up flow branches on it.
    */
-  @RequiresRole('applicant', 'libya_doctor', 'tunisia_doctor')
+  // `assistant` included: the booking screen resolves the organisation here
+  // before asking for its clinicians, so without it an assistant cannot see
+  // which doctors they may book for.
+  @RequiresRole('applicant', 'libya_doctor', 'tunisia_doctor', 'assistant')
   @Get('organisations/mine')
   async mine(): Promise<{ organisation: OrganisationRow | null }> {
     return { organisation: await this.organisations.mine() };
   }
 
-  @RequiresRole('applicant', 'libya_doctor', 'tunisia_doctor')
+  @RequiresRole('applicant', 'libya_doctor', 'tunisia_doctor', 'assistant')
   @Get('organisations/:id/members')
   async members(@Param('id', ParseUUIDPipe) id: string): Promise<{ members: MemberRow[] }> {
     return { members: await this.organisations.members(id) };
+  }
+
+  /**
+   * The organisation's clinicians and their specialties, for assigning work.
+   *
+   * Distinct from `members`, which lists seats. This lists the people an
+   * appointment can be given TO, and carries the specialty the booking screen
+   * filters on. An assistant may read it: routing an appointment to the right
+   * doctor is exactly a receptionist's job.
+   */
+  @RequiresRole('libya_doctor', 'tunisia_doctor', 'assistant')
+  @Get('organisations/:id/clinicians')
+  async clinicians(
+    @Param('id', ParseUUIDPipe) id: string,
+  ): Promise<{ clinicians: ClinicianRow[] }> {
+    return { clinicians: await this.organisations.clinicians(id) };
   }
 
   @RequiresRole('libya_doctor', 'tunisia_doctor')
@@ -83,7 +103,10 @@ export class OrganisationsController {
   @HttpCode(204)
   async invite(@Param('id', ParseUUIDPipe) id: string, @Body() body: unknown): Promise<void> {
     const input = inviteMemberSchema.parse(body);
-    await this.organisations.invite(id, input.email, input.seatRole);
+    await this.organisations.invite(id, input.email, input.seatRole, {
+      ...(input.specialty === undefined ? {} : { specialty: input.specialty }),
+      ...(input.fullName === undefined ? {} : { fullName: input.fullName }),
+    });
   }
 
   /**
@@ -94,7 +117,7 @@ export class OrganisationsController {
    * A bad, expired, or already-used token is a 404 rather than a 400: the three
    * must be indistinguishable, or the endpoint confirms which tokens are real.
    */
-  @RequiresRole('applicant', 'libya_doctor', 'tunisia_doctor', 'patient', 'admin')
+  @RequiresRole('applicant', 'libya_doctor', 'tunisia_doctor', 'patient', 'admin', 'assistant')
   @Post('invitations/accept')
   async accept(@Body() body: unknown): Promise<OrganisationRow> {
     const input = acceptSchema.parse(body);

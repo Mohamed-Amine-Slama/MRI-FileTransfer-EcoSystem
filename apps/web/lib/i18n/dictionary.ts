@@ -59,6 +59,10 @@ const ar = {
   scheduleSearchPhone: 'ابحث برقم الهاتف',
   scheduleSearch: 'بحث',
   scheduleNoMatch: 'لا يوجد مريض بهذا الرقم.',
+  scheduleNeeded: 'التخصّص المطلوب',
+  scheduleNeededHint: 'اكتب ما يحتاجه المريض لتصفية الأطباء المتاحين.',
+  scheduleAssignTo: 'إسناد إلى',
+  scheduleNoMatchingClinician: 'لا يوجد طبيب بهذا التخصّص في هذه المنشأة.',
   scheduleDuplicateWarning: 'يوجد مريض بهذا الرقم يشبه هذه البيانات. افتح صفحة المرضى لتأكيد أنه شخص مختلف.',
   scheduleFullName: 'الاسم الكامل',
   schedulePhone: 'رقم الهاتف',
@@ -598,6 +602,9 @@ const ar = {
   seatOwner: 'مالك',
   seatMember: 'عضو',
   seatAssistant: 'مساعد',
+  teamInviteSpecialty: 'التخصّص',
+  teamInviteSpecialtyHint: 'يُستخدم لتوجيه المواعيد إلى الطبيب المناسب. يمكن للطبيب تعديله لاحقًا.',
+  teamAssistantOnlyHint: 'يمكنك دعوة مساعد فقط. دعوة الأطباء من صلاحية مالك الحساب.',
   seatOwnerHint: 'يمكنه دعوة الأعضاء وتغيير الخطّة.',
 
   // pricing, plans, and billing (§2, §5.7) — TODO(pricing): every plan name, blurb, and price below is PLACEHOLDER copy pending real commercial terms
@@ -712,6 +719,10 @@ const fr: Dictionary = {
   scheduleSearchPhone: 'Rechercher par téléphone',
   scheduleSearch: 'Rechercher',
   scheduleNoMatch: 'Aucun patient avec ce numéro.',
+  scheduleNeeded: 'Spécialité requise',
+  scheduleNeededHint: 'Saisissez le besoin du patient pour filtrer les médecins.',
+  scheduleAssignTo: 'Attribuer à',
+  scheduleNoMatchingClinician: "Aucun médecin de cette spécialité dans cet établissement.",
   scheduleDuplicateWarning: "Un patient similaire existe déjà avec ce numéro. Ouvrez la page Patients pour confirmer qu'il s'agit d'une autre personne.",
   scheduleFullName: 'Nom complet',
   schedulePhone: 'Téléphone',
@@ -1235,6 +1246,9 @@ const fr: Dictionary = {
   seatOwner: 'Propriétaire',
   seatMember: 'Membre',
   seatAssistant: 'Assistant(e)',
+  teamInviteSpecialty: 'Spécialité',
+  teamInviteSpecialtyHint: "Sert à orienter les rendez-vous vers le bon médecin. Le médecin peut la corriger ensuite.",
+  teamAssistantOnlyHint: "Vous pouvez inviter un assistant. Les médecins sont invités par le propriétaire du compte.",
   seatOwnerHint: "Peut inviter des membres et changer d'offre.",
 
   // pricing, plans, and billing (§2, §5.7) — TODO(pricing): every plan name, blurb, and price below is PLACEHOLDER copy pending real commercial terms
@@ -1351,6 +1365,10 @@ const en: Dictionary = {
   scheduleSearchPhone: 'Search by phone number',
   scheduleSearch: 'Search',
   scheduleNoMatch: 'No patient with that number.',
+  scheduleNeeded: 'Specialty needed',
+  scheduleNeededHint: "Type what the patient needs to narrow the list of doctors.",
+  scheduleAssignTo: 'Assign to',
+  scheduleNoMatchingClinician: 'No doctor with that specialty at this organisation.',
   scheduleDuplicateWarning: 'A similar patient already exists on that number. Open the Patients page to confirm this is a different person.',
   scheduleFullName: 'Full name',
   schedulePhone: 'Phone number',
@@ -1893,6 +1911,9 @@ const en: Dictionary = {
   seatOwner: 'Owner',
   seatMember: 'Member',
   seatAssistant: 'Assistant',
+  teamInviteSpecialty: 'Specialty',
+  teamInviteSpecialtyHint: 'Used to route appointments to the right doctor. The doctor can correct it later.',
+  teamAssistantOnlyHint: 'You can invite an assistant. Doctors are invited by the account owner.',
   seatOwnerHint: 'Can invite members and change the plan.',
 
   // pricing, plans, and billing (§2, §5.7) — TODO(pricing): every plan name, blurb, and price below is PLACEHOLDER copy pending real commercial terms

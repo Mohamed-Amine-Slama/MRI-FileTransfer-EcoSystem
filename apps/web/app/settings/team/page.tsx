@@ -93,16 +93,32 @@ function seatRoleLabel(t: Dictionary, seatRole: SeatRole): string {
 function TeamPanel(): React.JSX.Element {
   const t = useT();
   const formatDate = useDateFormat();
+  const { user } = useSession();
 
   const [organisation, setOrganisation] = useState<Organisation | null>(null);
   const [members, setMembers] = useState<Membership[]>([]);
   const [loading, setLoading] = useState(true);
   const [email, setEmail] = useState('');
   const [seatRole, setSeatRole] = useState<SeatRole>('member');
+  const [specialty, setSpecialty] = useState('');
   const [busy, setBusy] = useState(false);
   const [sent, setSent] = useState(false);
   const [loadFailed, setLoadFailed] = useState(false);
   const [error, setError] = useState<string | null>(null);
+
+  // WHICH SEATS THIS PERSON MAY OFFER.
+  //
+  // An owner may issue any of them. A seated clinician may issue an ASSISTANT
+  // seat and nothing else, because an owner/member seat becomes a clinical role
+  // on acceptance — the difference between hiring a receptionist and staffing
+  // the corridor without an ops decision.
+  //
+  // This is presentation only. `invitations_clinician_assistant_insert`
+  // (migration 0018) refuses the write regardless of what is rendered, which is
+  // what actually holds the line (§4.4).
+  const mySeat = members.find((m) => m.userId === user?.userId)?.seatRole ?? null;
+  const isOwner = mySeat === 'owner';
+  const offerableSeats: readonly SeatRole[] = isOwner ? SEAT_ROLES : ['assistant'];
 
   const load = useCallback(async (): Promise<void> => {
     try {
@@ -132,8 +148,17 @@ function TeamPanel(): React.JSX.Element {
     setSent(false);
     setError(null);
     try {
-      await api.organisations.invite(organisation.id, { email: email.trim(), seatRole });
+      await api.organisations.invite(organisation.id, {
+        email: email.trim(),
+        seatRole,
+        // Only meaningful for a clinician seat. Sending it for an assistant
+        // would record a specialty for somebody who does not practise.
+        ...(seatRole === 'assistant' || specialty.trim() === ''
+          ? {}
+          : { specialty: specialty.trim() }),
+      });
       setEmail('');
+      setSpecialty('');
       setSent(true);
       await load();
     } catch (err) {
@@ -202,17 +227,35 @@ function TeamPanel(): React.JSX.Element {
               className="max-w-xs"
               value={seatRole}
               onChange={(e) => {
-                const next = SEAT_ROLES.find((r) => r === e.target.value);
+                const next = offerableSeats.find((r) => r === e.target.value);
                 if (next !== undefined) setSeatRole(next);
               }}
             >
-              {SEAT_ROLES.map((value) => (
+              {offerableSeats.map((value) => (
                 <option key={value} value={value}>
                   {seatRoleLabel(t, value)}
                 </option>
               ))}
             </Select>
           </Field>
+
+          {seatRole !== 'assistant' && (
+            <Field label={t.teamInviteSpecialty} hint={t.teamInviteSpecialtyHint}>
+              <Input
+                data-testid="invite-specialty"
+                className="max-w-xs"
+                value={specialty}
+                maxLength={120}
+                onChange={(e) => setSpecialty(e.target.value)}
+              />
+            </Field>
+          )}
+
+          {!isOwner && (
+            <p className="text-sm text-muted-foreground" data-testid="assistant-only-hint">
+              {t.teamAssistantOnlyHint}
+            </p>
+          )}
 
           <Button
             type="submit"

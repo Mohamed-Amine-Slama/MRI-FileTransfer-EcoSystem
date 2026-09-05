@@ -118,6 +118,28 @@ services:
       KC_HOSTNAME: http://localhost:${KEYCLOAK_HOST_PORT:-8080}
     volumes:
       - ./infra/keycloak/realm-mir.json:/opt/keycloak/data/import/realm-mir.json:ro
+      # KEEP THE REALM ACROSS RECREATES.
+      #
+      # Without this, every `docker compose up` that touches this service starts
+      # a fresh Keycloak: no users, no `mir-api-admin` client, and the realm back
+      # to `sslRequired: all` — which 403s every HTTP token request. Login and
+      # sign-up both break, and neither failure says why. That happened three
+      # times in one afternoon before this volume existed.
+      #
+      # Mounted at /opt/keycloak/data, not at its `h2` subdirectory. That
+      # subdirectory does not exist in the image, so Docker would create it
+      # root-owned and Keycloak — which runs as a non-root user — cannot write
+      # it: the container dies on `AccessDeniedException ... keycloakdb.mv.db`.
+      # The parent DOES exist in the image, so the volume inherits its
+      # ownership. The realm-import bind above is more specific and is layered
+      # on top, so it still applies.
+      #
+      # THE TRADE: `--import-realm` only imports when the realm is absent, so
+      # edits to realm-mir.json no longer take effect on restart. To pick them
+      # up, drop the volume: `docker compose down && docker volume rm
+      # mir_mir-keycloak-data`. `scripts/dev-bootstrap.mjs` is idempotent and
+      # re-applies the dev settings either way.
+      - mir-keycloak-data:/opt/keycloak/data
     ports:
       - '${KEYCLOAK_HOST_PORT:-8080}:8080'
     depends_on:
@@ -330,5 +352,6 @@ services:
 
 volumes:
   mir-pgdata:
+  mir-keycloak-data:
   mir-orthanc-db:
   mir-api-storage:

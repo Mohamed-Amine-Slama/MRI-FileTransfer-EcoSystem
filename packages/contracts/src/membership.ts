@@ -72,6 +72,20 @@ export type Invitation = z.infer<typeof invitationSchema>;
 export const inviteMemberSchema = z.object({
   email: z.string().email().max(254),
   seatRole: seatRoleSchema,
+  /**
+   * Stated by the INVITER, not asked of the invitee on arrival.
+   *
+   * A hospital knows which department it is hiring into, and appointment
+   * routing matches on specialty — so a doctor who arrives without one cannot
+   * be assigned work until somebody fills it in. The doctor can correct it on
+   * their own profile afterwards.
+   *
+   * Optional because an assistant seat has no specialty and neither does an
+   * ordinary member.
+   */
+  specialty: z.string().trim().min(1).max(120).optional(),
+  /** For addressing the invitation; the account's own name wins once it exists. */
+  fullName: z.string().trim().min(1).max(200).optional(),
 });
 export type InviteMemberInput = z.infer<typeof inviteMemberSchema>;
 

@@ -2,6 +2,7 @@ import { createHash, randomBytes } from 'node:crypto';
 import {
   BadRequestException,
   ConflictException,
+  ForbiddenException,
   Inject,
   Injectable,
   Logger,
@@ -50,6 +51,15 @@ export interface OrganisationRow {
     reasonKey?: string;
   };
   seatCount: number;
+}
+
+/** A clinician an appointment can be routed to. */
+export interface ClinicianRow {
+  userId: string;
+  displayName: string;
+  role: string;
+  /** Null until a hospital states one, or the doctor sets it on their profile. */
+  specialty: string | null;
 }
 
 export interface MemberRow {
@@ -197,7 +207,12 @@ export class OrganisationsService {
    * mistake. The database re-checks on acceptance regardless, because seats can
    * be lowered after invitations go out.
    */
-  async invite(organisationId: string, email: string, seatRole: SeatRole): Promise<void> {
+  async invite(
+    organisationId: string,
+    email: string,
+    seatRole: SeatRole,
+    details: { specialty?: string; fullName?: string } = {},
+  ): Promise<void> {
     const organisation = await this.byId(organisationId);
     if (organisation === null) throw new NotFoundException('organisation_not_found');
 
@@ -222,14 +237,44 @@ export class OrganisationsService {
       }
 
       const ctx = requireContext();
-      // The INSERT is refused by `invitations_owner_insert` unless the caller
-      // owns this organisation, so ownership is not re-checked here.
-      await tx.query(
-        `INSERT INTO identity_invitations
-           (organisation_id, email, token_hash, seat_role, invited_by, expires_at)
-         VALUES ($1, $2, $3, $4, $5, now() + make_interval(days => $6))`,
-        [organisationId, email.toLowerCase(), tokenHash, seatRole, ctx.userId, INVITATION_TTL_DAYS],
-      );
+      // WHO MAY INSERT IS DECIDED BY POLICY, NOT HERE. `invitations_owner_insert`
+      // admits an owner for any seat; `invitations_clinician_assistant_insert`
+      // (0018) admits a seated clinician for an ASSISTANT seat only. A doctor
+      // trying to invite another doctor therefore fails at the database, which
+      // is the line between "can hire a receptionist" and "can mint a clinician"
+      // — and it is one line, in one place, rather than a role check here that a
+      // later refactor can drop.
+      try {
+        await tx.query(
+          `INSERT INTO identity_invitations
+             (organisation_id, email, token_hash, seat_role, invited_by, expires_at,
+              specialty, full_name)
+           VALUES ($1, $2, $3, $4, $5, now() + make_interval(days => $6), $7, $8)`,
+          [
+            organisationId,
+            email.toLowerCase(),
+            tokenHash,
+            seatRole,
+            ctx.userId,
+            INVITATION_TTL_DAYS,
+            details.specialty ?? null,
+            details.fullName ?? null,
+          ],
+        );
+      } catch (err) {
+        if ((err as { code?: string }).code === '42501') {
+          // 403, NOT 404 — and the difference is deliberate.
+          //
+          // Elsewhere an RLS refusal becomes 404 because revealing that a row
+          // exists is itself a disclosure (§6). Not here: the caller is a member
+          // of this organisation and already knows it exists. What they are
+          // being refused is an ACTION — issuing a seat that becomes a clinical
+          // role — and answering "not found" for an organisation they can see
+          // on screen would be a lie that helps nobody debug it.
+          throw new ForbiddenException('seat_role_not_permitted');
+        }
+        throw err;
+      }
     });
 
     // Built from configuration, never from the request's Host header — a link
@@ -264,6 +309,18 @@ export class OrganisationsService {
   async acceptInvitation(token: string): Promise<OrganisationRow | null> {
     const ctx = requireContext();
     const tokenHash = createHash('sha256').update(token).digest('hex');
+
+    // Read the invitation's details BEFORE redeeming it: acceptance consumes
+    // the row, and the invitee matches no SELECT policy on it afterwards (or
+    // before). Losing a race with a concurrent redemption is harmless — the
+    // acceptance below then returns null and nothing further happens.
+    const details = await this.db.tx(async (tx) => {
+      const res = await tx.query<{ seat_role: SeatRole; specialty: string | null }>(
+        'SELECT seat_role, specialty FROM identity_invitation_details($1)',
+        [tokenHash],
+      );
+      return res.rows[0] ?? null;
+    });
 
     const organisationId = await this.db.tx(async (tx) => {
       const res = await tx.query<{ identity_accept_invitation: string | null }>(
@@ -315,11 +372,57 @@ export class OrganisationsService {
             ]);
           });
           await this.grantRealmRole(ctx.userId, role);
+
+          // Record the specialty the inviter stated, on the MEMBERSHIP.
+          //
+          // Not on `identity_doctor_profiles`: that is a licensure record whose
+          // licence number is NOT NULL and whose `verified_at` is an ops
+          // decision. A hospital naming a department is an employment fact, and
+          // writing it into the licensure table would mean either relaxing that
+          // constraint or inventing a licence number.
+          if (details?.specialty !== undefined && details.specialty !== null) {
+            await this.db.tx(async (tx) => {
+              await tx.query('SELECT identity_set_membership_specialty($1, $2, $3)', [
+                organisationId,
+                ctx.userId,
+                details.specialty,
+              ]);
+            });
+          }
         }
       }
     }
 
     return organisation;
+  }
+
+  /**
+   * The organisation's clinicians, with the specialty an appointment is routed
+   * on.
+   *
+   * Goes through a SECURITY DEFINER function because `identity_doctor_profiles`
+   * is self-or-admin: a hospital could not otherwise see which of its own
+   * doctors is a radiologist. The function returns a name, a role and a
+   * specialty — not the licence number or the verification decision, neither of
+   * which is a colleague's business.
+   */
+  async clinicians(organisationId: string): Promise<ClinicianRow[]> {
+    return this.db.tx(async (tx) => {
+      const res = await tx.query<{
+        user_id: string;
+        full_name: string;
+        role: string;
+        specialty: string | null;
+      }>('SELECT user_id, full_name, role, specialty FROM identity_organisation_clinicians($1)', [
+        organisationId,
+      ]);
+      return res.rows.map((r) => ({
+        userId: r.user_id,
+        displayName: r.full_name,
+        role: r.role,
+        specialty: r.specialty,
+      }));
+    });
   }
 
   /** Applications awaiting an ops decision — brief §5.8. */

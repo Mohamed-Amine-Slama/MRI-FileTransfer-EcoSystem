@@ -48,6 +48,15 @@ export interface UserProfile {
 }
 
 /** The organisation the signed-in user acts for — the durable form of `Provider`. */
+/** A clinician an appointment can be assigned to. */
+export interface Clinician {
+  userId: string;
+  displayName: string;
+  role: Role;
+  /** Null until the organisation states one, or the doctor sets it. */
+  specialty: string | null;
+}
+
 export interface Organisation {
   id: string;
   /**
@@ -412,6 +421,12 @@ export const api = {
     }) => apiFetch<Organisation>('/organisations', { method: 'POST', body: input }),
     members: (id: string) =>
       apiFetch<{ members: Membership[] }>(`/organisations/${id}/members`),
+    /**
+     * The organisation's clinicians and their specialties — who an appointment
+     * can be routed TO. Distinct from `members`, which lists seats.
+     */
+    clinicians: (id: string) =>
+      apiFetch<{ clinicians: Clinician[] }>(`/organisations/${id}/clinicians`),
     invite: (id: string, input: InviteMemberInput) =>
       apiFetch<void>(`/organisations/${id}/invitations`, { method: 'POST', body: input }),
     acceptInvitation: (token: string) =>

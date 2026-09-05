@@ -106,6 +106,7 @@ export function corridorRoleFor(corridorId: string, side: EndpointSide): Role | 
   return CORRIDOR_ENDPOINT_ROLES[corridorId]?.[side] ?? null;
 }
 
+
 /**
  * The side a role plays on a corridor, or null if it plays none.
  *

@@ -1,8 +1,8 @@
 'use client';
 
-import { useState } from 'react';
+import { useEffect, useState } from 'react';
 import { ApiError } from '../../lib/api/client';
-import { api, type AppointmentKind, type Patient } from '../../lib/api/endpoints';
+import { api, type AppointmentKind, type Clinician, type Patient } from '../../lib/api/endpoints';
 import { useT } from '../../lib/i18n/provider';
 import { useSession } from '../../lib/session/session';
 import { APPOINTMENT_KINDS, appointmentKindLabel } from '../../lib/scheduling/labels';
@@ -33,6 +33,7 @@ export function BookAppointment({
   onBooked,
   onCancel,
 }: {
+  /** The calendar being booked into. A default, not a constraint — see below. */
   doctorId: string;
   startsAt: string;
   endsAt: string;
@@ -56,6 +57,15 @@ export function BookAppointment({
   const [dateOfBirth, setDateOfBirth] = useState('');
   const [sex, setSex] = useState<'M' | 'F' | 'O'>('F');
 
+  // Who the appointment is for. A hospital books on behalf of its clinicians,
+  // so the doctor is a CHOICE here rather than always the signed-in user —
+  // filtered by specialty, but chosen by a person. Routing a patient to a
+  // clinician is a clinical decision, and picking automatically would make it
+  // unsupervised and only visible once the patient was in the room.
+  const [clinicians, setClinicians] = useState<Clinician[] | null>(null);
+  const [assignedTo, setAssignedTo] = useState(doctorId);
+  const [needed, setNeeded] = useState('');
+
   // Shared.
   const [start, setStart] = useState(toLocalInput(startsAt));
   const [end, setEnd] = useState(toLocalInput(endsAt));
@@ -66,6 +76,39 @@ export function BookAppointment({
   // /patients search route is not theirs, so walk-in intake is the only path
   // that works for them and the toggle would be a dead end.
   const canSearchRegistry = role !== 'assistant';
+
+  useEffect(() => {
+    void (async () => {
+      try {
+        const { organisation } = await api.organisations.mine();
+        if (organisation === null) return;
+        const { clinicians: rows } = await api.organisations.clinicians(organisation.id);
+        setClinicians(rows);
+      } catch {
+        // No organisation, or no permission to read one. Falls back to booking
+        // into the calendar this form was opened on, which is the solo-doctor
+        // case and needs no picker at all.
+        setClinicians([]);
+      }
+    })();
+  }, []);
+
+  /**
+   * Clinicians whose specialty matches what was typed.
+   *
+   * A plain case-insensitive substring match, deliberately. Anything cleverer —
+   * synonym lists, fuzzy scoring — would silently rank one colleague above
+   * another on a clinical question, and the person booking can already see the
+   * whole list when the box is empty.
+   */
+  const matching =
+    clinicians === null
+      ? null
+      : needed.trim() === ''
+        ? clinicians
+        : clinicians.filter((c) =>
+            (c.specialty ?? '').toLowerCase().includes(needed.trim().toLowerCase()),
+          );
 
   const search = async (): Promise<void> => {
     setBusy(true);
@@ -117,7 +160,7 @@ export function BookAppointment({
 
       await api.scheduling.book({
         patientId: id,
-        doctorId,
+        doctorId: assignedTo,
         startsAt: new Date(start).toISOString(),
         endsAt: new Date(end).toISOString(),
         studyIds: [],
@@ -239,6 +282,38 @@ export function BookAppointment({
               </Field>
             </div>
           </>
+        )}
+
+        {matching !== null && matching.length > 1 && (
+          <div className="grid gap-4 sm:grid-cols-2">
+            <Field label={t.scheduleNeeded} hint={t.scheduleNeededHint}>
+              <Input
+                data-testid="book-needed"
+                value={needed}
+                maxLength={120}
+                onChange={(e) => setNeeded(e.target.value)}
+              />
+            </Field>
+            <Field label={t.scheduleAssignTo}>
+              <Select
+                data-testid="book-assigned-to"
+                value={assignedTo}
+                onChange={(e) => setAssignedTo(e.target.value)}
+              >
+                {matching.map((c) => (
+                  <option key={c.userId} value={c.userId}>
+                    {c.specialty === null ? c.displayName : `${c.displayName} — ${c.specialty}`}
+                  </option>
+                ))}
+              </Select>
+            </Field>
+          </div>
+        )}
+
+        {matching !== null && matching.length === 0 && needed.trim() !== '' && (
+          <Alert tone="warning" testId="no-matching-clinician">
+            {t.scheduleNoMatchingClinician}
+          </Alert>
         )}
 
         <div className="grid gap-4 sm:grid-cols-2">
