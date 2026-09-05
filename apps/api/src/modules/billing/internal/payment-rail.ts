@@ -1,3 +1,25 @@
+/**
+ * UNWIRED ON PURPOSE — nothing imports this file.
+ *
+ * The patient's card was the only payer this platform ever had, and migration
+ * 0021 removed patient accounts. The Stripe authorise-at-booking /
+ * capture-on-acceptance flow that used this port went with them, along with
+ * `billing_payments` and the module that owned it. Acceptance is now a
+ * scheduling decision (SchedulingService.accept) because that is what it
+ * always was once money stopped moving through it.
+ *
+ * WHY THE FILE STAYS. Organisation-side collection will need a rail when
+ * BLOCKING ITEM L7 resolves — whether a Libyan payer can lawfully pay a
+ * Tunisian-facing platform, and where the receiving entity must be
+ * incorporated. The INTERFACE is the part worth preserving; re-deriving the
+ * port shape, the webhook signature verification, and the idempotency contract
+ * from scratch would be the expensive half.
+ *
+ * `pnpm scan:unwired` reports this file. That is correct and expected — this
+ * comment is the answer to the question that script asks. Do NOT wire it back
+ * up to make the report quiet; wire it up when there is a payer.
+ */
+
 import { createHmac, timingSafeEqual } from 'node:crypto';
 
 // The DI token lives in payment-rail.tokens.ts so consumers can import it

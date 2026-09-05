@@ -4,6 +4,7 @@ import { runWithContext, type RequestContext } from '../../shared/context/reques
 import { DatabaseService } from '../../shared/db/database.service';
 import {
   appUrl,
+  asUser,
   createAppointment,
   createPatient,
   createStudy,
@@ -81,26 +82,33 @@ beforeEach(async () => {
 });
 
 describe('P5.3 consent', () => {
+  /**
+   * A referral: the referring doctor, the receiving doctor, and the patient
+   * record. There is no patient ACCOUNT — migration 0021 removed the role — so
+   * the referring doctor is the one who attests and therefore the one every
+   * write below runs as.
+   */
   async function setupPatient() {
     const libyaDoctor = await createUser(h.owner, 'libya_doctor');
     const tunisDoctor = await createUser(h.owner, 'tunisia_doctor');
-    const patientUser = await createUser(h.owner, 'patient');
-    const patient = await createPatient(h.owner, libyaDoctor, patientUser);
-    return { libyaDoctor, tunisDoctor, patientUser, patient };
+    const patient = await createPatient(h.owner, libyaDoctor);
+    return { libyaDoctor, tunisDoctor, patient };
   }
 
   it('records the named doctor, version, locale, IP, user agent and hash', async () => {
-    const { tunisDoctor, patientUser, patient } = await setupPatient();
+    const { libyaDoctor, tunisDoctor, patient } = await setupPatient();
 
     const { consentId, evidenceHash } = await runWithContext(
-      ctx(patientUser, 'patient'),
+      ctx(libyaDoctor, 'libya_doctor'),
       async () =>
-        consent.grant({
+        consent.attest({
           patientId: patient,
           grantedTo: tunisDoctor,
           locale: 'ar',
           version: 'v1',
           renderedText: V1_AR,
+          documentObjectKey: 'consent/signed.pdf',
+          documentSha256: 'c'.repeat(64),
         }),
     );
 
@@ -112,6 +120,9 @@ describe('P5.3 consent', () => {
       ip_address: string;
       user_agent: string;
       revoked_at: Date | null;
+      attested_by: string;
+      document_object_key: string;
+      document_sha256: string;
     }>('SELECT * FROM consent_records WHERE id = $1', [consentId]);
 
     const r = row.rows[0];
@@ -123,21 +134,73 @@ describe('P5.3 consent', () => {
     expect(r?.user_agent).toBe('Mozilla/5.0 (test)');
     expect(r?.revoked_at).toBeNull();
     expect(evidenceHash).toHaveLength(64);
+
+    // The attesting doctor comes from the SESSION, never the input — a caller
+    // must not be able to file an attestation in a colleague's name.
+    expect(r?.attested_by).toBe(libyaDoctor);
+    expect(r?.document_object_key).toBe('consent/signed.pdf');
+
+    // Two hashes, two questions. `evidence_hash` answers "these were the
+    // terms"; `document_sha256` answers "this is what they signed". A single
+    // hash cannot answer both, which is why they must never be equal here.
+    expect(r?.document_sha256).toBe('c'.repeat(64));
+    expect(r?.document_sha256).not.toBe(r?.evidence_hash);
+  });
+
+  it('refuses an attestation naming a doctor other than the caller', async () => {
+    const { libyaDoctor, tunisDoctor, patient } = await setupPatient();
+    const colleague = await createUser(h.owner, 'libya_doctor');
+
+    // Straight at the policy: the service takes attested_by from the session,
+    // so the only way to test the RLS condition is to write the row directly
+    // on the application connection as the doctor.
+    await expect(
+      asUser(h.app, { userId: libyaDoctor, role: 'libya_doctor' }, (c) =>
+        c.query(
+          `INSERT INTO consent_records
+             (patient_id, scope, granted_to, terms_version, terms_locale, evidence_hash,
+              attested_by, document_object_key, document_sha256)
+           VALUES ($1, 'cross_border_transfer', $2, 'v1', 'ar', $3, $4, $5, $6)`,
+          [patient, tunisDoctor, 'a'.repeat(64), colleague, 'consent/x.pdf', 'b'.repeat(64)],
+        ),
+      ),
+    ).rejects.toThrow(/row-level security/);
+  });
+
+  it('refuses an attestation for a patient the doctor did not create', async () => {
+    const { tunisDoctor } = await setupPatient();
+    const stranger = await createUser(h.owner, 'libya_doctor');
+    const theirPatient = await createPatient(h.owner, stranger);
+    const outsider = await createUser(h.owner, 'libya_doctor');
+
+    await expect(
+      asUser(h.app, { userId: outsider, role: 'libya_doctor' }, (c) =>
+        c.query(
+          `INSERT INTO consent_records
+             (patient_id, scope, granted_to, terms_version, terms_locale, evidence_hash,
+              attested_by, document_object_key, document_sha256)
+           VALUES ($1, 'cross_border_transfer', $2, 'v1', 'ar', $3, $4, $5, $6)`,
+          [theirPatient, tunisDoctor, 'a'.repeat(64), outsider, 'consent/x.pdf', 'b'.repeat(64)],
+        ),
+      ),
+    ).rejects.toThrow(/row-level security/);
   });
 
   it('refuses consent to wording that does not match the published terms', async () => {
     // A stale browser tab showing old wording must not have the patient's
     // agreement filed against text they never read.
-    const { tunisDoctor, patientUser, patient } = await setupPatient();
+    const { libyaDoctor, tunisDoctor, patient } = await setupPatient();
 
     await expect(
-      runWithContext(ctx(patientUser, 'patient'), async () =>
-        consent.grant({
+      runWithContext(ctx(libyaDoctor, 'libya_doctor'), async () =>
+        consent.attest({
           patientId: patient,
           grantedTo: tunisDoctor,
           locale: 'ar',
           version: 'v1',
           renderedText: `${V1_AR} (edited by the client)`,
+          documentObjectKey: 'consent/signed.pdf',
+          documentSha256: 'c'.repeat(64),
         }),
       ),
     ).rejects.toThrow(ConsentTextMismatchError);
@@ -148,19 +211,21 @@ describe('P5.3 consent', () => {
 
   describe('the evidence gate', () => {
     it('reproduces the exact text the patient saw', async () => {
-      const { tunisDoctor, patientUser, patient } = await setupPatient();
+      const { libyaDoctor, tunisDoctor, patient } = await setupPatient();
 
-      const { consentId } = await runWithContext(ctx(patientUser, 'patient'), async () =>
-        consent.grant({
+      const { consentId } = await runWithContext(ctx(libyaDoctor, 'libya_doctor'), async () =>
+        consent.attest({
           patientId: patient,
           grantedTo: tunisDoctor,
           locale: 'ar',
           version: 'v1',
           renderedText: V1_AR,
+          documentObjectKey: 'consent/signed.pdf',
+          documentSha256: 'c'.repeat(64),
         }),
       );
 
-      const evidence = await runWithContext(ctx(patientUser, 'patient'), async () =>
+      const evidence = await runWithContext(ctx(libyaDoctor, 'libya_doctor'), async () =>
         consent.getEvidence(consentId),
       );
 
@@ -172,22 +237,24 @@ describe('P5.3 consent', () => {
     });
 
     it('publishing v2 leaves existing v1 consents valid and pointing at v1 text', async () => {
-      const { tunisDoctor, patientUser, patient } = await setupPatient();
+      const { libyaDoctor, tunisDoctor, patient } = await setupPatient();
 
-      const { consentId } = await runWithContext(ctx(patientUser, 'patient'), async () =>
-        consent.grant({
+      const { consentId } = await runWithContext(ctx(libyaDoctor, 'libya_doctor'), async () =>
+        consent.attest({
           patientId: patient,
           grantedTo: tunisDoctor,
           locale: 'ar',
           version: 'v1',
           renderedText: V1_AR,
+          documentObjectKey: 'consent/signed.pdf',
+          documentSha256: 'c'.repeat(64),
         }),
       );
 
       await publishTerms('v2', 'ar', V2_AR);
       await publishTerms('v2', 'fr', `${V1_FR} (v2)`);
 
-      const evidence = await runWithContext(ctx(patientUser, 'patient'), async () =>
+      const evidence = await runWithContext(ctx(libyaDoctor, 'libya_doctor'), async () =>
         consent.getEvidence(consentId),
       );
 
@@ -212,14 +279,16 @@ describe('P5.3 consent', () => {
     });
 
     it('reports intact=false if stored text and stored hash ever disagree', async () => {
-      const { tunisDoctor, patientUser, patient } = await setupPatient();
-      const { consentId } = await runWithContext(ctx(patientUser, 'patient'), async () =>
-        consent.grant({
+      const { libyaDoctor, tunisDoctor, patient } = await setupPatient();
+      const { consentId } = await runWithContext(ctx(libyaDoctor, 'libya_doctor'), async () =>
+        consent.attest({
           patientId: patient,
           grantedTo: tunisDoctor,
           locale: 'ar',
           version: 'v1',
           renderedText: V1_AR,
+          documentObjectKey: 'consent/signed.pdf',
+          documentSha256: 'c'.repeat(64),
         }),
       );
 
@@ -231,7 +300,7 @@ describe('P5.3 consent', () => {
         consentId,
       ]);
 
-      const evidence = await runWithContext(ctx(patientUser, 'patient'), async () =>
+      const evidence = await runWithContext(ctx(libyaDoctor, 'libya_doctor'), async () =>
         consent.getEvidence(consentId),
       );
       expect(evidence.intact).toBe(false);
@@ -240,18 +309,20 @@ describe('P5.3 consent', () => {
 
   describe('revocation', () => {
     it('revoking is an update, never a delete', async () => {
-      const { tunisDoctor, patientUser, patient } = await setupPatient();
-      const { consentId } = await runWithContext(ctx(patientUser, 'patient'), async () =>
-        consent.grant({
+      const { libyaDoctor, tunisDoctor, patient } = await setupPatient();
+      const { consentId } = await runWithContext(ctx(libyaDoctor, 'libya_doctor'), async () =>
+        consent.attest({
           patientId: patient,
           grantedTo: tunisDoctor,
           locale: 'ar',
           version: 'v1',
           renderedText: V1_AR,
+          documentObjectKey: 'consent/signed.pdf',
+          documentSha256: 'c'.repeat(64),
         }),
       );
 
-      await runWithContext(ctx(patientUser, 'patient'), async () => consent.revoke(consentId));
+      await runWithContext(ctx(libyaDoctor, 'libya_doctor'), async () => consent.revoke(consentId));
 
       const rows = await h.owner.query<{ revoked_at: Date | null }>(
         'SELECT revoked_at FROM consent_records WHERE id = $1',
@@ -263,18 +334,20 @@ describe('P5.3 consent', () => {
     });
 
     it("makes the receiving doctor's access disappear immediately (the gate)", async () => {
-      const { libyaDoctor, tunisDoctor, patientUser, patient } = await setupPatient();
+      const { libyaDoctor, tunisDoctor, patient } = await setupPatient();
       const study = await createStudy(h.owner, patient, libyaDoctor);
       const appt = await createAppointment(h.owner, patient, tunisDoctor, 'confirmed');
       await linkStudy(h.owner, appt, study);
 
-      const { consentId } = await runWithContext(ctx(patientUser, 'patient'), async () =>
-        consent.grant({
+      const { consentId } = await runWithContext(ctx(libyaDoctor, 'libya_doctor'), async () =>
+        consent.attest({
           patientId: patient,
           grantedTo: tunisDoctor,
           locale: 'ar',
           version: 'v1',
           renderedText: V1_AR,
+          documentObjectKey: 'consent/signed.pdf',
+          documentSha256: 'c'.repeat(64),
         }),
       );
 
@@ -283,7 +356,7 @@ describe('P5.3 consent', () => {
       );
       expect(before).toBe(1);
 
-      await runWithContext(ctx(patientUser, 'patient'), async () => consent.revoke(consentId));
+      await runWithContext(ctx(libyaDoctor, 'libya_doctor'), async () => consent.revoke(consentId));
 
       const after = await db.txAs(ctx(tunisDoctor, 'tunisia_doctor'), async (tx) =>
         (await tx.query('SELECT id FROM imaging_studies WHERE id = $1', [study])).rowCount,
@@ -294,20 +367,22 @@ describe('P5.3 consent', () => {
     });
 
     it('a second revocation is a no-op, not a crash', async () => {
-      const { tunisDoctor, patientUser, patient } = await setupPatient();
-      const { consentId } = await runWithContext(ctx(patientUser, 'patient'), async () =>
-        consent.grant({
+      const { libyaDoctor, tunisDoctor, patient } = await setupPatient();
+      const { consentId } = await runWithContext(ctx(libyaDoctor, 'libya_doctor'), async () =>
+        consent.attest({
           patientId: patient,
           grantedTo: tunisDoctor,
           locale: 'ar',
           version: 'v1',
           renderedText: V1_AR,
+          documentObjectKey: 'consent/signed.pdf',
+          documentSha256: 'c'.repeat(64),
         }),
       );
 
-      await runWithContext(ctx(patientUser, 'patient'), async () => consent.revoke(consentId));
+      await runWithContext(ctx(libyaDoctor, 'libya_doctor'), async () => consent.revoke(consentId));
       await expect(
-        runWithContext(ctx(patientUser, 'patient'), async () => consent.revoke(consentId)),
+        runWithContext(ctx(libyaDoctor, 'libya_doctor'), async () => consent.revoke(consentId)),
       ).rejects.toThrow(/not found/i);
     });
   });
@@ -326,20 +401,22 @@ describe('P5.3 consent', () => {
     });
 
     it('consent naming a different doctor does not unlock access', async () => {
-      const { libyaDoctor, tunisDoctor, patientUser, patient } = await setupPatient();
+      const { libyaDoctor, tunisDoctor, patient } = await setupPatient();
       const otherDoctor = await createUser(h.owner, 'tunisia_doctor');
       const study = await createStudy(h.owner, patient, libyaDoctor);
       const appt = await createAppointment(h.owner, patient, tunisDoctor, 'confirmed');
       await linkStudy(h.owner, appt, study);
 
       // Consent granted to someone else entirely.
-      await runWithContext(ctx(patientUser, 'patient'), async () =>
-        consent.grant({
+      await runWithContext(ctx(libyaDoctor, 'libya_doctor'), async () =>
+        consent.attest({
           patientId: patient,
           grantedTo: otherDoctor,
           locale: 'ar',
           version: 'v1',
           renderedText: V1_AR,
+          documentObjectKey: 'consent/signed.pdf',
+          documentSha256: 'c'.repeat(64),
         }),
       );
 
@@ -352,19 +429,21 @@ describe('P5.3 consent', () => {
 
   describe('locale handling (DECISION D4)', () => {
     it('hashes the locale the patient actually saw, not a canonical language', async () => {
-      const { tunisDoctor, patientUser, patient } = await setupPatient();
+      const { libyaDoctor, tunisDoctor, patient } = await setupPatient();
 
-      const { consentId } = await runWithContext(ctx(patientUser, 'patient'), async () =>
-        consent.grant({
+      const { consentId } = await runWithContext(ctx(libyaDoctor, 'libya_doctor'), async () =>
+        consent.attest({
           patientId: patient,
           grantedTo: tunisDoctor,
           locale: 'fr',
           version: 'v1',
           renderedText: V1_FR,
+          documentObjectKey: 'consent/signed.pdf',
+          documentSha256: 'c'.repeat(64),
         }),
       );
 
-      const evidence = await runWithContext(ctx(patientUser, 'patient'), async () =>
+      const evidence = await runWithContext(ctx(libyaDoctor, 'libya_doctor'), async () =>
         consent.getEvidence(consentId),
       );
       expect(evidence.termsLocale).toBe('fr');

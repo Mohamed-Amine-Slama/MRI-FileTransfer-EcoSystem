@@ -82,7 +82,6 @@ export function sideLabel(t: Dictionary, side: CaseSide): string {
  */
 export function roleLabel(t: Dictionary, role: Role): string {
   const direct: Partial<Record<Role, string>> = {
-    patient: t.rolePatient,
     applicant: t.roleApplicant,
   };
   const named = direct[role];

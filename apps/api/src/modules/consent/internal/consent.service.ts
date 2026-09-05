@@ -34,7 +34,7 @@ export interface ConsentTerms {
   publishedAt: Date | null;
 }
 
-export interface GrantConsentInput {
+export interface AttestConsentInput {
   patientId: string;
   /** The NAMED receiving doctor. Consent is never open-ended. */
   grantedTo: string;
@@ -42,10 +42,20 @@ export interface GrantConsentInput {
   locale: Locale;
   version: string;
   /**
-   * The exact text rendered in the patient's browser. Hashed and compared
-   * against the published terms — see grant().
+   * The exact text rendered in the doctor's browser — the wording they showed
+   * the patient. Hashed and compared against the published terms; see attest().
    */
   renderedText: string;
+  /** Where the scan of the signed paper form is stored. */
+  documentObjectKey: string;
+  /**
+   * SHA-256 of the uploaded document bytes.
+   *
+   * NOT the same thing as `evidence_hash`, which is the hash of the rendered
+   * TERMS. A dispute needs to tell "these were the terms" from "this is what
+   * they signed", and one hash cannot answer both questions.
+   */
+  documentSha256: string;
 }
 
 export interface ConsentEvidence {
@@ -188,14 +198,25 @@ export class ConsentService {
   }
 
   /**
-   * Record consent.
+   * Record the referring doctor's attestation of consent.
    *
-   * The client sends back the text it displayed. We hash it and compare
-   * against the published wording before storing anything. If a stale browser
-   * tab showed v1 while v2 is now current, this rejects rather than silently
-   * filing the patient's agreement under wording they never read.
+   * There is no patient session — a patient is a record, not a login — so this
+   * is an ATTESTATION: the doctor asserts they hold the patient's signed form
+   * and supplies a scan of it. The patient still consented, on paper; what
+   * changed in migration 0021 is who writes the row, not whether consent is
+   * required.
+   *
+   * `attested_by` comes from the SESSION and never from the input. A caller
+   * must not be able to file an attestation in a colleague's name — the same
+   * rule `patients_claim_with_token` followed for the phone number, and the RLS
+   * policy enforces it a second time.
+   *
+   * The client sends back the text it displayed. We hash it and compare against
+   * the published wording before storing anything. If a stale browser tab
+   * showed v1 while v2 is now current, this rejects rather than silently filing
+   * an attestation under wording nobody read.
    */
-  async grant(input: GrantConsentInput): Promise<{ consentId: string; evidenceHash: string }> {
+  async attest(input: AttestConsentInput): Promise<{ consentId: string; evidenceHash: string }> {
     const ctx = requireContext();
     const scope = input.scope ?? 'cross_border_transfer';
     const submittedHash = hashConsentText(input.renderedText);
@@ -218,8 +239,9 @@ export class ConsentService {
       const inserted = await tx.query<{ id: string }>(
         `INSERT INTO consent_records
            (patient_id, scope, granted_to, terms_version, terms_locale, terms_scope,
-            evidence_hash, ip_address, user_agent)
-         VALUES ($1, $2, $3, $4, $5, $2, $6, $7, $8)
+            evidence_hash, ip_address, user_agent,
+            attested_by, document_object_key, document_sha256)
+         VALUES ($1, $2, $3, $4, $5, $2, $6, $7, $8, $9, $10, $11)
          RETURNING id`,
         [
           input.patientId,
@@ -230,13 +252,16 @@ export class ConsentService {
           submittedHash,
           ctx.ipAddress ?? null,
           ctx.userAgent ?? null,
+          ctx.userId,
+          input.documentObjectKey,
+          input.documentSha256,
         ],
       );
 
       const row = inserted.rows[0];
       if (row === undefined) {
-        // RLS filtered the insert: this patient is not one the caller has
-        // claimed. Surface as not-found rather than forbidden (§6).
+        // RLS filtered the insert: this patient is not one the caller created.
+        // Surface as not-found rather than forbidden (§6).
         throw new NotFoundException('Patient not found');
       }
       return { consentId: row.id, evidenceHash: submittedHash };

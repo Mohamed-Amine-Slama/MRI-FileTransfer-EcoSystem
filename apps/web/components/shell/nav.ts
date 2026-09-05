@@ -8,7 +8,6 @@ import {
   FolderKanban,
   Inbox,
   ScrollText,
-  ShieldCheck,
   Upload,
   Users,
   type LucideIcon,
@@ -113,7 +112,7 @@ export const NAV_SECTIONS: readonly NavSection[] = [
         href: '/appointments',
         labelKey: 'navAppointments',
         descriptionKey: 'bookingTitle',
-        roles: [...SOURCE_ROLES, 'patient'],
+        roles: SOURCE_ROLES,
         Icon: CalendarDays,
       },
       {
@@ -124,13 +123,6 @@ export const NAV_SECTIONS: readonly NavSection[] = [
         descriptionKey: 'scheduleDescription',
         roles: [...PROVIDER_ROLES, 'assistant'],
         Icon: CalendarClock,
-      },
-      {
-        href: '/consent',
-        labelKey: 'navConsents',
-        descriptionKey: 'consentDescription',
-        roles: ['patient'],
-        Icon: ShieldCheck,
       },
       {
         href: '/notifications',

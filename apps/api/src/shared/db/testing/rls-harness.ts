@@ -337,17 +337,13 @@ export async function createUser(
   return row.id;
 }
 
-export async function createPatient(
-  owner: Pool,
-  createdByDoctor: string,
-  claimedByUser?: string,
-): Promise<string> {
+export async function createPatient(owner: Pool, createdByDoctor: string): Promise<string> {
   const n = uniq();
   const res = await owner.query<{ id: string }>(
     `INSERT INTO patients_patients
-       (phone_e164, full_name, date_of_birth, sex, created_by_doctor, claimed_by_user)
-     VALUES ($1, $2, $3, $4, $5, $6) RETURNING id`,
-    [`+2189${n.replace(/\D/g, '').slice(-9)}`, `Patient ${n}`, '1985-06-15', 'M', createdByDoctor, claimedByUser ?? null],
+       (phone_e164, full_name, date_of_birth, sex, created_by_doctor)
+     VALUES ($1, $2, $3, $4, $5) RETURNING id`,
+    [`+2189${n.replace(/\D/g, '').slice(-9)}`, `Patient ${n}`, '1985-06-15', 'M', createdByDoctor],
   );
   const row = res.rows[0];
   if (row === undefined) throw new Error('createPatient returned no row');
@@ -400,16 +396,24 @@ export async function linkStudy(
   );
 }
 
+/**
+ * Consent is an ATTESTATION by the referring doctor (migration 0021), so the
+ * attesting user is required rather than optional. A default would let a test
+ * record consent nobody attested, which is the one thing the new model exists
+ * to prevent.
+ */
 export async function grantConsent(
   owner: Pool,
   patientId: string,
   grantedTo: string,
+  attestedBy: string,
 ): Promise<string> {
   const res = await owner.query<{ id: string }>(
     `INSERT INTO consent_records
-       (patient_id, scope, granted_to, terms_version, terms_locale, evidence_hash)
-     VALUES ($1, 'cross_border_transfer', $2, 'v1', 'ar', $3) RETURNING id`,
-    [patientId, grantedTo, 'a'.repeat(64)],
+       (patient_id, scope, granted_to, terms_version, terms_locale, evidence_hash,
+        attested_by, document_object_key, document_sha256)
+     VALUES ($1, 'cross_border_transfer', $2, 'v1', 'ar', $3, $4, $5, $6) RETURNING id`,
+    [patientId, grantedTo, 'a'.repeat(64), attestedBy, `consent/${patientId}.pdf`, 'b'.repeat(64)],
   );
   const row = res.rows[0];
   if (row === undefined) throw new Error('grantConsent returned no row');

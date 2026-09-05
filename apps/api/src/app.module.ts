@@ -14,7 +14,6 @@ import { RateLimitModule } from './shared/ratelimit/rate-limit.module';
 import { TracingModule } from './shared/observability/tracing.module';
 import { RateLimitGuard } from './shared/ratelimit/rate-limit.guard';
 import { AuditModule } from './modules/audit';
-import { BillingModule } from './modules/billing';
 import { ConsentModule } from './modules/consent';
 import { IdentityModule } from './modules/identity';
 import { ImagingModule } from './modules/imaging';
@@ -49,7 +48,6 @@ import { SchedulingModule } from './modules/scheduling';
     ConsentModule,
     ImagingModule,
     SchedulingModule,
-    BillingModule,
     NotificationsModule,
     OrganisationsModule,
     PlansModule,

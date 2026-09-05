@@ -30,7 +30,7 @@ const querySchema = z
 export class StudiesController {
   constructor(private readonly studies: StudyAccessService) {}
 
-  @RequiresRole('libya_doctor', 'tunisia_doctor', 'patient')
+  @RequiresRole('libya_doctor', 'tunisia_doctor')
   @Get()
   async list(@Query() query: unknown): Promise<{ studies: StudySummary[] }> {
     const parsed = querySchema.safeParse(query);

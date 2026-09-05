@@ -39,7 +39,7 @@ export class DicomWebController {
    * exist and to request them ONE AT A TIME. Returning the frames here would
    * be the full-study prefetch the gate forbids.
    */
-  @RequiresRole('tunisia_doctor', 'libya_doctor', 'patient')
+  @RequiresRole('tunisia_doctor', 'libya_doctor')
   @Get('studies/:studyUid/instances')
   @Header('cache-control', 'no-store')
   async instances(
@@ -71,7 +71,7 @@ export class DicomWebController {
    * diagnostic: 8-bit, window-levelled by heuristic, downsampled. The viewer's
    * persistent banner says so.
    */
-  @RequiresRole('tunisia_doctor', 'libya_doctor', 'patient')
+  @RequiresRole('tunisia_doctor', 'libya_doctor')
   @Get('studies/:studyUid/instances/:sopUid/thumbnail')
   async thumbnail(
     @Param('studyUid') studyUid: string,
@@ -104,7 +104,7 @@ export class DicomWebController {
   }
 
   /** QIDO-RS: study-level metadata. */
-  @RequiresRole('tunisia_doctor', 'libya_doctor', 'patient')
+  @RequiresRole('tunisia_doctor', 'libya_doctor')
   @Get('studies/:studyUid/metadata')
   @Header('cache-control', 'no-store')
   async studyMetadata(@Param('studyUid') studyUid: string): Promise<unknown> {
@@ -119,7 +119,7 @@ export class DicomWebController {
    * Streamed rather than buffered — a 120-slice CT held in memory per
    * concurrent viewer exhausts the heap.
    */
-  @RequiresRole('tunisia_doctor', 'libya_doctor', 'patient')
+  @RequiresRole('tunisia_doctor', 'libya_doctor')
   @Get('studies/:studyUid/series/:seriesUid/instances/:sopUid')
   @Header('cache-control', 'no-store')
   async instance(
@@ -173,7 +173,7 @@ export class DicomWebController {
    * Authorised and audited like every other route. Metadata is patient data:
    * study date, modality and body part are all in here.
    */
-  @RequiresRole('tunisia_doctor', 'libya_doctor', 'patient')
+  @RequiresRole('tunisia_doctor', 'libya_doctor')
   @Get('studies/:studyUid/instances/:sopUid/metadata')
   @Header('cache-control', 'no-store')
   async instanceMetadata(
@@ -201,7 +201,7 @@ export class DicomWebController {
    * and a doctor scrolling through a series produces one audit row per frame
    * they actually look at.
    */
-  @RequiresRole('tunisia_doctor', 'libya_doctor', 'patient')
+  @RequiresRole('tunisia_doctor', 'libya_doctor')
   @Get('studies/:studyUid/instances/:sopUid/frames/:frame')
   async frames(
     @Param('studyUid') studyUid: string,
@@ -253,7 +253,7 @@ export class DicomWebController {
    * without re-authorising on every frame — but the URL still expires within
    * 5-15 minutes and is useless to any other account.
    */
-  @RequiresRole('tunisia_doctor', 'libya_doctor', 'patient')
+  @RequiresRole('tunisia_doctor', 'libya_doctor')
   @Get('studies/:studyUid/instances/:sopUid/url')
   @Header('cache-control', 'no-store')
   async instanceUrl(

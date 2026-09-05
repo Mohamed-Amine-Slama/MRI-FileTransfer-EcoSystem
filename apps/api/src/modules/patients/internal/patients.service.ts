@@ -1,5 +1,4 @@
-import { createHash, randomInt } from 'node:crypto';
-import { ConflictException, Injectable, NotFoundException } from '@nestjs/common';
+import { Injectable, NotFoundException } from '@nestjs/common';
 import { DatabaseService } from '../../../shared/db/database.service';
 import { requireContext } from '../../../shared/context/request-context';
 import { EventBus } from '../../../shared/events/event-bus';
@@ -44,24 +43,6 @@ export class InvalidPhoneError extends Error {
     super(`Phone number must be in E.164 format (e.g. +218912345678); got "${phone}"`);
     this.name = 'InvalidPhoneError';
   }
-}
-
-/** How long a claim code stays valid. Short: it is a bearer credential. */
-const CLAIM_TOKEN_TTL_MINUTES = 30;
-
-export function hashClaimToken(token: string): string {
-  return createHash('sha256').update(token, 'utf8').digest('hex');
-}
-
-/**
- * Six digits, uniformly distributed, from a CSPRNG.
- *
- * `Math.random()` is not acceptable here — it is predictable from a handful of
- * outputs, and this code is the only thing standing between an attacker and
- * another person's imaging.
- */
-export function generateClaimToken(): string {
-  return String(randomInt(0, 1_000_000)).padStart(6, '0');
 }
 
 @Injectable()
@@ -229,73 +210,4 @@ export class PatientsService {
     };
   }
 
-  // -------------------------------------------------------------------------
-  // P5.2 — claim flow
-  // -------------------------------------------------------------------------
-
-  /**
-   * Issue a claim code for a patient the caller created.
-   *
-   * Returns the plaintext code exactly once, for delivery by SMS. Only its
-   * hash is stored, so it cannot be recovered from the database afterwards —
-   * a lost code is reissued, never looked up.
-   */
-  async issueClaimToken(
-    patientId: string,
-  ): Promise<{ token: string; expiresAt: Date; phoneE164: string }> {
-    const ctx = requireContext();
-    const token = generateClaimToken();
-    const expiresAt = new Date(Date.now() + CLAIM_TOKEN_TTL_MINUTES * 60_000);
-
-    const phone = await this.db.tx(async (tx) => {
-      // RLS restricts this to patients the caller created.
-      const patient = await tx.query<{ phone_e164: string; claimed_by_user: string | null }>(
-        `SELECT phone_e164, claimed_by_user FROM patients_patients WHERE id = $1`,
-        [patientId],
-      );
-      const row = patient.rows[0];
-      if (row === undefined) throw new NotFoundException('Patient not found');
-      if (row.claimed_by_user !== null) {
-        throw new ConflictException('Patient record has already been claimed');
-      }
-
-      await tx.query(
-        `INSERT INTO patients_claim_tokens
-           (patient_id, token_hash, phone_e164, expires_at, issued_by)
-         VALUES ($1, $2, $3, $4, $5)`,
-        [patientId, hashClaimToken(token), row.phone_e164, expiresAt, ctx.userId],
-      );
-
-      return row.phone_e164;
-    });
-
-    return { token, expiresAt, phoneE164: phone };
-  }
-
-  /**
-   * Redeem a claim code as the authenticated patient.
-   *
-   * All of the checking happens inside `patients_claim_with_token`, which
-   * derives the phone number from the authenticated session rather than from
-   * an argument — so this cannot be used to claim someone else's record even
-   * if the caller guesses a valid code issued to a different number.
-   */
-  async claim(token: string): Promise<{ patientId: string }> {
-    const patientId = await this.db.tx(async (tx) => {
-      const res = await tx.query<{ patients_claim_with_token: string | null }>(
-        `SELECT patients_claim_with_token($1)`,
-        [hashClaimToken(token)],
-      );
-      return res.rows[0]?.patients_claim_with_token ?? null;
-    });
-
-    if (patientId === null) {
-      // Unknown, expired, already used, or issued to a different number — all
-      // reported identically. Distinguishing them turns the endpoint into an
-      // oracle for which codes exist.
-      throw new NotFoundException('Invalid or expired claim code');
-    }
-
-    return { patientId };
-  }
 }

@@ -872,6 +872,31 @@ export class SchedulingService {
    * not charged and the held funds return. The release itself is billing's
    * job, triggered off the resulting state.
    */
+  /**
+   * The receiving doctor accepts the referral.
+   *
+   * This lived in the billing module until migration 0021, because accepting
+   * used to CAPTURE the patient's card and the code that moved money owned the
+   * transition. There is no card and no patient, so acceptance is what it
+   * always actually was: a scheduling decision by the doctor who will do the
+   * read.
+   *
+   * The status guard is what makes it idempotent — a second accept matches no
+   * row, and an accept on a cancelled appointment does not resurrect it.
+   */
+  async accept(appointmentId: string): Promise<void> {
+    const changed = await this.db.tx(async (tx) => {
+      const res = await tx.query(
+        `UPDATE scheduling_appointments
+         SET status = 'confirmed'
+         WHERE id = $1 AND status NOT IN ('cancelled', 'completed', 'confirmed')`,
+        [appointmentId],
+      );
+      return res.rowCount ?? 0;
+    });
+    if (changed === 0) throw new NotFoundException('Appointment not found');
+  }
+
   async decline(appointmentId: string): Promise<void> {
     const changed = await this.db.tx(async (tx) => {
       const res = await tx.query(
