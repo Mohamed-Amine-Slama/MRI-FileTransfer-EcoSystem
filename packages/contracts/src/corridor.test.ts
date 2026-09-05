@@ -40,8 +40,13 @@ describe('corridor', () => {
     expect(resolveSide(corridor, 'admin')).toBe('ops');
   });
 
-  it('gives patients no side — the platform serves organisations, not patients (§2)', () => {
-    expect(resolveSide(corridor, 'patient')).toBeNull();
+  it('gives a non-endpoint role no side', () => {
+    // An assistant works inside an organisation but is not an endpoint of the
+    // corridor: the side belongs to the clinical role, not to everyone seated
+    // beside it. Previously spelled with `patient`, which stopped being a role
+    // in migration 0021.
+    expect(resolveSide(corridor, 'assistant')).toBeNull();
+    expect(resolveSide(corridor, 'applicant')).toBeNull();
   });
 
   it('rejects a corridor whose two sides share a role, because the side would be ambiguous', () => {

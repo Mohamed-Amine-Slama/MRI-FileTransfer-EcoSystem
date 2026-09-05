@@ -82,14 +82,14 @@ describe('DatabaseService RLS context', () => {
     // and the NEXT request — potentially a different user — would inherit it.
     // That is a cross-tenant data leak, not a tidiness issue.
     const first = '018f8e6a-0000-7000-8000-0000000000b1';
-    await db.txAs(ctx(first, 'patient'), async (tx) => {
+    await db.txAs(ctx(first, 'tunisia_doctor'), async (tx) => {
       await tx.query('SELECT 1');
     });
 
     // Drain the pool down to one connection's worth of sequential use, then
     // read the setting outside any explicit context.
     const leaked = await db.txAs(
-      ctx('018f8e6a-0000-7000-8000-0000000000b2', 'patient'),
+      ctx('018f8e6a-0000-7000-8000-0000000000b2', 'tunisia_doctor'),
       async (tx) => {
         const r = await tx.query<{ uid: string | null }>(
           `SELECT current_setting('app.user_id', true) AS uid`,
@@ -151,7 +151,7 @@ describe('DatabaseService RLS context', () => {
 
   it('uses the ambient context when one is established', async () => {
     const userId = '018f8e6a-0000-7000-8000-0000000000cc';
-    const result = await runWithContext(ctx(userId, 'patient'), async () =>
+    const result = await runWithContext(ctx(userId, 'tunisia_doctor'), async () =>
       db.tx(async (tx) => {
         const r = await tx.query<{ uid: string }>(
           `SELECT current_setting('app.user_id', true) AS uid`,

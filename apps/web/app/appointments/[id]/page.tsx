@@ -36,7 +36,7 @@ export default function AppointmentPage({
 }): React.JSX.Element {
   const { id } = use(params);
   return (
-    <RoleGate allow={['patient', 'libya_doctor', 'tunisia_doctor']}>
+    <RoleGate allow={['libya_doctor', 'tunisia_doctor']}>
       <AppointmentDetail appointmentId={id} />
     </RoleGate>
   );

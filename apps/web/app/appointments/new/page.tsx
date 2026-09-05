@@ -36,7 +36,7 @@ import {
  */
 export default function NewAppointmentPage(): React.JSX.Element {
   return (
-    <RoleGate allow={['patient', 'libya_doctor']}>
+    <RoleGate allow={['libya_doctor']}>
       {/* useSearchParams needs a Suspense boundary for static generation. */}
       <Suspense fallback={<Main><Spinner label="…" /></Main>}>
         <BookingFlow />
@@ -55,7 +55,10 @@ function BookingFlow(): React.JSX.Element {
   const { user } = useSession();
   const searchParams = useSearchParams();
 
-  const patientId = searchParams.get('patientId') ?? user?.patientId ?? null;
+  // The patient is named in the query string, by the doctor who picked them.
+  // It used to fall back to `user.patientId` — the record a signed-in patient
+  // had claimed — and migration 0021 removed both the account and the claim.
+  const patientId = searchParams.get('patientId');
 
   const [step, setStep] = useState(0);
   const [doctors, setDoctors] = useState<Doctor[] | null>(null);
@@ -172,7 +175,7 @@ function BookingFlow(): React.JSX.Element {
         </Alert>
       )}
 
-      {patientId === null && <Alert tone="warning">{t.claimDescription}</Alert>}
+      {patientId === null && <Alert tone="warning">{t.bookingNoPatient}</Alert>}
 
       {/* ---- step 1: doctor ---- */}
       {step === 0 && (

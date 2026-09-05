@@ -75,7 +75,7 @@ interface TokenOptions {
 
 async function mintToken(opts: TokenOptions = {}): Promise<string> {
   const jwt = new SignJWT({
-    realm_access: { roles: opts.roles ?? ['patient'] },
+    realm_access: { roles: opts.roles ?? ['applicant'] },
     ...(opts.amr !== undefined ? { amr: opts.amr } : {}),
     ...(opts.acr !== undefined ? { acr: opts.acr } : {}),
   })
@@ -106,9 +106,9 @@ class ProbeController {
     return { ok: true };
   }
 
-  @RequiresRole('patient')
-  @Get('patient-only')
-  patientOnly(): { userId: string | undefined; role: string | undefined } {
+  @RequiresRole('applicant')
+  @Get('applicant-only')
+  applicantOnly(): { userId: string | undefined; role: string | undefined } {
     const ctx = getContext();
     return { userId: ctx?.userId, role: ctx?.role };
   }
@@ -154,7 +154,7 @@ describe('P4.2 API authentication', () => {
   });
 
   it('1. no token -> 401', async () => {
-    await request(app.getHttpServer()).get('/probe/patient-only').expect(401);
+    await request(app.getHttpServer()).get('/probe/applicant-only').expect(401);
   });
 
   it('2. tampered signature -> 401', async () => {
@@ -173,15 +173,15 @@ describe('P4.2 API authentication', () => {
 
     expect(tampered).not.toBe(token);
     await request(app.getHttpServer())
-      .get('/probe/patient-only')
+      .get('/probe/applicant-only')
       .set('authorization', `Bearer ${tampered}`)
       .expect(401);
   });
 
   it('2b. tampered PAYLOAD (self-promotion to admin) -> 401', async () => {
     // The attack the signature check actually exists to stop: take a valid
-    // patient token and rewrite the role claim.
-    const token = await mintToken({ roles: ['patient'] });
+    // low-privilege token and rewrite the role claim.
+    const token = await mintToken({ roles: ['applicant'] });
     const [header, payload, sig] = token.split('.');
 
     const decoded = JSON.parse(
@@ -191,7 +191,7 @@ describe('P4.2 API authentication', () => {
     const forged = Buffer.from(JSON.stringify(decoded), 'utf8').toString('base64url');
 
     await request(app.getHttpServer())
-      .get('/probe/patient-only')
+      .get('/probe/applicant-only')
       .set('authorization', `Bearer ${header}.${forged}.${sig}`)
       .expect(401);
   });
@@ -199,21 +199,21 @@ describe('P4.2 API authentication', () => {
   it('3. expired token -> 401', async () => {
     const token = await mintToken({ expiresIn: Math.floor(Date.now() / 1000) - 3600 });
     await request(app.getHttpServer())
-      .get('/probe/patient-only')
+      .get('/probe/applicant-only')
       .set('authorization', `Bearer ${token}`)
       .expect(401);
   });
 
   it('4. valid token -> handler runs AND context matches the token subject', async () => {
     const sub = '018f8e6a-0000-7000-8000-00000000abcd';
-    const token = await mintToken({ sub, roles: ['patient'] });
+    const token = await mintToken({ sub, roles: ['applicant'] });
 
     const res = await request(app.getHttpServer())
-      .get('/probe/patient-only')
+      .get('/probe/applicant-only')
       .set('authorization', `Bearer ${token}`)
       .expect(200);
 
-    expect(res.body).toEqual({ userId: sub, role: 'patient' });
+    expect(res.body).toEqual({ userId: sub, role: 'applicant' });
   });
 
   it('rejects a token minted for a different audience', async () => {
@@ -221,7 +221,7 @@ describe('P4.2 API authentication', () => {
     // recipient — must not be accepted.
     const token = await mintToken({ audience: 'some-other-client' });
     await request(app.getHttpServer())
-      .get('/probe/patient-only')
+      .get('/probe/applicant-only')
       .set('authorization', `Bearer ${token}`)
       .expect(401);
   });
@@ -229,14 +229,14 @@ describe('P4.2 API authentication', () => {
   it('rejects a token from a different issuer', async () => {
     const token = await mintToken({ issuer: 'https://evil.example/realms/mir' });
     await request(app.getHttpServer())
-      .get('/probe/patient-only')
+      .get('/probe/applicant-only')
       .set('authorization', `Bearer ${token}`)
       .expect(401);
   });
 
   it('rejects a non-bearer authorization scheme', async () => {
     await request(app.getHttpServer())
-      .get('/probe/patient-only')
+      .get('/probe/applicant-only')
       .set('authorization', 'Basic dXNlcjpwYXNz')
       .expect(401);
   });
@@ -246,7 +246,7 @@ describe('P4.2 API authentication', () => {
   });
 
   it('enforces the declared role — right token, wrong route -> 403', async () => {
-    const token = await mintToken({ roles: ['patient'] });
+    const token = await mintToken({ roles: ['applicant'] });
     await request(app.getHttpServer())
       .get('/probe/doctor-only')
       .set('authorization', `Bearer ${token}`)
@@ -258,10 +258,10 @@ describe('P4.2 API authentication', () => {
     const wrongAud = await mintToken({ audience: 'nope' });
 
     const a = await request(app.getHttpServer())
-      .get('/probe/patient-only')
+      .get('/probe/applicant-only')
       .set('authorization', `Bearer ${expired}`);
     const b = await request(app.getHttpServer())
-      .get('/probe/patient-only')
+      .get('/probe/applicant-only')
       .set('authorization', `Bearer ${wrongAud}`);
 
     // Identical responses. A different message per failure mode tells an
@@ -306,10 +306,10 @@ describe('P4.3 MFA for clinical accounts', () => {
       .expect(200);
   });
 
-  it('does not require MFA for patients (SMS OTP path)', async () => {
-    const token = await mintToken({ roles: ['patient'] });
+  it('does not require MFA of an applicant, who can reach no data', async () => {
+    const token = await mintToken({ roles: ['applicant'] });
     await request(app.getHttpServer())
-      .get('/probe/patient-only')
+      .get('/probe/applicant-only')
       .set('authorization', `Bearer ${token}`)
       .expect(200);
   });
@@ -339,13 +339,13 @@ describe('claim handling', () => {
     expect(() =>
       verifier().identityFrom({
         sub: 'x',
-        realm_access: { roles: ['patient', 'admin'] },
+        realm_access: { roles: ['applicant', 'admin'] },
       }),
     ).toThrow(/multiple application roles/);
   });
 
   it('rejects a token with no subject', () => {
-    expect(() => verifier().identityFrom({ realm_access: { roles: ['patient'] } })).toThrow(
+    expect(() => verifier().identityFrom({ realm_access: { roles: ['applicant'] } })).toThrow(
       /no subject/,
     );
   });
@@ -353,8 +353,8 @@ describe('claim handling', () => {
   it('ignores unrelated realm roles alongside a valid one', () => {
     const id = verifier().identityFrom({
       sub: 'x',
-      realm_access: { roles: ['offline_access', 'uma_authorization', 'patient'] },
+      realm_access: { roles: ['offline_access', 'uma_authorization', 'applicant'] },
     });
-    expect(id.role).toBe('patient');
+    expect(id.role).toBe('applicant');
   });
 });

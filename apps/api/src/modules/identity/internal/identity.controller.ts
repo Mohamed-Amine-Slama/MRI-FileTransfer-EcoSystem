@@ -35,7 +35,6 @@ export class IdentityController {
    * themselves, so an applicant learns nothing here they should not.
    */
   @RequiresRole(
-    'patient',
     'libya_doctor',
     'tunisia_doctor',
     'admin',

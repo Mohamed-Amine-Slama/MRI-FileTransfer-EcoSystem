@@ -133,24 +133,19 @@ describe('P4.5 rate limiting is enforced over HTTP', () => {
     expect(rateAt).toBeGreaterThan(authAt);
   });
 
-  it('the routes that trigger SMS or start uploads carry a budget', () => {
+  it('the routes that start uploads carry a budget', () => {
     // Naming the routes in a test rather than in a comment: if someone removes
     // a decorator, this fails instead of the protection silently disappearing.
-    const patients = readFileSync(
-      resolve(__dirname, '..', '..', 'modules/patients/internal/patients.controller.ts'),
-      'utf8',
-    );
+    //
+    // The two claim routes that used to be asserted here are gone. Migration
+    // 0021 removed patient accounts, and with them the SMS claim code and the
+    // six-digit guessing surface it created — so there is no longer an
+    // 'otpRequest' budget to protect on the patients controller.
     const uploads = readFileSync(
       resolve(__dirname, '..', '..', 'modules/imaging/internal/uploads.controller.ts'),
       'utf8',
     );
 
-    expect(patients, 'claim-token issue sends an SMS and must be throttled').toMatch(
-      /@RateLimit\('otpRequest', \{ keyBy: 'param:id' \}\)\s*\n\s*@Post\(':id\/claim-token'\)/,
-    );
-    expect(patients, 'claim redemption is a guessing surface').toMatch(
-      /@RateLimit\('login'\)\s*\n\s*@Post\('claim'\)/,
-    );
     expect(uploads, 'upload initiation must be throttled').toMatch(
       /@RateLimit\('uploadInit'\)\s*\n\s*@Post\(\)/,
     );

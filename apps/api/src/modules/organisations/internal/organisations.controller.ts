@@ -117,7 +117,7 @@ export class OrganisationsController {
    * A bad, expired, or already-used token is a 404 rather than a 400: the three
    * must be indistinguishable, or the endpoint confirms which tokens are real.
    */
-  @RequiresRole('applicant', 'libya_doctor', 'tunisia_doctor', 'patient', 'admin', 'assistant')
+  @RequiresRole('applicant', 'libya_doctor', 'tunisia_doctor', 'admin', 'assistant')
   @Post('invitations/accept')
   async accept(@Body() body: unknown): Promise<OrganisationRow> {
     const input = acceptSchema.parse(body);

@@ -33,7 +33,7 @@ describe('corridor registry', () => {
     expect(sideForRole('libya_doctor')).toBe('source');
     expect(sideForRole('tunisia_doctor')).toBe('destination');
     expect(sideForRole('admin')).toBe('ops');
-    expect(sideForRole('patient')).toBeNull();
+    expect(sideForRole('assistant')).toBeNull();
   });
 
   it('assigns each non-admin role to exactly one corridor side', () => {

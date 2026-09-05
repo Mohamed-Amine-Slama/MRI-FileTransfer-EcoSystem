@@ -239,159 +239,6 @@ describe('P5.1 patients over HTTP', () => {
   });
 });
 
-describe('P5.2 patient claim flow', () => {
-  async function seedPatientAndUser() {
-    const doctor = await createUser(h.owner, 'libya_doctor');
-    const server = app.getHttpServer();
-    const created = await as(server, doctor, 'libya_doctor')
-      .post('/patients')
-      .send(NEW_PATIENT)
-      .expect(200);
-    const patientId = created.body.patientId as string;
-
-    // The patient account, registered against the same phone number.
-    const patientUser = await h.owner.query<{ id: string }>(
-      `INSERT INTO identity_users (keycloak_sub, role, phone_e164, full_name, status)
-       VALUES ($1, 'patient', $2, 'Patient Account', 'active') RETURNING id`,
-      [`sub-claim-${Date.now()}`, NEW_PATIENT.phoneE164],
-    );
-    return { doctor, patientId, patientUser: patientUser.rows[0]?.id as string, server };
-  }
-
-  /** Read the plaintext token from the service (the API only SMSs it). */
-  async function issueToken(doctor: string, patientId: string): Promise<string> {
-    const svc = app.get(PatientsService);
-    const { runWithContext } = await import('../../shared/context/request-context');
-    return runWithContext(
-      {
-        userId: doctor,
-        role: 'libya_doctor',
-        triageBeforePayment: false,
-        ipAddress: '41.208.1.5',
-        userAgent: 'vitest',
-        requestId: 'e2e',
-      },
-      async () => (await svc.issueClaimToken(patientId)).token,
-    );
-  }
-
-  it('claims the record with a valid code and links the account', async () => {
-    const { doctor, patientId, patientUser, server } = await seedPatientAndUser();
-    const token = await issueToken(doctor, patientId);
-
-    const res = await as(server, patientUser, 'patient')
-      .post('/patients/claim')
-      .send({ token })
-      .expect(200);
-
-    expect(res.body.patientId).toBe(patientId);
-
-    // The patient can now see their own record — and could not before.
-    const mine = await as(server, patientUser, 'patient').get(`/patients/${patientId}`).expect(200);
-    expect(mine.body.id).toBe(patientId);
-  });
-
-  it('rejects a reused token (single use)', async () => {
-    const { doctor, patientId, patientUser, server } = await seedPatientAndUser();
-    const token = await issueToken(doctor, patientId);
-
-    await as(server, patientUser, 'patient').post('/patients/claim').send({ token }).expect(200);
-    await as(server, patientUser, 'patient').post('/patients/claim').send({ token }).expect(404);
-  });
-
-  it('rejects an expired token', async () => {
-    const { doctor, patientId, patientUser, server } = await seedPatientAndUser();
-    const token = await issueToken(doctor, patientId);
-
-    await h.owner.query(
-      `UPDATE patients_claim_tokens SET expires_at = now() - interval '1 minute'
-       WHERE patient_id = $1`,
-      [patientId],
-    );
-
-    await as(server, patientUser, 'patient').post('/patients/claim').send({ token }).expect(404);
-  });
-
-  it('rejects an unknown token', async () => {
-    const { patientUser, server } = await seedPatientAndUser();
-    await as(server, patientUser, 'patient')
-      .post('/patients/claim')
-      .send({ token: '000000' })
-      .expect(404);
-  });
-
-  it('claiming grants access to that record and NO other', async () => {
-    const { doctor, patientId, patientUser, server } = await seedPatientAndUser();
-
-    // A second, unrelated patient belonging to the same doctor.
-    const other = await as(server, doctor, 'libya_doctor')
-      .post('/patients')
-      .send({ ...NEW_PATIENT, phoneE164: '+218999888777', fullName: 'Someone Else' })
-      .expect(200);
-
-    const token = await issueToken(doctor, patientId);
-    await as(server, patientUser, 'patient').post('/patients/claim').send({ token }).expect(200);
-
-    const list = await as(server, patientUser, 'patient').get('/patients').expect(200);
-    expect(list.body.patients).toHaveLength(1);
-    expect(list.body.patients[0].id).toBe(patientId);
-
-    await as(server, patientUser, 'patient')
-      .get(`/patients/${other.body.patientId}`)
-      .expect(404);
-  });
-
-  it("a token issued to one phone cannot be redeemed by a different person's account", async () => {
-    const { doctor, patientId, server } = await seedPatientAndUser();
-    const token = await issueToken(doctor, patientId);
-
-    // An attacker with a valid code but a different registered number.
-    const attacker = await createUser(h.owner, 'patient');
-
-    await as(server, attacker, 'patient').post('/patients/claim').send({ token }).expect(404);
-
-    // And the record stays unclaimed.
-    const row = await h.owner.query<{ claimed_by_user: string | null }>(
-      'SELECT claimed_by_user FROM patients_patients WHERE id = $1',
-      [patientId],
-    );
-    expect(row.rows[0]?.claimed_by_user).toBeNull();
-  });
-
-  it('rejects a malformed token as 400, without echoing the value', async () => {
-    const { patientUser, server } = await seedPatientAndUser();
-    const res = await as(server, patientUser, 'patient')
-      .post('/patients/claim')
-      .send({ token: 'not-a-real-token-value' })
-      .expect(400);
-
-    // The response describes the failing field, never the submitted value —
-    // echoed input is how a credential ends up in a proxy log (§6).
-    expect(JSON.stringify(res.body)).not.toContain('not-a-real-token-value');
-    expect(res.body.details[0].path).toBe('token');
-  });
-
-  it('does not leak stack traces or SQL on an unexpected error', async () => {
-    const { patientUser, server } = await seedPatientAndUser();
-    const res = await as(server, patientUser, 'patient')
-      .get('/patients/not-a-uuid')
-      .expect(400);
-
-    const body = JSON.stringify(res.body);
-    expect(body).not.toMatch(/at \w+ \(/); // no stack frames
-    expect(body).not.toMatch(/SELECT|INSERT|patients_patients/i); // no SQL
-  });
-
-  it('a doctor cannot issue a claim token for another doctor patient', async () => {
-    const { patientId } = await seedPatientAndUser();
-    const otherDoctor = await createUser(h.owner, 'libya_doctor');
-
-    await as(app.getHttpServer(), otherDoctor, 'libya_doctor')
-      .post(`/patients/${patientId}/claim-token`)
-      .expect(404);
-  });
-});
-
 /**
  * The decorator and the policy have to agree, and nothing else checks that.
  *
@@ -426,9 +273,11 @@ describe('declared roles match the policies behind them', () => {
     expect(declared('search').sort()).toEqual(['libya_doctor', 'tunisia_doctor']);
   });
 
-  it('keeps claim-token issuing with the referring side alone', () => {
-    // Not widened: issuing a claim token sends an SMS that hands someone
-    // control of a patient record. It belongs with the doctor who created it.
-    expect(declared('issueClaimToken')).toEqual(['libya_doctor']);
+  it('keeps reading a single record with the two clinical roles', () => {
+    // Narrowed by migration 0021: this used to admit 'patient' as well, for a
+    // record they had claimed. There is no such account, and the two doctors
+    // are each scoped by policy — the referring one to patients they created,
+    // the receiving one to patients they have an appointment and consent for.
+    expect(declared('getById').sort()).toEqual(['libya_doctor', 'tunisia_doctor']);
   });
 });

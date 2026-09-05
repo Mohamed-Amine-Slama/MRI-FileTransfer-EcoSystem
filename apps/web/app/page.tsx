@@ -40,7 +40,6 @@ import {
   TableHead,
   TableHeader,
   TableRow,
-  buttonVariants,
 } from '../components/ui';
 
 /**
@@ -56,7 +55,7 @@ import {
  */
 export default function Home(): React.JSX.Element {
   const t = useT();
-  const { status, user, role } = useSession();
+  const { status, role } = useSession();
 
   /*
    * `/` IS TWO PAGES. A visitor gets the landing page; a signed-in user gets
@@ -76,18 +75,8 @@ export default function Home(): React.JSX.Element {
 
       {status === 'authenticated' && role !== null && (
         <>
-          {role === 'patient' && user?.patientId === undefined && (
-            <Card title={t.claimTitle} className="border-info/40">
-              <p className="text-sm text-muted-foreground">{t.claimDescription}</p>
-              <Link href="/claim" className={buttonVariants()} data-testid="home-link-claim">
-                {t.claimSubmit}
-              </Link>
-            </Card>
-          )}
-
           {runsACalendar(role) && <TodayPanel />}
           {role === 'libya_doctor' && <LibyaDoctorDashboard />}
-          {role === 'patient' && <PatientDashboard />}
           {role === 'tunisia_doctor' && <TunisiaDoctorDashboard />}
           {role === 'admin' && <AdminDashboard />}
 
@@ -213,50 +202,6 @@ function LibyaDoctorDashboard(): React.JSX.Element {
         <StatTile label={t.statusAuthorised} value={count('authorised')} href="/appointments" />
         <StatTile label={t.statusConfirmed} value={count('confirmed')} href="/appointments" />
       </StatGrid>
-      {appointments !== null && (
-        <AppointmentsMiniTable appointments={appointments} title={t.dashboardRecent} />
-      )}
-    </>
-  );
-}
-
-function PatientDashboard(): React.JSX.Element {
-  const t = useT();
-  const formatDate = useDateFormat();
-  const appointments = useAppointments();
-
-  const upcoming =
-    appointments === null
-      ? null
-      : (appointments
-          .filter(
-            (a) =>
-              new Date(a.startsAt).getTime() > Date.now() && isLiveAppointment(a.status),
-          )
-          .sort((a, b) => a.startsAt.localeCompare(b.startsAt))[0] ?? null);
-
-  return (
-    <>
-      <Card title={t.dashboardUpcoming}>
-        {appointments === null ? (
-          <Skeleton className="h-12 w-full max-w-sm" />
-        ) : upcoming === null ? (
-          <EmptyState>{t.dashboardNoUpcoming}</EmptyState>
-        ) : (
-          <div className="flex flex-wrap items-center gap-3">
-            <Link
-              href={`/appointments/${upcoming.id}`}
-              className="text-lg font-semibold tabular-nums hover:text-primary hover:underline"
-            >
-              {formatDate(upcoming.startsAt)}
-            </Link>
-            <span className="text-sm text-muted-foreground">
-              {upcoming.doctorName ?? upcoming.doctorId}
-            </span>
-            <AppointmentStatusBadge status={upcoming.status} />
-          </div>
-        )}
-      </Card>
       {appointments !== null && (
         <AppointmentsMiniTable appointments={appointments} title={t.dashboardRecent} />
       )}
@@ -412,7 +357,6 @@ type DestinationKey =
   | 'patients'
   | 'upload'
   | 'appointments'
-  | 'consents'
   | 'inbox'
   | 'availability'
   | 'schedule'
@@ -428,7 +372,6 @@ const DESTINATION_ICONS: Record<DestinationKey, typeof Users> = {
   patients: Users,
   upload: Upload,
   appointments: CalendarDays,
-  consents: ShieldCheck,
   inbox: Inbox,
   availability: UserRoundPlus,
   schedule: CalendarClock,
@@ -476,11 +419,6 @@ function destinationsFor(role: Role): { key: DestinationKey; href: string }[] {
         { key: 'upload', href: '/upload' },
         { key: 'appointments', href: '/appointments' },
       ];
-    case 'patient':
-      return [
-        { key: 'appointments', href: '/appointments' },
-        { key: 'consents', href: '/consent' },
-      ];
     case 'tunisia_doctor':
       return [
         { key: 'inbox', href: '/doctor' },
@@ -507,7 +445,6 @@ function label(key: DestinationKey, t: Dictionary): string {
     patients: t.navPatients,
     upload: t.navUpload,
     appointments: t.navAppointments,
-    consents: t.navConsents,
     inbox: t.navInbox,
     availability: t.navAvailability,
     schedule: t.navSchedule,
@@ -527,7 +464,6 @@ function description(key: DestinationKey, t: Dictionary): string {
     patients: t.patientsDescription,
     upload: t.uploadHint,
     appointments: t.bookingTitle,
-    consents: t.consentDescription,
     inbox: t.inboxTitle,
     availability: t.availabilityDescription,
     schedule: t.scheduleDescription,

@@ -122,14 +122,6 @@ const ar = {
   signInPassword: 'كلمة المرور',
   signInInvalid: 'البريد الإلكتروني أو كلمة المرور غير صحيحة.',
 
-  // claim
-  claimTitle: 'ربط حسابك بسجلك الطبي',
-  claimDescription: 'أدخل الرمز المكوّن من ستة أرقام الذي وصلك برسالة نصية.',
-  claimCode: 'رمز التحقق',
-  claimSubmit: 'ربط الحساب',
-  claimSuccess: 'تم ربط حسابك بنجاح.',
-  claimInvalid: 'الرمز غير صحيح أو منتهي الصلاحية.',
-
   // patients
   patientsTitle: 'المرضى',
   patientsDescription: 'البحث بالهاتف فقط — لا يمكن البحث بالاسم.',
@@ -166,6 +158,7 @@ const ar = {
 
   // scheduling
   bookingTitle: 'حجز موعد',
+  bookingNoPatient: 'اختر مريضًا أولًا من قائمة مرضاك.',
   bookingStepDoctor: 'اختيار الطبيب',
   bookingStepSlot: 'اختيار الموعد',
   bookingStepStudies: 'اختيار الدراسات',
@@ -226,7 +219,6 @@ const ar = {
   menuTitle: 'القائمة',
   menuOpen: 'فتح القائمة',
   menuClose: 'إغلاق القائمة',
-  rolePatient: 'مريض',
   footerDisclaimer: 'خدمة نقل وحجز — ليست أداة تشخيص.',
   breadcrumbLabel: 'مسار التنقل',
 
@@ -287,7 +279,6 @@ const ar = {
   viewerLazyNote: 'تُحمَّل الصور عند الطلب فقط.',
 
   // consent management
-  navConsents: 'الموافقات',
   consentActiveTitle: 'الموافقات السارية',
   consentNoneActive: 'لا توجد موافقات سارية.',
   consentGrantTitle: 'منح موافقة جديدة',
@@ -781,13 +772,6 @@ const fr: Dictionary = {
   signInPassword: 'Mot de passe',
   signInInvalid: 'E-mail ou mot de passe incorrect.',
 
-  claimTitle: 'Associer votre compte à votre dossier',
-  claimDescription: 'Saisissez le code à six chiffres reçu par SMS.',
-  claimCode: 'Code de vérification',
-  claimSubmit: 'Associer le compte',
-  claimSuccess: 'Votre compte a été associé.',
-  claimInvalid: 'Code invalide ou expiré.',
-
   patientsTitle: 'Patients',
   patientsDescription: 'Recherche par téléphone uniquement — jamais par nom.',
   patientsSearchPhone: 'Numéro de téléphone',
@@ -821,6 +805,7 @@ const fr: Dictionary = {
   consentRequired: 'Impossible de continuer sans consentement.',
 
   bookingTitle: 'Prendre rendez-vous',
+  bookingNoPatient: "Choisissez d'abord un patient dans votre liste.",
   bookingStepDoctor: 'Choix du médecin',
   bookingStepSlot: 'Choix du créneau',
   bookingStepStudies: 'Choix des examens',
@@ -876,7 +861,6 @@ const fr: Dictionary = {
   menuTitle: 'Menu',
   menuOpen: 'Ouvrir le menu',
   menuClose: 'Fermer le menu',
-  rolePatient: 'Patient',
   footerDisclaimer: 'Service de transfert et de réservation — pas un outil de diagnostic.',
   breadcrumbLabel: 'Fil d’Ariane',
 
@@ -930,8 +914,6 @@ const fr: Dictionary = {
   viewerWindowBone: 'Os',
   viewerWindowReset: 'Réinitialiser',
   viewerLazyNote: 'Les images ne sont chargées qu’à la demande.',
-
-  navConsents: 'Consentements',
   consentActiveTitle: 'Consentements actifs',
   consentNoneActive: 'Aucun consentement actif.',
   consentGrantTitle: 'Accorder un nouveau consentement',
@@ -1429,14 +1411,6 @@ const en: Dictionary = {
   signInPassword: 'Password',
   signInInvalid: 'That email address or password is incorrect.',
 
-  // claim
-  claimTitle: 'Link your account to your medical record',
-  claimDescription: 'Enter the six-digit code sent to you by text message.',
-  claimCode: 'Verification code',
-  claimSubmit: 'Link account',
-  claimSuccess: 'Your account has been linked.',
-  claimInvalid: 'That code is incorrect or has expired.',
-
   // patients
   patientsTitle: 'Patients',
   patientsDescription: 'Search by phone number only — searching by name is not available.',
@@ -1473,6 +1447,7 @@ const en: Dictionary = {
 
   // scheduling
   bookingTitle: 'Book an appointment',
+  bookingNoPatient: 'Choose a patient from your list first.',
   bookingStepDoctor: 'Choose a doctor',
   bookingStepSlot: 'Choose a time',
   bookingStepStudies: 'Choose studies',
@@ -1533,7 +1508,6 @@ const en: Dictionary = {
   menuTitle: 'Menu',
   menuOpen: 'Open menu',
   menuClose: 'Close menu',
-  rolePatient: 'Patient',
   footerDisclaimer: 'A transfer and scheduling service — not a diagnostic tool.',
   breadcrumbLabel: 'Breadcrumb',
 
@@ -1595,7 +1569,6 @@ const en: Dictionary = {
   viewerLazyNote: 'Images are loaded on demand only.',
 
   // consent management
-  navConsents: 'Consents',
   consentActiveTitle: 'Active consents',
   consentNoneActive: 'No active consents.',
   consentGrantTitle: 'Grant a new consent',

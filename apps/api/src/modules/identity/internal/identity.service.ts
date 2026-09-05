@@ -23,8 +23,6 @@ export interface CurrentUser {
   userId: string;
   role: Role;
   displayName: string;
-  /** Set once a patient has redeemed a claim code (P5.2). */
-  patientId?: string;
   mfaEnrolled: boolean;
 }
 
@@ -48,26 +46,20 @@ export class IdentityService {
         throw new NotFoundException('User record not found');
       }
 
-      // Patients only. A doctor has no patient record, and asking for one on
-      // every session lookup would be a pointless query on the hot path.
-      let patientId: string | undefined;
-      if (ctx.role === 'patient') {
-        const claimed = await tx.query<{ id: string }>(
-          `SELECT id FROM patients_patients WHERE claimed_by_user = $1 LIMIT 1`,
-          [ctx.userId],
-        );
-        patientId = claimed.rows[0]?.id;
-      }
-
       return {
         userId: user.id,
         role: ctx.role,
         displayName: user.full_name,
-        patientId,
-        // The guard already refuses a clinical role whose token lacks the AMR
-        // claim (P4.3), so reaching this point as a clinician means MFA was
-        // satisfied. Reported for the UI's benefit, never relied on for access.
-        mfaEnrolled: ctx.role !== 'patient',
+        // Every remaining role requires a second factor (SECOND_FACTOR_ROLES),
+        // and the guard already refuses one whose token lacks the AMR claim
+        // (P4.3) — so reaching this point means MFA was satisfied. Reported for
+        // the UI's benefit, never relied on for access.
+        //
+        // This was `ctx.role !== 'patient'` while an unclaimed patient could
+        // hold a session without one. There is no such role now, and a
+        // conditional whose false branch is unreachable reads as a rule that
+        // still has exceptions.
+        mfaEnrolled: true,
       };
     });
   }

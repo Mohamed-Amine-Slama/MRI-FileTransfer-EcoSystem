@@ -87,7 +87,7 @@ async function scenario(opts: { withConsent: boolean; status?: 'confirmed' | 'pe
   const studyId = await createStudy(h.owner, patient, libyaDoctor);
   const appt = await createAppointment(h.owner, patient, tunisDoctor, opts.status ?? 'confirmed');
   await linkStudy(h.owner, appt, studyId);
-  if (opts.withConsent) await grantConsent(h.owner, patient, tunisDoctor);
+  if (opts.withConsent) await grantConsent(h.owner, patient, tunisDoctor, libyaDoctor);
 
   const uid = await h.owner.query<{ study_instance_uid: string }>(
     'SELECT study_instance_uid FROM imaging_studies WHERE id = $1',

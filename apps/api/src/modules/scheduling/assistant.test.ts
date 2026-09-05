@@ -235,9 +235,10 @@ describe('what an assistant cannot do', () => {
 
   it('reads no imaging and no consent, even for a patient on their own agenda', async () => {
     const { doctorId, assistantId } = await createPractice(h.owner);
-    const patient = await createPatient(h.owner, doctorId);
-    const study = await createStudy(h.owner, patient, doctorId);
-    await grantConsent(h.owner, patient, doctorId);
+    const referrer = await createUser(h.owner, 'libya_doctor');
+    const patient = await createPatient(h.owner, referrer);
+    const study = await createStudy(h.owner, patient, referrer);
+    await grantConsent(h.owner, patient, doctorId, referrer);
     const appt = await h.owner.query<{ id: string }>(
       `INSERT INTO scheduling_appointments (patient_id, doctor_id, starts_at, ends_at, status)
        VALUES ($1, $2, $3, $4, 'confirmed') RETURNING id`,

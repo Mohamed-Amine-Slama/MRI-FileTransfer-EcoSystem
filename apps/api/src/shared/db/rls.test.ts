@@ -126,22 +126,42 @@ describe('P3.2 row-level security', () => {
     expect(bRows).toBe(1);
   });
 
-  it('2. Patient X cannot see patient Y studies', async () => {
-    const doctor = await createUser(h.owner, 'libya_doctor');
-    const userX = await createUser(h.owner, 'patient');
-    const userY = await createUser(h.owner, 'patient');
-    const patientX = await createPatient(h.owner, doctor, userX);
-    const patientY = await createPatient(h.owner, doctor, userY);
-    await createStudy(h.owner, patientX, doctor);
-    await createStudy(h.owner, patientY, doctor);
+  /**
+   * P3.2's second required test, restated for a system with no patient logins.
+   *
+   * It used to read "Patient X cannot see patient Y studies". Migration 0021
+   * removed patient accounts, so that isolation is now structural rather than
+   * policy-enforced: there is no patient session in which the leak could
+   * happen. Asserting it against a role that cannot exist would be a test that
+   * can never fail, which is worse than no test.
+   *
+   * The cross-patient leak that remains POSSIBLE is on the receiving side — a
+   * Tunisian doctor holding a session, reaching a patient who is not theirs.
+   * That is what this now proves.
+   */
+  it('2. a receiving doctor cannot see the studies of a patient who is not theirs', async () => {
+    const libyaDoctor = await createUser(h.owner, 'libya_doctor');
+    const tunisDoctor = await createUser(h.owner, 'tunisia_doctor');
 
-    const seenByX = await asUser(h.app, { userId: userX, role: 'patient' }, async (c) => {
+    const mine = await createPatient(h.owner, libyaDoctor);
+    const theirs = await createPatient(h.owner, libyaDoctor);
+    const myStudy = await createStudy(h.owner, mine, libyaDoctor);
+    await createStudy(h.owner, theirs, libyaDoctor);
+
+    // A complete, valid path to exactly one of the two patients.
+    const appt = await createAppointment(h.owner, mine, tunisDoctor, 'confirmed');
+    await linkStudy(h.owner, appt, myStudy);
+    await grantConsent(h.owner, mine, tunisDoctor, libyaDoctor);
+
+    const seen = await asUser(h.app, { userId: tunisDoctor, role: 'tunisia_doctor' }, async (c) => {
       const r = await c.query<{ patient_id: string }>('SELECT patient_id FROM imaging_studies');
       return r.rows.map((row) => row.patient_id);
     });
 
-    expect(seenByX).toEqual([patientX]);
-    expect(seenByX).not.toContain(patientY);
+    // Exactly the one they have a path to — and the assertion is on identity,
+    // not on a count, so a policy that returned the wrong single row fails.
+    expect(seen).toEqual([mine]);
+    expect(seen).not.toContain(theirs);
   });
 
   it('3. Tunisian doctor with an appointment but NO consent sees nothing', async () => {
@@ -167,7 +187,7 @@ describe('P3.2 row-level security', () => {
     const study = await createStudy(h.owner, patient, libyaDoctor);
     const appt = await createAppointment(h.owner, patient, tunisDoctor, 'confirmed');
     await linkStudy(h.owner, appt, study);
-    await grantConsent(h.owner, patient, tunisDoctor);
+    await grantConsent(h.owner, patient, tunisDoctor, libyaDoctor);
 
     const rows = await asUser(h.app, { userId: tunisDoctor, role: 'tunisia_doctor' }, async (c) => {
       const r = await c.query<{ id: string }>('SELECT id FROM imaging_studies');
@@ -183,7 +203,7 @@ describe('P3.2 row-level security', () => {
     const study = await createStudy(h.owner, patient, libyaDoctor);
     const appt = await createAppointment(h.owner, patient, tunisDoctor, 'confirmed');
     await linkStudy(h.owner, appt, study);
-    const consent = await grantConsent(h.owner, patient, tunisDoctor);
+    const consent = await grantConsent(h.owner, patient, tunisDoctor, libyaDoctor);
 
     const before = await asUser(h.app, { userId: tunisDoctor, role: 'tunisia_doctor' }, async (c) =>
       (await c.query('SELECT id FROM imaging_studies')).rowCount,
@@ -245,7 +265,7 @@ describe('P3.2 row-level security', () => {
       const study = await createStudy(h.owner, patient, libyaDoctor);
       const appt = await createAppointment(h.owner, patient, tunisDoctor, status);
       await linkStudy(h.owner, appt, study);
-      await grantConsent(h.owner, patient, tunisDoctor);
+      await grantConsent(h.owner, patient, tunisDoctor, libyaDoctor);
       return { tunisDoctor };
     }
 
@@ -309,7 +329,7 @@ describe('P3.2 row-level security', () => {
       );
       await linkStudy(h.owner, apptA, study);
       await linkStudy(h.owner, apptB, study);
-      await grantConsent(h.owner, patient, doctorA);
+      await grantConsent(h.owner, patient, doctorA, libyaDoctor);
 
       const seenByA = await asUser(h.app, { userId: doctorA, role: 'tunisia_doctor' }, async (c) =>
         (await c.query('SELECT id FROM imaging_studies')).rowCount,
@@ -329,7 +349,7 @@ describe('P3.2 row-level security', () => {
       const study = await createStudy(h.owner, patient, libyaDoctor);
       const appt = await createAppointment(h.owner, patient, tunisDoctor, 'cancelled');
       await linkStudy(h.owner, appt, study);
-      await grantConsent(h.owner, patient, tunisDoctor);
+      await grantConsent(h.owner, patient, tunisDoctor, libyaDoctor);
 
       const rows = await asUser(h.app, { userId: tunisDoctor, role: 'tunisia_doctor' }, async (c) =>
         (await c.query('SELECT id FROM imaging_studies')).rowCount,
@@ -337,15 +357,28 @@ describe('P3.2 row-level security', () => {
       expect(rows).toBe(0);
     });
 
-    it('an unclaimed patient record is invisible to every patient account', async () => {
-      const doctor = await createUser(h.owner, 'libya_doctor');
-      const someUser = await createUser(h.owner, 'patient');
-      await createPatient(h.owner, doctor); // claimed_by_user IS NULL
+    /**
+     * Was "an unclaimed patient record is invisible to every patient account".
+     * There are no patient accounts (migration 0021), so the containment that
+     * mattered is now between DOCTORS: a referring doctor reaches exactly the
+     * patients they created, which is the surviving half of DECISION D1.
+     */
+    it('a patient record is invisible to a doctor who did not create it', async () => {
+      const author = await createUser(h.owner, 'libya_doctor');
+      const stranger = await createUser(h.owner, 'libya_doctor');
+      await createPatient(h.owner, author);
 
-      const rows = await asUser(h.app, { userId: someUser, role: 'patient' }, async (c) =>
+      const rows = await asUser(h.app, { userId: stranger, role: 'libya_doctor' }, async (c) =>
         (await c.query('SELECT id FROM patients_patients')).rowCount,
       );
       expect(rows).toBe(0);
+
+      // The control: the doctor who created it does see it. Without this the
+      // test would pass against a policy that denies everyone.
+      const own = await asUser(h.app, { userId: author, role: 'libya_doctor' }, async (c) =>
+        (await c.query('SELECT id FROM patients_patients')).rowCount,
+      );
+      expect(own).toBe(1);
     });
 
     it('imaging_instances visibility follows the parent study', async () => {

@@ -24,7 +24,7 @@ import {
 /** Appointment list for patients and referring doctors. */
 export default function AppointmentsPage(): React.JSX.Element {
   return (
-    <RoleGate allow={['patient', 'libya_doctor']}>
+    <RoleGate allow={['libya_doctor']}>
       <AppointmentsList />
     </RoleGate>
   );

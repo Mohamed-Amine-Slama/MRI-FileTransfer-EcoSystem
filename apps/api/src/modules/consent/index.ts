@@ -6,5 +6,5 @@
  * agreed to is a cross-cutting legal need, not a consent-module private.
  */
 export { ConsentService, ConsentTextMismatchError, hashConsentText } from './internal/consent.service';
-export type { ConsentEvidence, ConsentTerms, GrantConsentInput } from './internal/consent.service';
+export type { AttestConsentInput, ConsentEvidence, ConsentTerms } from './internal/consent.service';
 export { ConsentModule } from './consent.module';

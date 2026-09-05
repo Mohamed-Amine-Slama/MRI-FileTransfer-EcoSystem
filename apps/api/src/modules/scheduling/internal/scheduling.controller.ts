@@ -176,13 +176,13 @@ export class SchedulingController {
   // --- doctors and availability -------------------------------------------
 
   /** Verified Tunisian doctors a patient may be referred to. */
-  @RequiresRole('patient', 'libya_doctor')
+  @RequiresRole('libya_doctor')
   @Get('doctors')
   async listDoctors(): Promise<{ doctors: DoctorSummary[] }> {
     return { doctors: await this.scheduling.listDoctors() };
   }
 
-  @RequiresRole('patient', 'libya_doctor')
+  @RequiresRole('libya_doctor')
   @Get('doctors/:id/slots')
   async openSlots(
     @Param('id', ParseUUIDPipe) doctorId: string,
@@ -229,7 +229,7 @@ export class SchedulingController {
 
   // --- appointments --------------------------------------------------------
 
-  @RequiresRole('patient', 'libya_doctor', 'tunisia_doctor', 'assistant')
+  @RequiresRole('libya_doctor', 'tunisia_doctor', 'assistant')
   @Get('appointments')
   async list(@Query() query: unknown): Promise<{ appointments: AppointmentDto[] }> {
     const range = rangeQuerySchema.parse(query ?? {});
@@ -237,7 +237,7 @@ export class SchedulingController {
     return { appointments: rows.map(toDto) };
   }
 
-  @RequiresRole('patient', 'libya_doctor', 'tunisia_doctor', 'assistant')
+  @RequiresRole('libya_doctor', 'tunisia_doctor', 'assistant')
   @Get('appointments/:id')
   async get(@Param('id', ParseUUIDPipe) id: string): Promise<AppointmentDto> {
     return toDto(await this.scheduling.getAppointment(id));
@@ -250,7 +250,7 @@ export class SchedulingController {
    * exception filter renders without any driver detail (§6). That is P10.2's
    * gate: a clean conflict, never a 500.
    */
-  @RequiresRole('patient', 'libya_doctor', 'tunisia_doctor', 'assistant')
+  @RequiresRole('libya_doctor', 'tunisia_doctor', 'assistant')
   @RateLimit('scheduleWrite')
   @Post('appointments')
   @HttpCode(201)
@@ -274,7 +274,7 @@ export class SchedulingController {
     return toDto(await this.scheduling.getAppointment(appointment.id));
   }
 
-  @RequiresRole('patient', 'libya_doctor')
+  @RequiresRole('libya_doctor')
   @Delete('appointments/:id')
   @HttpCode(204)
   async cancel(@Param('id', ParseUUIDPipe) id: string): Promise<void> {
@@ -282,10 +282,22 @@ export class SchedulingController {
   }
 
   /**
-   * The receiving doctor declines. Deliberately NOT paired with accept here —
-   * accepting captures money, so it lives with billing, next to the code that
-   * moves it.
+   * The receiving doctor accepts the referral.
+   *
+   * Paired with decline again. It was separated because accepting captured the
+   * patient's card and therefore lived in the billing module; migration 0021
+   * removed patient accounts and the card with them, so the two halves of one
+   * decision are back in one place.
    */
+  @RequiresRole('tunisia_doctor')
+  @Post('appointments/:id/accept')
+  @HttpCode(200)
+  async accept(@Param('id', ParseUUIDPipe) id: string): Promise<{ status: 'confirmed' }> {
+    await this.scheduling.accept(id);
+    return { status: 'confirmed' };
+  }
+
+  /** The receiving doctor refuses the referral. */
   @RequiresRole('tunisia_doctor')
   @Post('appointments/:id/decline')
   @HttpCode(200)

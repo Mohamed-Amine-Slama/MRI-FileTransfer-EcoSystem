@@ -10,21 +10,26 @@ import {
 } from './roles';
 
 describe('roles', () => {
-  it('accepts the four P3.1 roles plus applicant and assistant, and rejects anything else', () => {
+  it('accepts the five roles and rejects anything else', () => {
     expect(roleSchema.parse('libya_doctor')).toBe('libya_doctor');
     expect(roleSchema.parse('tunisia_doctor')).toBe('tunisia_doctor');
-    expect(roleSchema.parse('patient')).toBe('patient');
     expect(roleSchema.parse('admin')).toBe('admin');
     expect(roleSchema.parse('applicant')).toBe('applicant');
     expect(roleSchema.parse('assistant')).toBe('assistant');
     expect(() => roleSchema.parse('superuser')).toThrow();
   });
 
+  it('rejects patient, which is no longer a role', () => {
+    // A patient is a record, never a login. If this ever passes again, the
+    // claim flow has come back and every policy dropped in migration 0021
+    // needs rewriting first.
+    expect(roleSchema.safeParse('patient').success).toBe(false);
+  });
+
   it('treats the three data-bearing roles as clinical for MFA purposes (P4.3)', () => {
     expect(isClinicalRole('libya_doctor')).toBe(true);
     expect(isClinicalRole('tunisia_doctor')).toBe(true);
     expect(isClinicalRole('admin')).toBe(true);
-    expect(isClinicalRole('patient')).toBe(false);
     expect(CLINICAL_ROLES).toHaveLength(3);
   });
 
@@ -35,13 +40,17 @@ describe('roles', () => {
     expect(isClinicalRole('applicant')).toBe(false);
   });
 
-  it('keeps the four P3.1 roles in their historical order, with later ones appended', () => {
-    // The invariant is about the FIRST four, not about which role happens to
-    // be last. New roles are appended, so this stays true as the list grows —
-    // the previous spelling asserted `applicant` was last and had to be
-    // rewritten the first time a role was added after it.
-    expect(ROLES.slice(0, 4)).toEqual(['libya_doctor', 'tunisia_doctor', 'patient', 'admin']);
-    expect(ROLES.indexOf('applicant')).toBe(4);
+  it('lists the five roles in a stable order', () => {
+    // Order matters only so that a removal or an insertion is a visible diff
+    // rather than a silent reshuffle. `patient` was removed from position 2 in
+    // migration 0021; the clinical three still lead.
+    expect(ROLES).toEqual([
+      'libya_doctor',
+      'tunisia_doctor',
+      'admin',
+      'applicant',
+      'assistant',
+    ]);
   });
 
   /**
@@ -57,7 +66,6 @@ describe('roles', () => {
 
     expect(requiresSecondFactor('assistant')).toBe(true);
     expect(requiresSecondFactor('libya_doctor')).toBe(true);
-    expect(requiresSecondFactor('patient')).toBe(false);
     expect(requiresSecondFactor('applicant')).toBe(false);
     expect(SECOND_FACTOR_ROLES).toHaveLength(CLINICAL_ROLES.length + 1);
   });

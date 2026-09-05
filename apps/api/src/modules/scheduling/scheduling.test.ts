@@ -61,26 +61,37 @@ const SLOT_START = new Date(Date.UTC(2026, 5, 15, 9, 0, 0));
 const SLOT_END = new Date(Date.UTC(2026, 5, 15, 9, 30, 0));
 
 describe('P10.2 booking concurrency (the gate)', () => {
-  it('exactly one of 50 concurrent bookings for the same slot succeeds', async () => {
+  /**
+   * The 30-second default is not enough here, for the same reason the repeated
+   * -runs test below carries its own budget: this suite runs concurrently with
+   * every other one against a single PostgreSQL, and fifty contending inserts
+   * queue behind the exclusion constraint. In isolation the assertions take
+   * about a second; under a full `pnpm verify` they do not.
+   *
+   * The timeout buys patience, not tolerance — the test still demands exactly
+   * one winner and forty-nine clean 409s.
+   */
+  it('exactly one of 50 concurrent bookings for the same slot succeeds', { timeout: 120_000 }, async () => {
     const libyaDoctor = await createUser(h.owner, 'libya_doctor');
     const tunisDoctor = await createUser(h.owner, 'tunisia_doctor');
 
-    // 50 DIFFERENT patients, each with their own claimed account, all racing
-    // for one slot. Same-patient retries would be a weaker test: the point is
-    // that fifty unrelated people cannot all be given the same appointment.
+    // 50 DIFFERENT patients racing for one slot. Same-patient retries would be
+    // a weaker test: the point is that fifty unrelated people cannot all be
+    // given the same appointment.
+    //
+    // They used to race as fifty separate patient ACCOUNTS. Migration 0021
+    // removed those, so the referring doctor now issues all fifty bookings —
+    // which is a slightly harder case for the exclusion constraint, since the
+    // contention is no longer spread across fifty sessions.
     const contenders = await Promise.all(
-      Array.from({ length: 50 }, async () => {
-        const user = await createUser(h.owner, 'patient');
-        const patient = await createPatient(h.owner, libyaDoctor, user);
-        return { user, patient };
-      }),
+      Array.from({ length: 50 }, () => createPatient(h.owner, libyaDoctor)),
     );
 
     const results = await Promise.allSettled(
-      contenders.map((c) =>
-        runWithContext(ctx(c.user, 'patient'), () =>
+      contenders.map((patient) =>
+        runWithContext(ctx(libyaDoctor, 'libya_doctor'), () =>
           scheduling.book({
-            patientId: c.patient,
+            patientId: patient,
             doctorId: tunisDoctor,
             startsAt: SLOT_START,
             endsAt: SLOT_END,
@@ -119,18 +130,14 @@ describe('P10.2 booking concurrency (the gate)', () => {
       const tunisDoctor = await createUser(h.owner, 'tunisia_doctor');
 
       const contenders = await Promise.all(
-        Array.from({ length: 12 }, async () => {
-          const user = await createUser(h.owner, 'patient');
-          const patient = await createPatient(h.owner, libyaDoctor, user);
-          return { user, patient };
-        }),
+        Array.from({ length: 12 }, () => createPatient(h.owner, libyaDoctor)),
       );
 
       const results = await Promise.allSettled(
-        contenders.map((c) =>
-          runWithContext(ctx(c.user, 'patient'), () =>
+        contenders.map((patient) =>
+          runWithContext(ctx(libyaDoctor, 'libya_doctor'), () =>
             scheduling.book({
-              patientId: c.patient,
+              patientId: patient,
               doctorId: tunisDoctor,
               startsAt: SLOT_START,
               endsAt: SLOT_END,
@@ -148,24 +155,21 @@ describe('P10.2 booking concurrency (the gate)', () => {
 
   it('never surfaces a raw database error to a losing booker', async () => {
     // Under 50-way contention PostgreSQL raises deadlock_detected (40P01) as
-    // well as the exclusion violation. Both must reach the patient as a clean
+    // well as the exclusion violation. Both must reach the CALLER as a clean
     // 409 — P10.2 says "not a 500". This asserts the property directly rather
     // than relying on the 50-way test happening to produce a deadlock.
     const libyaDoctor = await createUser(h.owner, 'libya_doctor');
     const tunisDoctor = await createUser(h.owner, 'tunisia_doctor');
 
     const contenders = await Promise.all(
-      Array.from({ length: 20 }, async () => {
-        const user = await createUser(h.owner, 'patient');
-        return { user, patient: await createPatient(h.owner, libyaDoctor, user) };
-      }),
+      Array.from({ length: 20 }, () => createPatient(h.owner, libyaDoctor)),
     );
 
     const results = await Promise.allSettled(
-      contenders.map((c) =>
-        runWithContext(ctx(c.user, 'patient'), () =>
+      contenders.map((patient) =>
+        runWithContext(ctx(libyaDoctor, 'libya_doctor'), () =>
           scheduling.book({
-            patientId: c.patient,
+            patientId: patient,
             doctorId: tunisDoctor,
             startsAt: SLOT_START,
             endsAt: SLOT_END,
@@ -188,18 +192,16 @@ describe('P10.2 booking concurrency (the gate)', () => {
   it('allows a second booking for a DIFFERENT slot with the same doctor', async () => {
     const libyaDoctor = await createUser(h.owner, 'libya_doctor');
     const tunisDoctor = await createUser(h.owner, 'tunisia_doctor');
-    const u1 = await createUser(h.owner, 'patient');
-    const u2 = await createUser(h.owner, 'patient');
-    const p1 = await createPatient(h.owner, libyaDoctor, u1);
-    const p2 = await createPatient(h.owner, libyaDoctor, u2);
+    const p1 = await createPatient(h.owner, libyaDoctor);
+    const p2 = await createPatient(h.owner, libyaDoctor);
 
-    await runWithContext(ctx(u1, 'patient'), () =>
+    await runWithContext(ctx(libyaDoctor, 'libya_doctor'), () =>
       scheduling.book({ patientId: p1, doctorId: tunisDoctor, startsAt: SLOT_START, endsAt: SLOT_END }),
     );
 
     const later = new Date(SLOT_END.getTime());
     const laterEnd = new Date(SLOT_END.getTime() + 30 * 60_000);
-    const second = await runWithContext(ctx(u2, 'patient'), () =>
+    const second = await runWithContext(ctx(libyaDoctor, 'libya_doctor'), () =>
       scheduling.book({ patientId: p2, doctorId: tunisDoctor, startsAt: later, endsAt: laterEnd }),
     );
 
@@ -211,17 +213,15 @@ describe('P10.2 booking concurrency (the gate)', () => {
     // collides, and application-level equality checks would miss it.
     const libyaDoctor = await createUser(h.owner, 'libya_doctor');
     const tunisDoctor = await createUser(h.owner, 'tunisia_doctor');
-    const u1 = await createUser(h.owner, 'patient');
-    const u2 = await createUser(h.owner, 'patient');
-    const p1 = await createPatient(h.owner, libyaDoctor, u1);
-    const p2 = await createPatient(h.owner, libyaDoctor, u2);
+    const p1 = await createPatient(h.owner, libyaDoctor);
+    const p2 = await createPatient(h.owner, libyaDoctor);
 
-    await runWithContext(ctx(u1, 'patient'), () =>
+    await runWithContext(ctx(libyaDoctor, 'libya_doctor'), () =>
       scheduling.book({ patientId: p1, doctorId: tunisDoctor, startsAt: SLOT_START, endsAt: SLOT_END }),
     );
 
     await expect(
-      runWithContext(ctx(u2, 'patient'), () =>
+      runWithContext(ctx(libyaDoctor, 'libya_doctor'), () =>
         scheduling.book({
           patientId: p2,
           doctorId: tunisDoctor,
@@ -235,18 +235,16 @@ describe('P10.2 booking concurrency (the gate)', () => {
   it('frees the slot after cancellation', async () => {
     const libyaDoctor = await createUser(h.owner, 'libya_doctor');
     const tunisDoctor = await createUser(h.owner, 'tunisia_doctor');
-    const u1 = await createUser(h.owner, 'patient');
-    const u2 = await createUser(h.owner, 'patient');
-    const p1 = await createPatient(h.owner, libyaDoctor, u1);
-    const p2 = await createPatient(h.owner, libyaDoctor, u2);
+    const p1 = await createPatient(h.owner, libyaDoctor);
+    const p2 = await createPatient(h.owner, libyaDoctor);
 
-    const first = await runWithContext(ctx(u1, 'patient'), () =>
+    const first = await runWithContext(ctx(libyaDoctor, 'libya_doctor'), () =>
       scheduling.book({ patientId: p1, doctorId: tunisDoctor, startsAt: SLOT_START, endsAt: SLOT_END }),
     );
-    await runWithContext(ctx(u1, 'patient'), () => scheduling.cancel(first.id));
+    await runWithContext(ctx(libyaDoctor, 'libya_doctor'), () => scheduling.cancel(first.id));
 
     // The exclusion constraint excludes cancelled rows, so the slot reopens.
-    const second = await runWithContext(ctx(u2, 'patient'), () =>
+    const second = await runWithContext(ctx(libyaDoctor, 'libya_doctor'), () =>
       scheduling.book({ patientId: p2, doctorId: tunisDoctor, startsAt: SLOT_START, endsAt: SLOT_END }),
     );
     expect(second.id).not.toBe(first.id);
@@ -256,14 +254,13 @@ describe('P10.2 booking concurrency (the gate)', () => {
     const libyaDoctor = await createUser(h.owner, 'libya_doctor');
     const docA = await createUser(h.owner, 'tunisia_doctor');
     const docB = await createUser(h.owner, 'tunisia_doctor');
-    const u = await createUser(h.owner, 'patient');
-    const p = await createPatient(h.owner, libyaDoctor, u);
+    const p = await createPatient(h.owner, libyaDoctor);
 
-    await runWithContext(ctx(u, 'patient'), () =>
+    await runWithContext(ctx(libyaDoctor, 'libya_doctor'), () =>
       scheduling.book({ patientId: p, doctorId: docA, startsAt: SLOT_START, endsAt: SLOT_END }),
     );
     // The constraint is per doctor, not global.
-    const second = await runWithContext(ctx(u, 'patient'), () =>
+    const second = await runWithContext(ctx(libyaDoctor, 'libya_doctor'), () =>
       scheduling.book({ patientId: p, doctorId: docB, startsAt: SLOT_START, endsAt: SLOT_END }),
     );
     expect(second.doctorId).toBe(docB);
@@ -272,10 +269,9 @@ describe('P10.2 booking concurrency (the gate)', () => {
   it('starts a booking at pending_payment (DECISION D2)', async () => {
     const libyaDoctor = await createUser(h.owner, 'libya_doctor');
     const tunisDoctor = await createUser(h.owner, 'tunisia_doctor');
-    const u = await createUser(h.owner, 'patient');
-    const p = await createPatient(h.owner, libyaDoctor, u);
+    const p = await createPatient(h.owner, libyaDoctor);
 
-    const appt = await runWithContext(ctx(u, 'patient'), () =>
+    const appt = await runWithContext(ctx(libyaDoctor, 'libya_doctor'), () =>
       scheduling.book({ patientId: p, doctorId: tunisDoctor, startsAt: SLOT_START, endsAt: SLOT_END }),
     );
     expect(appt.status).toBe('pending_payment');
@@ -304,17 +300,14 @@ describe('P10.2 booking concurrency (the gate)', () => {
     const libyaDoctor = await createUser(h.owner, 'libya_doctor');
     const tunisDoctor = await createUser(h.owner, 'tunisia_doctor');
     const contenders = await Promise.all(
-      Array.from({ length: 10 }, async () => {
-        const user = await createUser(h.owner, 'patient');
-        return { user, patient: await createPatient(h.owner, libyaDoctor, user) };
-      }),
+      Array.from({ length: 10 }, () => createPatient(h.owner, libyaDoctor)),
     );
 
     await Promise.allSettled(
-      contenders.map((c) =>
-        runWithContext(ctx(c.user, 'patient'), () =>
+      contenders.map((patient) =>
+        runWithContext(ctx(libyaDoctor, 'libya_doctor'), () =>
           scheduling.book({
-            patientId: c.patient,
+            patientId: patient,
             doctorId: tunisDoctor,
             startsAt: SLOT_START,
             endsAt: SLOT_END,
@@ -323,19 +316,22 @@ describe('P10.2 booking concurrency (the gate)', () => {
       ),
     );
 
-    // Nine losers must not produce nine notifications and nine billing rows.
+    // Nine losers must not produce nine notifications and nine ledger entries.
     expect(seen).toHaveLength(1);
   });
 
-  it('cannot book on behalf of another patient', async () => {
+  it('cannot book for a patient the caller did not create', async () => {
+    // Was "cannot book on behalf of another patient", when a patient held a
+    // session and the attacker was one. There are no patient accounts, so the
+    // caller who could plausibly try this is another DOCTOR — and the policy
+    // that stops them is the same one: app_created_patient().
     const libyaDoctor = await createUser(h.owner, 'libya_doctor');
     const tunisDoctor = await createUser(h.owner, 'tunisia_doctor');
-    const attacker = await createUser(h.owner, 'patient');
-    const victimUser = await createUser(h.owner, 'patient');
-    const victimPatient = await createPatient(h.owner, libyaDoctor, victimUser);
+    const attacker = await createUser(h.owner, 'libya_doctor');
+    const victimPatient = await createPatient(h.owner, libyaDoctor);
 
     await expect(
-      runWithContext(ctx(attacker, 'patient'), () =>
+      runWithContext(ctx(attacker, 'libya_doctor'), () =>
         scheduling.book({
           patientId: victimPatient,
           doctorId: tunisDoctor,
@@ -425,8 +421,7 @@ describe('P10.1 availability and timezones', () => {
   it('lists open slots and excludes ones already taken', async () => {
     const libyaDoctor = await createUser(h.owner, 'libya_doctor');
     const tunisDoctor = await createUser(h.owner, 'tunisia_doctor');
-    const u = await createUser(h.owner, 'patient');
-    const p = await createPatient(h.owner, libyaDoctor, u);
+    const p = await createPatient(h.owner, libyaDoctor);
 
     const windowStart = new Date(Date.UTC(2026, 5, 15, 9, 0, 0));
     const windowEnd = new Date(Date.UTC(2026, 5, 15, 11, 0, 0)); // 4 x 30min
@@ -434,16 +429,16 @@ describe('P10.1 availability and timezones', () => {
       scheduling.addAvailability({ startsAt: windowStart, endsAt: windowEnd }),
     );
 
-    const before = await runWithContext(ctx(u, 'patient'), () =>
+    const before = await runWithContext(ctx(libyaDoctor, 'libya_doctor'), () =>
       scheduling.listOpenSlots(tunisDoctor, windowStart, windowEnd),
     );
     expect(before).toHaveLength(4);
 
-    await runWithContext(ctx(u, 'patient'), () =>
+    await runWithContext(ctx(libyaDoctor, 'libya_doctor'), () =>
       scheduling.book({ patientId: p, doctorId: tunisDoctor, startsAt: SLOT_START, endsAt: SLOT_END }),
     );
 
-    const after = await runWithContext(ctx(u, 'patient'), () =>
+    const after = await runWithContext(ctx(libyaDoctor, 'libya_doctor'), () =>
       scheduling.listOpenSlots(tunisDoctor, windowStart, windowEnd),
     );
     expect(after).toHaveLength(3);
@@ -453,10 +448,9 @@ describe('P10.1 availability and timezones', () => {
   it('releases appointments whose payment authorisation expired (D2)', async () => {
     const libyaDoctor = await createUser(h.owner, 'libya_doctor');
     const tunisDoctor = await createUser(h.owner, 'tunisia_doctor');
-    const u = await createUser(h.owner, 'patient');
-    const p = await createPatient(h.owner, libyaDoctor, u);
+    const p = await createPatient(h.owner, libyaDoctor);
 
-    const appt = await runWithContext(ctx(u, 'patient'), () =>
+    const appt = await runWithContext(ctx(libyaDoctor, 'libya_doctor'), () =>
       scheduling.book({ patientId: p, doctorId: tunisDoctor, startsAt: SLOT_START, endsAt: SLOT_END }),
     );
 
@@ -466,7 +460,7 @@ describe('P10.1 availability and timezones', () => {
       [appt.id],
     );
 
-    const released = await runWithContext(ctx(u, 'patient'), () =>
+    const released = await runWithContext(ctx(libyaDoctor, 'libya_doctor'), () =>
       scheduling.releaseExpiredAuthorisations(),
     );
     expect(released).toBeGreaterThanOrEqual(1);
@@ -484,14 +478,13 @@ describe('P10.3 study linkage', () => {
     const libyaDoctor = await createUser(h.owner, 'libya_doctor');
     const otherDoctor = await createUser(h.owner, 'libya_doctor');
     const tunisDoctor = await createUser(h.owner, 'tunisia_doctor');
-    const u = await createUser(h.owner, 'patient');
-    const p = await createPatient(h.owner, libyaDoctor, u);
+    const p = await createPatient(h.owner, libyaDoctor);
 
     const mine = await createStudy(h.owner, p, libyaDoctor);
     const strangerPatient = await createPatient(h.owner, otherDoctor);
     const notMine = await createStudy(h.owner, strangerPatient, otherDoctor);
 
-    const appt = await runWithContext(ctx(u, 'patient'), () =>
+    const appt = await runWithContext(ctx(libyaDoctor, 'libya_doctor'), () =>
       scheduling.book({
         patientId: p,
         doctorId: tunisDoctor,
@@ -519,15 +512,14 @@ describe('P10.3 study linkage', () => {
     const libyaDoctor = await createUser(h.owner, 'libya_doctor');
     const otherDoctor = await createUser(h.owner, 'libya_doctor');
     const tunisDoctor = await createUser(h.owner, 'tunisia_doctor');
-    const u = await createUser(h.owner, 'patient');
-    const p = await createPatient(h.owner, libyaDoctor, u);
+    const p = await createPatient(h.owner, libyaDoctor);
 
     const mine = await createStudy(h.owner, p, libyaDoctor);
     const strangerPatient = await createPatient(h.owner, otherDoctor);
     const notMine = await createStudy(h.owner, strangerPatient, otherDoctor);
 
     await expect(
-      runWithContext(ctx(u, 'patient'), () =>
+      runWithContext(ctx(libyaDoctor, 'libya_doctor'), () =>
         scheduling.book({
           patientId: p,
           doctorId: tunisDoctor,

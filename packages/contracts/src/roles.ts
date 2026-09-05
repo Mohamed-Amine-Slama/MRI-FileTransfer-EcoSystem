@@ -7,6 +7,20 @@ import { z } from 'zod';
  * realm, and a migration — deliberately awkward, because a new role is a new
  * access path.
  *
+ * WHY THERE IS NO `patient` ROLE.
+ * A patient is a RECORD, never a login. The referring Libyan doctor creates the
+ * record and assigns it to a receiving Tunisian doctor; the patient never
+ * authenticates, so there is no session to scope and no policy to write. The
+ * claim flow that turned a phone number into an account — the token table, the
+ * SECURITY DEFINER redemption, and `app_claimed_patient` — was removed in
+ * migration 0021 along with the role itself.
+ *
+ * This is why consent is an ATTESTATION rather than an action: the referring
+ * doctor asserts they hold the patient's signed form and uploads it, because
+ * there is no patient session in which a patient could click anything. What
+ * did NOT change is `app_has_consent_for`, which still gates the receiving
+ * doctor's access to imaging — only the writer of the row moved.
+ *
  * WHY `applicant` EXISTS.
  * Brief §5.1 P0 requires an organisation to see its verification decision
  * "with no need to contact the platform team", which means the applicant must
@@ -43,7 +57,6 @@ import { z } from 'zod';
 export const ROLES = [
   'libya_doctor',
   'tunisia_doctor',
-  'patient',
   'admin',
   'applicant',
   'assistant',
