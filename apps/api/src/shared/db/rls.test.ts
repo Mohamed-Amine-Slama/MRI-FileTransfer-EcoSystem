@@ -258,7 +258,7 @@ describe('P3.2 row-level security', () => {
   // DECISION D3 — the triage toggle, at the RLS layer (P10.3)
   // -------------------------------------------------------------------------
   describe('D3 triage gating', () => {
-    async function scenario(status: 'pending_payment' | 'confirmed') {
+    async function scenario(status: 'pending' | 'confirmed') {
       const libyaDoctor = await createUser(h.owner, 'libya_doctor');
       const tunisDoctor = await createUser(h.owner, 'tunisia_doctor');
       const patient = await createPatient(h.owner, libyaDoctor);
@@ -269,8 +269,8 @@ describe('P3.2 row-level security', () => {
       return { tunisDoctor };
     }
 
-    it('triage OFF (default): unpaid appointment sees nothing', async () => {
-      const { tunisDoctor } = await scenario('pending_payment');
+    it('triage OFF (default): an unanswered referral sees nothing', async () => {
+      const { tunisDoctor } = await scenario('pending');
       const rows = await asUser(
         h.app,
         { userId: tunisDoctor, role: 'tunisia_doctor', triageBeforePayment: false },
@@ -279,8 +279,8 @@ describe('P3.2 row-level security', () => {
       expect(rows).toBe(0);
     });
 
-    it('triage ON: unpaid appointment sees the study', async () => {
-      const { tunisDoctor } = await scenario('pending_payment');
+    it('triage ON: an unanswered referral sees the study', async () => {
+      const { tunisDoctor } = await scenario('pending');
       const rows = await asUser(
         h.app,
         { userId: tunisDoctor, role: 'tunisia_doctor', triageBeforePayment: true },
@@ -289,12 +289,46 @@ describe('P3.2 row-level security', () => {
       expect(rows).toBe(1);
     });
 
+    it('triage ON stops at a declined referral — refusing gives up the imaging', async () => {
+      // The predicate this guards used to read `status <> 'cancelled'`, which
+      // was a complete way to say "still standing" only while 'declined' did
+      // not exist. Adding the state without widening the predicate would have
+      // let a doctor refuse a referral and keep reading its studies.
+      const libyaDoctor = await createUser(h.owner, 'libya_doctor');
+      const tunisDoctor = await createUser(h.owner, 'tunisia_doctor');
+      const patient = await createPatient(h.owner, libyaDoctor);
+      const study = await createStudy(h.owner, patient, libyaDoctor);
+      const appt = await createAppointment(h.owner, patient, tunisDoctor, 'pending');
+      await linkStudy(h.owner, appt, study);
+      await grantConsent(h.owner, patient, tunisDoctor, libyaDoctor);
+
+      // Positive control: with triage on, a pending referral DOES see it, so a
+      // zero below is the decline and not a broken fixture.
+      const before = await asUser(
+        h.app,
+        { userId: tunisDoctor, role: 'tunisia_doctor', triageBeforePayment: true },
+        async (c) => (await c.query('SELECT id FROM imaging_studies')).rowCount,
+      );
+      expect(before).toBe(1);
+
+      await h.owner.query(`UPDATE scheduling_appointments SET status = 'declined' WHERE id = $1`, [
+        appt,
+      ]);
+
+      const after = await asUser(
+        h.app,
+        { userId: tunisDoctor, role: 'tunisia_doctor', triageBeforePayment: true },
+        async (c) => (await c.query('SELECT id FROM imaging_studies')).rowCount,
+      );
+      expect(after).toBe(0);
+    });
+
     it('triage ON still requires consent — the toggle never bypasses it', async () => {
       const libyaDoctor = await createUser(h.owner, 'libya_doctor');
       const tunisDoctor = await createUser(h.owner, 'tunisia_doctor');
       const patient = await createPatient(h.owner, libyaDoctor);
       const study = await createStudy(h.owner, patient, libyaDoctor);
-      const appt = await createAppointment(h.owner, patient, tunisDoctor, 'pending_payment');
+      const appt = await createAppointment(h.owner, patient, tunisDoctor, 'pending');
       await linkStudy(h.owner, appt, study);
       // No consent.
 

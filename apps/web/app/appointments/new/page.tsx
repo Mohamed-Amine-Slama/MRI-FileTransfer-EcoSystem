@@ -315,7 +315,7 @@ function BookingFlow(): React.JSX.Element {
               <dd className="font-medium tabular-nums">{selectedStudies.length}</dd>
             </div>
           </dl>
-          <Alert tone="info">{t.checkoutDescription}</Alert>
+          <Alert tone="info">{t.bookingAwaitsAcceptance}</Alert>
           <Button
             variant="primary"
             className="h-11 w-full sm:w-auto"

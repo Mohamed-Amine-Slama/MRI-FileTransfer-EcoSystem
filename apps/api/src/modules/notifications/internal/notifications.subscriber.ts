@@ -48,7 +48,10 @@ export class NotificationsSubscriber implements OnModuleInit {
       this.queue('appointment_cancelled', {});
     });
 
-    this.bus.subscribe('PaymentSucceeded', () => {
+    // Was subscribed to PaymentSucceeded, because capturing the patient's card
+    // is what used to confirm a booking. The doctor's acceptance is what does
+    // now, so the template is unchanged and only its trigger moved.
+    this.bus.subscribe('AppointmentConfirmed', () => {
       this.queue('booking_confirmed', {});
     });
 

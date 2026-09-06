@@ -21,13 +21,17 @@ import {
 } from '../../../components/ui';
 
 /**
- * Appointment detail, including payment authorisation.
+ * Appointment detail.
  *
- * DECISION D2 in one screen: the patient AUTHORISES here and is charged only
- * when the Tunisian doctor accepts. The copy has to make that explicit, because
- * "pay now" for a consultation that may never be accepted is precisely the
- * trust problem the manual-capture flow exists to solve — and a patient who
- * believes they have already been charged will not book again.
+ * This screen used to be DECISION D2 in one place: the patient authorised a
+ * card here and was charged only when the Tunisian doctor accepted. Migration
+ * 0023 removed the card along with the patient account, so the checkout card,
+ * the amount, and the authorise button are gone — there is no payer on this
+ * screen to show a price to.
+ *
+ * What survives is the D3 gate: imaging stays hidden until the receiving doctor
+ * accepts, unless triage is on. That was never about money; it just happened to
+ * be worded as if it were.
  */
 export default function AppointmentPage({
   params,
@@ -48,13 +52,7 @@ function AppointmentDetail({ appointmentId }: { appointmentId: string }): React.
 
   const [appointment, setAppointment] = useState<Appointment | null>(null);
   const [studies, setStudies] = useState<Study[]>([]);
-  const [payment, setPayment] = useState<{
-    status: string;
-    amountMinor: number | null;
-    currency: string | null;
-  } | null>(null);
   const [error, setError] = useState<string | null>(null);
-  const [notice, setNotice] = useState<string | null>(null);
   const [busy, setBusy] = useState(false);
 
   const load = useCallback(async () => {
@@ -65,18 +63,13 @@ function AppointmentDetail({ appointmentId }: { appointmentId: string }): React.
       setError(err instanceof ApiError && err.isNotFound ? t.notAuthorised : t.genericError);
       return;
     }
-    // The fee is resolved server-side; the client never proposes an amount.
-    try {
-      setPayment(await api.billing.status(appointmentId));
-    } catch {
-      setPayment(null);
-    }
     try {
       const { studies: rows } = await api.imaging.studiesForAppointment(appointmentId);
       setStudies(rows);
     } catch {
-      // D3: imaging is not visible before payment. An empty list here is a
-      // legitimate state, not a failure — the notice below explains it.
+      // D3: imaging is not visible until the referral is accepted. An empty
+      // list here is a legitimate state, not a failure — the locked notice on
+      // the studies card explains it.
       setStudies([]);
     }
   }, [appointmentId, t]);
@@ -84,20 +77,6 @@ function AppointmentDetail({ appointmentId }: { appointmentId: string }): React.
   useEffect(() => {
     void load();
   }, [load]);
-
-  const authorise = async (): Promise<void> => {
-    setBusy(true);
-    setError(null);
-    try {
-      await api.billing.authorise(appointmentId);
-      setNotice(t.checkoutAuthorised);
-      await load();
-    } catch {
-      setError(t.checkoutFailed);
-    } finally {
-      setBusy(false);
-    }
-  };
 
   const cancel = async (): Promise<void> => {
     setBusy(true);
@@ -129,8 +108,9 @@ function AppointmentDetail({ appointmentId }: { appointmentId: string }): React.
     );
   }
 
-  const awaitingPayment = appointment.status === 'pending_payment';
-  const imagingLocked = appointment.status === 'pending_payment';
+  // Locked until the receiving doctor answers. `declined` locks it too: a
+  // refused referral is not a reason to keep showing the imaging.
+  const imagingLocked = appointment.status === 'pending' || appointment.status === 'declined';
 
   return (
     <Main data-testid="appointment-detail" data-status={appointment.status}>
@@ -146,42 +126,12 @@ function AppointmentDetail({ appointmentId }: { appointmentId: string }): React.
         actions={<AppointmentStatusBadge status={appointment.status} />}
       />
 
-      {notice !== null && <Alert tone="success">{notice}</Alert>}
       {error !== null && <Alert tone="danger">{error}</Alert>}
-
-      {awaitingPayment && (
-        <Card title={t.checkoutTitle} className="border-info/40">
-          <Alert tone="info" testId="capture-explanation">
-            {t.checkoutDescription}
-          </Alert>
-          {payment?.amountMinor != null && (
-            <p data-testid="payment-amount" className="flex items-baseline gap-2">
-              <span className="text-sm text-muted-foreground">{t.checkoutAmount}:</span>{' '}
-              {/* Minor units throughout, converted only for display. */}
-              <span className="text-2xl font-bold tabular-nums">
-                {(payment.amountMinor / 100).toFixed(2)}
-              </span>{' '}
-              <span className="text-sm font-medium text-muted-foreground">
-                {payment.currency ?? ''}
-              </span>
-            </p>
-          )}
-          <Button
-            variant="primary"
-            className="h-11 w-full sm:w-auto"
-            data-testid="authorise-payment"
-            disabled={busy}
-            onClick={() => void authorise()}
-          >
-            {t.checkoutPay}
-          </Button>
-        </Card>
-      )}
 
       <Card title={t.patientStudies}>
         {imagingLocked ? (
           <Alert tone="warning" testId="imaging-locked">
-            {t.inboxLockedUntilPayment}
+            {t.inboxLockedUntilAccepted}
           </Alert>
         ) : studies.length === 0 ? (
           <EmptyState>{t.none}</EmptyState>
