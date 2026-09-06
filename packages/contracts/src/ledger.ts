@@ -54,6 +54,25 @@ export const PAYMENT_STATUSES = ['paid', 'pending', 'overdue'] as const;
 export const paymentStatusSchema = z.enum(PAYMENT_STATUSES);
 export type PaymentStatus = z.infer<typeof paymentStatusSchema>;
 
+/**
+ * The closed set of entry kinds, mirrored by the `billing_ledger_entries`
+ * CHECK constraint (migration 0023).
+ *
+ * Exported as a VALUE because a union type cannot be compared against a
+ * database constraint, iterated to build a summary, or asserted on in a test.
+ * The union below discriminates on exactly these strings, and a test asserts
+ * the two agree — a kind in one and not the other would parse cleanly and fail
+ * at write time.
+ *
+ * The two kinds share a table but must never share a total: §5.7 P0 forbids
+ * merging coordination fees with subscription charges into one "amount owed".
+ * `LedgerSummary` has no total field, and nothing here should learn how to make
+ * one.
+ */
+export const LEDGER_ENTRY_KINDS = ['coordination_fee', 'saas_subscription'] as const;
+export const ledgerEntryKindSchema = z.enum(LEDGER_ENTRY_KINDS);
+export type LedgerEntryKind = z.infer<typeof ledgerEntryKindSchema>;
+
 const ledgerEntryBase = {
   id: z.string().min(1),
   occurredAt: z.string().datetime(),
