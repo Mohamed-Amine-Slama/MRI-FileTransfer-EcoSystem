@@ -11,7 +11,6 @@ import {
   FolderKanban,
   Inbox,
   ScrollText,
-  ShieldCheck,
   Upload,
   UserRoundPlus,
   Users,
