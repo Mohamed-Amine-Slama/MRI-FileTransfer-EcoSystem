@@ -1,5 +1,6 @@
 import { Injectable, NotFoundException } from '@nestjs/common';
 import {
+  endpointSideSchema,
   entitlementSchema,
   planCodeSchema,
   type Entitlement,
@@ -26,10 +27,30 @@ import { DatabaseService } from '../../../shared/db/database.service';
  * subscription charges into one ambiguous "amount owed", which `LedgerEntry`
  * enforces by having no common amount field. A tier's price is what it COSTS;
  * this service never reads a ledger entry and must not learn how.
+ *
+ * NOTHING HERE ENFORCES A LIMIT, AND THAT IS A DECISION.
+ *
+ * `seat_limit` and `monthly_case_limit` are ops-editable data and the settings
+ * screen renders them as meters, but no guard refuses an invitation or a case
+ * submission on either. The commercial terms — what each tier actually
+ * includes — are not settled, and gating on invented limits would refuse real
+ * clinical work on a number nobody agreed to.
+ *
+ * When the terms are settled, enforcement attaches here and in
+ * `OrganisationsService.invite`, using `withinLimit` from the contract. That is
+ * a service change, not a migration: the limits are already in the database.
+ *
+ * This comment exists so the absence of a check reads as intent rather than as
+ * something a reviewer forgot.
+ *
+ * WHAT *IS* ENFORCED is the side match, and it is enforced in the database
+ * (migration 0022) rather than here. A service-only check is one forgotten call
+ * site away from a Libyan clinic on a Tunisian tier.
  */
 
 interface DbPlan {
   code: string;
+  side: string;
   price_minor: string | null;
   currency: string | null;
   seat_limit: number | null;
@@ -40,13 +61,24 @@ interface DbPlan {
 
 /** Dictionary keys, derived from the code — copy never lives in the database (§4.2). */
 function labelKeys(code: PlanCode): { labelKey: string; blurbKey: string } {
-  const capitalised = code.charAt(0).toUpperCase() + code.slice(1);
-  return { labelKey: `plan${capitalised}Name`, blurbKey: `plan${capitalised}Blurb` };
+  // 'src_clinic' -> 'SrcClinic'. The underscore has to go: a dictionary key is
+  // `/^[a-z][A-Za-z0-9]*$/`, so `planSrc_clinicName` would not be one.
+  const camel = code
+    .split('_')
+    .map((part) => part.charAt(0).toUpperCase() + part.slice(1))
+    .join('');
+  return { labelKey: `plan${camel}Name`, blurbKey: `plan${camel}Blurb` };
 }
 
 function toTier(row: DbPlan): PlanTier | null {
   const code = planCodeSchema.safeParse(row.code);
   if (!code.success) return null;
+
+  // A tier whose side the contract does not recognise is dropped rather than
+  // defaulted. Defaulting would put it on one ladder or the other, and the
+  // wrong ladder is a tier offered to organisations that cannot buy it.
+  const side = endpointSideSchema.safeParse(row.side);
+  if (!side.success) return null;
 
   // An entitlement the contract does not know about is DROPPED, not passed
   // through. The pricing table and the places that gate on an entitlement have
@@ -60,6 +92,7 @@ function toTier(row: DbPlan): PlanTier | null {
   const { labelKey, blurbKey } = labelKeys(code.data);
   return {
     code: code.data,
+    side: side.data,
     labelKey,
     blurbKey,
     priceMonthly:
@@ -100,10 +133,14 @@ export class PlansService {
       },
       async (tx) => {
         const res = await tx.query<DbPlan>('SELECT * FROM billing_public_plans()');
+        // Both ladders come back together — /pricing shows both, and the
+        // settings screen narrows with `tiersForSide`. `sort` is only unique
+        // WITHIN a side, so side leads the comparison; sorting by `sort` alone
+        // would interleave them.
         return res.rows
           .map(toTier)
           .filter((tier): tier is PlanTier => tier !== null)
-          .sort((a, b) => a.sort - b.sort);
+          .sort((a, b) => (a.side === b.side ? a.sort - b.sort : a.side < b.side ? -1 : 1));
       },
     );
   }

@@ -598,13 +598,22 @@ const ar = {
   teamAssistantOnlyHint: 'يمكنك دعوة مساعد فقط. دعوة الأطباء من صلاحية مالك الحساب.',
   seatOwnerHint: 'يمكنه دعوة الأعضاء وتغيير الخطّة.',
 
-  // pricing, plans, and billing (§2, §5.7) — TODO(pricing): every plan name, blurb, and price below is PLACEHOLDER copy pending real commercial terms
-  planSoloName: 'فردي',
-  planSoloBlurb: 'لطبيب واحد يحيل حالات بين حين وآخر.',
-  planClinicName: 'عيادة',
-  planClinicBlurb: 'لعيادة أو مختبر بفريق ثابت وحالات منتظمة.',
-  planNetworkName: 'شبكة',
-  planNetworkBlurb: 'لمجموعة منشآت أو أكثر من ممرّ واحد.',
+  // pricing, plans, and billing (§2, §5.7) — TODO(pricing): every plan name,
+  // blurb, and price below is PLACEHOLDER copy pending real commercial terms.
+  // Two ladders since migration 0022: src_* is sold to organisations that
+  // SUBMIT cases, dst_* to organisations that RECEIVE them.
+  planSrcSoloName: 'فردي',
+  planSrcSoloBlurb: 'لطبيب واحد يحيل حالات بين حين وآخر.',
+  planSrcClinicName: 'عيادة',
+  planSrcClinicBlurb: 'لعيادة أو مختبر بفريق ثابت وحالات محالة منتظمة.',
+  planSrcNetworkName: 'شبكة',
+  planSrcNetworkBlurb: 'لمجموعة منشآت تحيل الحالات أو أكثر من ممرّ واحد.',
+  planDstSoloName: 'فردي',
+  planDstSoloBlurb: 'لطبيب واحد يستقبل حالات بين حين وآخر.',
+  planDstClinicName: 'عيادة',
+  planDstClinicBlurb: 'لعيادة أو مركز يستقبل حالات منتظمة بفريق ثابت.',
+  planDstNetworkName: 'شبكة',
+  planDstNetworkBlurb: 'لمجموعة منشآت تستقبل الحالات أو أكثر من ممرّ واحد.',
   entitlementCsvExport: 'تصدير الكشوف بصيغة CSV',
   entitlementPrioritySupport: 'دعم ذو أولوية',
   entitlementAuditTrailRetention: 'حفظ سجل التدقيق لمدة أطول',
@@ -1233,13 +1242,22 @@ const fr: Dictionary = {
   teamAssistantOnlyHint: "Vous pouvez inviter un assistant. Les médecins sont invités par le propriétaire du compte.",
   seatOwnerHint: "Peut inviter des membres et changer d'offre.",
 
-  // pricing, plans, and billing (§2, §5.7) — TODO(pricing): every plan name, blurb, and price below is PLACEHOLDER copy pending real commercial terms
-  planSoloName: 'Solo',
-  planSoloBlurb: 'Pour un praticien qui adresse quelques cas.',
-  planClinicName: 'Clinique',
-  planClinicBlurb: 'Pour une clinique ou un laboratoire avec une équipe et un flux régulier.',
-  planNetworkName: 'Réseau',
-  planNetworkBlurb: "Pour un groupe d'établissements ou plusieurs corridors.",
+  // pricing, plans, and billing (§2, §5.7) — TODO(pricing): every plan name,
+  // blurb, and price below is PLACEHOLDER copy pending real commercial terms.
+  // Two ladders since migration 0022: src_* is sold to organisations that
+  // SUBMIT cases, dst_* to organisations that RECEIVE them.
+  planSrcSoloName: 'Solo',
+  planSrcSoloBlurb: 'Pour un praticien qui adresse quelques cas.',
+  planSrcClinicName: 'Clinique',
+  planSrcClinicBlurb: "Pour une clinique ou un laboratoire qui adresse des cas régulièrement, avec une équipe.",
+  planSrcNetworkName: 'Réseau',
+  planSrcNetworkBlurb: "Pour un groupe d'établissements qui adressent des cas, ou plusieurs corridors.",
+  planDstSoloName: 'Solo',
+  planDstSoloBlurb: 'Pour un praticien qui reçoit quelques cas.',
+  planDstClinicName: 'Clinique',
+  planDstClinicBlurb: "Pour une clinique ou un centre qui reçoit des cas régulièrement, avec une équipe.",
+  planDstNetworkName: 'Réseau',
+  planDstNetworkBlurb: "Pour un groupe d'établissements qui reçoivent des cas, ou plusieurs corridors.",
   entitlementCsvExport: 'Export des relevés en CSV',
   entitlementPrioritySupport: 'Assistance prioritaire',
   entitlementAuditTrailRetention: "Conservation étendue du journal d'audit",
@@ -1889,13 +1907,22 @@ const en: Dictionary = {
   teamAssistantOnlyHint: 'You can invite an assistant. Doctors are invited by the account owner.',
   seatOwnerHint: 'Can invite members and change the plan.',
 
-  // pricing, plans, and billing (§2, §5.7) — TODO(pricing): every plan name, blurb, and price below is PLACEHOLDER copy pending real commercial terms
-  planSoloName: 'Solo',
-  planSoloBlurb: 'For a single practitioner referring the occasional case.',
-  planClinicName: 'Clinic',
-  planClinicBlurb: 'For a clinic or laboratory with a team and a steady caseload.',
-  planNetworkName: 'Network',
-  planNetworkBlurb: 'For a group of organisations or more than one corridor.',
+  // pricing, plans, and billing (§2, §5.7) — TODO(pricing): every plan name,
+  // blurb, and price below is PLACEHOLDER copy pending real commercial terms.
+  // Two ladders since migration 0022: src_* is sold to organisations that
+  // SUBMIT cases, dst_* to organisations that RECEIVE them.
+  planSrcSoloName: 'Solo',
+  planSrcSoloBlurb: 'For a single practitioner referring the occasional case.',
+  planSrcClinicName: 'Clinic',
+  planSrcClinicBlurb: 'For a clinic or laboratory referring a steady caseload, with a team.',
+  planSrcNetworkName: 'Network',
+  planSrcNetworkBlurb: 'For a group of referring organisations, or more than one corridor.',
+  planDstSoloName: 'Solo',
+  planDstSoloBlurb: 'For a single practitioner receiving the occasional case.',
+  planDstClinicName: 'Clinic',
+  planDstClinicBlurb: 'For a clinic or centre receiving a steady caseload, with a team.',
+  planDstNetworkName: 'Network',
+  planDstNetworkBlurb: 'For a group of receiving organisations, or more than one corridor.',
   entitlementCsvExport: 'CSV statement export',
   entitlementPrioritySupport: 'Priority support',
   entitlementAuditTrailRetention: 'Extended audit-trail retention',
