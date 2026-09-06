@@ -171,8 +171,8 @@ const ar = {
   appointmentsTitle: 'المواعيد',
   appointmentsEmpty: 'لا توجد مواعيد.',
   appointmentStatus: 'الحالة',
-  statusPendingPayment: 'بانتظار الدفع',
-  statusAuthorised: 'تم حجز المبلغ',
+  statusPending: 'بانتظار ردّ الطبيب',
+  statusDeclined: 'رفضها الطبيب المستقبِل',
   statusConfirmed: 'مؤكد',
   statusCancelled: 'ملغى',
   statusCompleted: 'مكتمل',
@@ -187,23 +187,18 @@ const ar = {
   availabilityAdd: 'إضافة فترة',
   availabilityEmpty: 'لم تُحدَّد أي فترات بعد.',
 
-  // billing
-  checkoutTitle: 'الدفع',
-  checkoutDescription:
-    'يُحجز المبلغ الآن ولا يُخصم إلا بعد قبول الطبيب للإحالة.',
-  checkoutAmount: 'المبلغ',
-  checkoutPay: 'تفويض الدفع',
-  checkoutAuthorised: 'تم حجز المبلغ بنجاح.',
-  checkoutFailed: 'فشل تفويض الدفع.',
+  // referral hand-off
+  bookingAwaitsAcceptance:
+    'تُرسَل الإحالة إلى الطبيب المستقبِل، وتصبح الصور متاحة له بعد قبولها.',
 
   // doctor inbox
   inboxTitle: 'الإحالات الواردة',
   inboxEmpty: 'لا توجد إحالات.',
   inboxAccept: 'قبول الإحالة',
   inboxDecline: 'رفض',
-  inboxAccepted: 'تم قبول الإحالة وخصم المبلغ.',
+  inboxAccepted: 'تم قبول الإحالة.',
   inboxViewStudies: 'عرض الدراسات',
-  inboxLockedUntilPayment: 'الصور غير متاحة قبل إتمام الدفع.',
+  inboxLockedUntilAccepted: 'الصور غير متاحة قبل أن يقبل الطبيب المستقبِل الإحالة.',
 
   // audit
   auditTitle: 'سجل التدقيق',
@@ -827,8 +822,8 @@ const fr: Dictionary = {
   appointmentsTitle: 'Rendez-vous',
   appointmentsEmpty: 'Aucun rendez-vous.',
   appointmentStatus: 'Statut',
-  statusPendingPayment: 'En attente de paiement',
-  statusAuthorised: 'Montant préautorisé',
+  statusPending: 'En attente de réponse du médecin',
+  statusDeclined: 'Refusée par le médecin destinataire',
   statusConfirmed: 'Confirmé',
   statusCancelled: 'Annulé',
   statusCompleted: 'Terminé',
@@ -842,21 +837,18 @@ const fr: Dictionary = {
   availabilityAdd: 'Ajouter une période',
   availabilityEmpty: 'Aucune période définie.',
 
-  checkoutTitle: 'Paiement',
-  checkoutDescription:
-    "Le montant est préautorisé maintenant et débité uniquement après l'acceptation du médecin.",
-  checkoutAmount: 'Montant',
-  checkoutPay: 'Autoriser le paiement',
-  checkoutAuthorised: 'Montant préautorisé avec succès.',
-  checkoutFailed: "Échec de l'autorisation de paiement.",
+  // referral hand-off
+  bookingAwaitsAcceptance:
+    "L'adressage est transmis au médecin destinataire ; les images lui deviennent accessibles dès qu'il l'accepte.",
 
   inboxTitle: 'Demandes reçues',
   inboxEmpty: 'Aucune demande.',
   inboxAccept: 'Accepter la demande',
   inboxDecline: 'Refuser',
-  inboxAccepted: 'Demande acceptée, paiement débité.',
+  inboxAccepted: 'Adressage accepté.',
   inboxViewStudies: 'Voir les examens',
-  inboxLockedUntilPayment: 'Les images ne sont pas accessibles avant le paiement.',
+  inboxLockedUntilAccepted:
+    "Les images ne sont pas accessibles tant que le médecin destinataire n'a pas accepté.",
 
   auditTitle: "Journal d'audit",
   auditDescription: 'Journal inaltérable de chaque accès aux données patient.',
@@ -1478,8 +1470,8 @@ const en: Dictionary = {
   appointmentsTitle: 'Appointments',
   appointmentsEmpty: 'No appointments.',
   appointmentStatus: 'Status',
-  statusPendingPayment: 'Awaiting payment',
-  statusAuthorised: 'Payment held',
+  statusPending: 'Awaiting the doctor’s answer',
+  statusDeclined: 'Declined by the receiving doctor',
   statusConfirmed: 'Confirmed',
   statusCancelled: 'Cancelled',
   statusCompleted: 'Completed',
@@ -1494,23 +1486,19 @@ const en: Dictionary = {
   availabilityAdd: 'Add period',
   availabilityEmpty: 'No periods set yet.',
 
-  // billing
-  checkoutTitle: 'Payment',
-  checkoutDescription:
-    'The amount is held now and is only charged once the doctor accepts the referral.',
-  checkoutAmount: 'Amount',
-  checkoutPay: 'Authorise payment',
-  checkoutAuthorised: 'The amount has been held.',
-  checkoutFailed: 'Payment authorisation failed.',
+  // referral hand-off
+  bookingAwaitsAcceptance:
+    'The referral is sent to the receiving doctor. Imaging becomes visible to them once they accept.',
 
   // doctor inbox
   inboxTitle: 'Incoming referrals',
   inboxEmpty: 'No referrals.',
   inboxAccept: 'Accept referral',
   inboxDecline: 'Decline',
-  inboxAccepted: 'The referral was accepted and the amount charged.',
+  inboxAccepted: 'Referral accepted.',
   inboxViewStudies: 'View studies',
-  inboxLockedUntilPayment: 'Images are unavailable until payment completes.',
+  inboxLockedUntilAccepted:
+    'Images are unavailable until the receiving doctor accepts the referral.',
 
   // audit
   auditTitle: 'Audit log',

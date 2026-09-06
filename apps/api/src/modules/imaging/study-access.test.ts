@@ -80,7 +80,7 @@ beforeEach(async () => {
   now = Date.UTC(2026, 0, 1, 12, 0, 0);
 });
 
-async function scenario(opts: { withConsent: boolean; status?: 'confirmed' | 'pending_payment' }) {
+async function scenario(opts: { withConsent: boolean; status?: 'confirmed' | 'pending' }) {
   const libyaDoctor = await createUser(h.owner, 'libya_doctor');
   const tunisDoctor = await createUser(h.owner, 'tunisia_doctor');
   const patient = await createPatient(h.owner, libyaDoctor);
@@ -161,8 +161,8 @@ describe('P8.2 study access authorization', () => {
     ).rejects.toThrow(/not found/i);
   });
 
-  it('applies the D3 payment gate — unpaid appointment is refused by default', async () => {
-    const s = await scenario({ withConsent: true, status: 'pending_payment' });
+  it('applies the D3 triage gate — an unanswered referral is refused by default', async () => {
+    const s = await scenario({ withConsent: true, status: 'pending' });
 
     await expect(
       runWithContext(ctx(s.tunisDoctor, 'tunisia_doctor'), () =>

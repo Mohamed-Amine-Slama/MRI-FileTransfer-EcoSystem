@@ -5,13 +5,12 @@ import { runWithContext, systemContext } from '../../../shared/context/request-c
 import { SchedulingService } from './scheduling.service';
 
 /**
- * The periodic sweep: release lapsed authorisations, send due reminders.
+ * The periodic sweep: release unanswered referrals, send due reminders.
  *
- * WHY THERE IS A TIMER HERE AT ALL. `releaseExpiredAuthorisations` has existed
- * since P10 and nothing ever called it — no cron, no scheduler, no caller
- * outside its own test. An authorisation that is never captured held its slot
- * forever, so the one function written to stop that had no effect in
- * production. `appointment_reminder` was in the same state: a template in two
+ * WHY THERE IS A TIMER HERE AT ALL. The release function has existed since P10
+ * and nothing ever called it — no cron, no scheduler, no caller outside its own
+ * test. A referral nobody answers held its slot forever, so the one function
+ * written to stop that had no effect in production. `appointment_reminder` was in the same state: a template in two
  * languages that nothing emitted.
  *
  * WHY setInterval AND NOT @nestjs/schedule. It would be the idiomatic choice
@@ -22,7 +21,7 @@ import { SchedulingService } from './scheduling.service';
  * to reach for the library.
  *
  * SINGLE-PROCESS ASSUMPTION, stated because it will not hold forever: with more
- * than one API replica every replica runs this. Re-releasing an authorisation
+ * than one API replica every replica runs this. Re-releasing a referral
  * is harmless (the UPDATE matches nothing the second time), and the reminder is
  * protected by `reminder_sent_at` being claimed in the same statement that
  * selects it — so the duplicate work is wasted rather than wrong. A real
@@ -73,7 +72,7 @@ export class SchedulingMaintenance implements OnModuleInit, OnModuleDestroy {
     this.running = true;
     try {
       return await runWithContext(systemContext('scheduling-sweep'), async () => {
-        const released = await this.scheduling.releaseExpiredAuthorisations();
+        const released = await this.scheduling.releaseUnansweredReferrals();
         const reminded = await this.scheduling.sendDueReminders(REMINDER_LEAD_HOURS);
         if (released > 0 || reminded > 0) {
           this.logger.log(`sweep: released ${released}, reminded ${reminded}`);

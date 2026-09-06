@@ -371,7 +371,13 @@ export async function createAppointment(
   owner: Pool,
   patientId: string,
   doctorId: string,
-  status: 'pending_payment' | 'authorised' | 'confirmed' | 'cancelled' | 'completed' = 'confirmed',
+  status:
+    | 'pending'
+    | 'confirmed'
+    | 'declined'
+    | 'cancelled'
+    | 'completed'
+    | 'no_show' = 'confirmed',
   startsAt: Date = new Date(Date.now() + 86_400_000),
 ): Promise<string> {
   const endsAt = new Date(startsAt.getTime() + 30 * 60_000);

@@ -209,7 +209,7 @@ describe('P4.4 audit module', () => {
         'AppointmentRescheduled',
         'AppointmentCancelled',
         'AppointmentReminderDue',
-        'PaymentSucceeded',
+        'AppointmentConfirmed',
         'StudyAccessed',
       ];
       expect([...AUDITED_EVENTS].sort()).toEqual([...expected].sort());

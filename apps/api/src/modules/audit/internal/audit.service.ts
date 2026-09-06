@@ -205,9 +205,8 @@ function subjectTypeFor(event: DomainEvent): string {
     case 'AppointmentRescheduled':
     case 'AppointmentCancelled':
     case 'AppointmentReminderDue':
+    case 'AppointmentConfirmed':
       return 'appointment';
-    case 'PaymentSucceeded':
-      return 'payment';
   }
 }
 
@@ -225,9 +224,8 @@ function subjectIdFor(event: DomainEvent): string | undefined {
     case 'AppointmentRescheduled':
     case 'AppointmentCancelled':
     case 'AppointmentReminderDue':
+    case 'AppointmentConfirmed':
       return event.appointmentId;
-    case 'PaymentSucceeded':
-      return event.paymentId;
   }
 }
 
@@ -276,12 +274,10 @@ function metadataFor(event: DomainEvent): Record<string, unknown> {
         // clinical field for a careless subscriber to reach for.
         ...(event.reason === undefined ? {} : { reason: event.reason }),
       };
-    case 'PaymentSucceeded':
-      return {
-        appointmentId: event.appointmentId,
-        amountMinor: event.amountMinor,
-        currency: event.currency,
-      };
+    case 'AppointmentConfirmed':
+      // No amount: acceptance moves no money, and a details blob with a
+      // currency in it would imply otherwise to whoever reads the log.
+      return { doctorId: event.doctorId };
     case 'PatientCreated':
       return { createdByDoctor: event.createdByDoctor };
   }

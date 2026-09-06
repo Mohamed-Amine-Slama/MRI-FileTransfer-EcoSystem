@@ -21,7 +21,7 @@ const AUDITED_EVENTS: DomainEventType[] = [
   'AppointmentRescheduled',
   'AppointmentCancelled',
   'AppointmentReminderDue',
-  'PaymentSucceeded',
+  'AppointmentConfirmed',
   'StudyAccessed',
 ];
 

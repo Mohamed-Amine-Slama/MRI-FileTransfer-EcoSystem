@@ -430,14 +430,15 @@ describe('the periodic sweep', () => {
   });
 
   it('does not remind an appointment that was never confirmed', async () => {
-    // A pending_payment booking may still lapse (D2). Reminding someone to
-    // attend an appointment that is about to be released is worse than silence.
+    // A pending referral may still lapse if no doctor answers it. Reminding
+    // someone to attend an appointment that is about to be released is worse
+    // than silence.
     const doctor = await createUser(h.owner, 'tunisia_doctor');
     const patient = await createPatient(h.owner, doctor);
     const soon = new Date(Date.now() + 3 * 3_600_000);
     await h.owner.query(
       `INSERT INTO scheduling_appointments (patient_id, doctor_id, starts_at, ends_at, status)
-       VALUES ($1, $2, $3, $4, 'pending_payment')`,
+       VALUES ($1, $2, $3, $4, 'pending')`,
       [patient, doctor, soon, new Date(soon.getTime() + 1_800_000)],
     );
 
@@ -445,29 +446,30 @@ describe('the periodic sweep', () => {
     expect(sent).toBe(0);
   });
 
-  it('records why an expired authorisation was released', async () => {
+  it('records why an unanswered referral was released', async () => {
     const doctor = await createUser(h.owner, 'tunisia_doctor');
     const patient = await createPatient(h.owner, doctor);
     await h.owner.query(
       `INSERT INTO scheduling_appointments
          (patient_id, doctor_id, starts_at, ends_at, status, created_at)
-       VALUES ($1, $2, $3, $4, 'authorised', now() - interval '100 hours')`,
+       VALUES ($1, $2, $3, $4, 'pending', now() - interval '100 hours')`,
       [patient, doctor, START, END],
     );
 
     const released = await runWithContext(ctx(doctor, 'admin'), () =>
-      scheduling.releaseExpiredAuthorisations(),
+      scheduling.releaseUnansweredReferrals(),
     );
     expect(released).toBe(1);
 
     const row = await h.owner.query<{ status: string; cancel_reason: string }>(
       'SELECT status, cancel_reason FROM scheduling_appointments',
     );
-    // The distinction the dead `expired` status was trying to carry, now in a
-    // column that something actually writes.
+    // 'cancelled', not 'declined': nobody refused this referral, the clock ran
+    // out on it. `cancel_reason` is what carries that distinction, in a column
+    // something actually writes.
     expect(row.rows[0]).toMatchObject({
       status: 'cancelled',
-      cancel_reason: 'authorisation_expired',
+      cancel_reason: 'referral_unanswered',
     });
   });
 });
