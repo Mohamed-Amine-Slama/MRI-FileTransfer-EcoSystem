@@ -9,13 +9,16 @@ import {
   createPractice,
   createStudy,
   createUser,
+  seedAcceptingDoctors,
+  seedDoctor,
   setupTestDatabase,
   truncateAll,
   type Harness,
 } from '../../shared/db/testing/rls-harness';
 import { EventBus } from '../../shared/events/event-bus';
-import { SchedulingService } from './internal/scheduling.service';
+import { CasesService } from './internal/cases.service';
 import { LedgerService } from '../ledger';
+import { PricingService } from '../pricing';
 
 /**
  * The case lifecycle — consult-model spec Part 3.
@@ -35,9 +38,12 @@ import { LedgerService } from '../ledger';
 let h: Harness;
 let db: DatabaseService;
 let bus: EventBus;
-let scheduling: SchedulingService;
+let cases: CasesService;
 
-const config = { CASES_ANSWER_WINDOW_HOURS: 72 } as AppConfig;
+const config = {
+  CASES_ANSWER_WINDOW_HOURS: 72,
+  CASES_QUOTE_TTL_MINUTES: 30,
+} as AppConfig;
 
 const ctx = (userId: string, role: RequestContext['role']): RequestContext => ({
   userId,
@@ -51,7 +57,7 @@ beforeAll(async () => {
   h = await setupTestDatabase();
   db = new DatabaseService({ DATABASE_URL: appUrl(), DATABASE_POOL_MAX: 20 } as AppConfig);
   bus = new EventBus();
-  scheduling = new SchedulingService(db, bus, config, new LedgerService(db));
+  cases = new CasesService(db, bus, config, new LedgerService(db), new PricingService(db));
 }, 120_000);
 
 afterAll(async () => {
@@ -84,7 +90,7 @@ describe('submitting a case', () => {
     // the price. A case with one and not the other is unrepresentable.
     const { doctor, patient } = await lab();
     const item = await runWithContext(ctx(doctor, 'libya_doctor'), () =>
-      scheduling.submit({ patientId: patient, specialty: 'radiology' }),
+      cases.submit({ patientId: patient, specialty: 'radiology' }),
     );
 
     expect(item.status).toBe('submitted');
@@ -96,7 +102,7 @@ describe('submitting a case', () => {
   it('records the organisation that owes, from the caller, not the request', async () => {
     const { doctor, patient } = await lab();
     const item = await runWithContext(ctx(doctor, 'libya_doctor'), () =>
-      scheduling.submit({ patientId: patient, specialty: 'radiology' }),
+      cases.submit({ patientId: patient, specialty: 'radiology' }),
     );
     expect(item.organisationId).toBeTruthy();
   });
@@ -109,7 +115,7 @@ describe('submitting a case', () => {
     });
 
     const item = await runWithContext(ctx(doctor, 'libya_doctor'), () =>
-      scheduling.submit({ patientId: patient, specialty: 'radiology' }),
+      cases.submit({ patientId: patient, specialty: 'radiology' }),
     );
     expect(seen).toEqual([item.id]);
   });
@@ -123,7 +129,7 @@ describe('submitting a case', () => {
 
     await expect(
       runWithContext(ctx(doctor, 'libya_doctor'), () =>
-        scheduling.submit({ patientId: theirPatient, specialty: 'radiology' }),
+        cases.submit({ patientId: theirPatient, specialty: 'radiology' }),
       ),
     ).rejects.toThrow(/not found/i);
   });
@@ -135,7 +141,7 @@ describe('submitting a case', () => {
     const tunis = await createUser(h.owner, 'tunisia_doctor');
     await expect(
       runWithContext(ctx(tunis, 'tunisia_doctor'), () =>
-        scheduling.submit({ patientId: patient, specialty: 'radiology' }),
+        cases.submit({ patientId: patient, specialty: 'radiology' }),
       ),
     ).rejects.toThrow();
   });
@@ -147,7 +153,7 @@ describe('study linkage', () => {
     const study = await createStudy(h.owner, patient, doctor);
 
     const item = await runWithContext(ctx(doctor, 'libya_doctor'), () =>
-      scheduling.submit({ patientId: patient, specialty: 'radiology', studyIds: [study] }),
+      cases.submit({ patientId: patient, specialty: 'radiology', studyIds: [study] }),
     );
 
     const { rows } = await h.owner.query<{ study_id: string }>(
@@ -168,12 +174,163 @@ describe('study linkage', () => {
 
     await expect(
       runWithContext(ctx(doctor, 'libya_doctor'), () =>
-        scheduling.submit({ patientId: patient, specialty: 'radiology', studyIds: [theirStudy] }),
+        cases.submit({ patientId: patient, specialty: 'radiology', studyIds: [theirStudy] }),
       ),
     ).rejects.toThrow();
 
     const { rows } = await h.owner.query('SELECT id FROM cases_cases');
     expect(rows).toHaveLength(0);
+  });
+});
+
+describe('quoting and paying', () => {
+  /**
+   * A lab, a patient, and a radiology market with five doctors in it — the
+   * densest surge rung, so the price moves only when a test moves it.
+   */
+  async function market(): Promise<{ lab: string; patient: string; senior: string }> {
+    const { doctorId } = await createPractice(h.owner, 'libya_doctor');
+    const patient = await createPatient(h.owner, doctorId);
+    await seedAcceptingDoctors(h.owner, { specialty: 'radiology', count: 4 });
+    const senior = await seedDoctor(h.owner, {
+      specialty: 'radiology',
+      tier: 'senior',
+      accepting: true,
+    });
+    return { lab: doctorId, patient, senior };
+  }
+
+  const submitted = async (lab: string, patient: string): Promise<string> => {
+    const item = await runWithContext(ctx(lab, 'libya_doctor'), () =>
+      cases.submit({ patientId: patient, specialty: 'radiology' }),
+    );
+    return item.id;
+  };
+
+  it('quoting picks the doctor and locks the price in one act', async () => {
+    const { lab, patient, senior } = await market();
+    const caseId = await submitted(lab, patient);
+
+    const quoted = await runWithContext(ctx(lab, 'libya_doctor'), () =>
+      cases.quote(caseId, senior),
+    );
+
+    expect(quoted.status).toBe('quoted');
+    expect(quoted.doctorId).toBe(senior);
+    expect(quoted.quotedAmountMinor).toBe(4800); // 4000 x 1.20 x 1.00
+    expect(quoted.quotedCurrency).toBe('USD');
+    expect(quoted.quoteExpiresAt).not.toBeNull();
+  });
+
+  /**
+   * THE POINT OF THE WHOLE QUOTE COLUMN. A price that moves between the screen
+   * and the charge is a dispute the platform loses, so paying reads the stored
+   * number and never recomputes one.
+   */
+  it('locks the quote: paying charges the stored number, not a fresh one', async () => {
+    const { lab, patient, senior } = await market();
+    const caseId = await submitted(lab, patient);
+    await runWithContext(ctx(lab, 'libya_doctor'), () => cases.quote(caseId, senior));
+
+    // The doctor is promoted between the quote and the payment.
+    await h.owner.query(
+      "UPDATE identity_doctor_profiles SET tier_code = 'expert' WHERE user_id = $1",
+      [senior],
+    );
+
+    await runWithContext(ctx(lab, 'libya_doctor'), () => cases.markPaid(caseId));
+    const after = await runWithContext(ctx(lab, 'libya_doctor'), () => cases.getCase(caseId));
+
+    expect(after.status).toBe('paid');
+    expect(after.quotedAmountMinor).toBe(4800);
+  });
+
+  it('refuses to pay against a lapsed quote', async () => {
+    const { lab, patient, senior } = await market();
+    const caseId = await submitted(lab, patient);
+    await runWithContext(ctx(lab, 'libya_doctor'), () => cases.quote(caseId, senior));
+    await h.owner.query(
+      "UPDATE cases_cases SET quote_expires_at = now() - interval '1 minute' WHERE id = $1",
+      [caseId],
+    );
+
+    await expect(
+      runWithContext(ctx(lab, 'libya_doctor'), () => cases.markPaid(caseId)),
+    ).rejects.toThrow(/lapsed/i);
+    expect(await statusOf(caseId)).toBe('quoted');
+  });
+
+  it('cannot quote against a doctor who has switched off', async () => {
+    const { lab, patient, senior } = await market();
+    await h.owner.query(
+      'UPDATE identity_doctor_profiles SET accepting_cases = false WHERE user_id = $1',
+      [senior],
+    );
+    const caseId = await submitted(lab, patient);
+
+    await expect(
+      runWithContext(ctx(lab, 'libya_doctor'), () => cases.quote(caseId, senior)),
+    ).rejects.toThrow(/not accepting/i);
+    expect(await statusOf(caseId)).toBe('submitted');
+  });
+
+  /**
+   * An unverified doctor may not receive imaging at all (Chapter V restricted
+   * transfer), so being switched on is not enough to be quotable. If this ever
+   * passes, a lab can route a study to a doctor ops never cleared.
+   */
+  it('cannot quote against an unverified doctor, however available they are', async () => {
+    const { doctorId } = await createPractice(h.owner, 'libya_doctor');
+    const patient = await createPatient(h.owner, doctorId);
+    await seedAcceptingDoctors(h.owner, { specialty: 'radiology', count: 5 });
+    const unverified = await seedDoctor(h.owner, {
+      specialty: 'radiology',
+      accepting: true,
+      verified: false,
+    });
+    const caseId = await submitted(doctorId, patient);
+
+    await expect(
+      runWithContext(ctx(doctorId, 'libya_doctor'), () => cases.quote(caseId, unverified)),
+    ).rejects.toThrow(/not accepting/i);
+  });
+
+  /**
+   * A decline sends the case back to the lab, and the next doctor may sit on a
+   * different tier — so the re-pick is re-quoted rather than inheriting a price
+   * that was computed against someone else's multiplier.
+   */
+  it('re-quotes on a re-pick after a decline, at the new doctor\'s tier', async () => {
+    const { lab, patient, senior } = await market();
+    const caseId = await submitted(lab, patient);
+    await runWithContext(ctx(lab, 'libya_doctor'), () => cases.quote(caseId, senior));
+    await runWithContext(ctx(lab, 'libya_doctor'), () => cases.markPaid(caseId));
+    await runWithContext(ctx(senior, 'tunisia_doctor'), () => cases.decline(caseId));
+    expect(await statusOf(caseId)).toBe('declined');
+
+    const standard = await seedDoctor(h.owner, {
+      specialty: 'radiology',
+      tier: 'standard',
+      accepting: true,
+    });
+    const requoted = await runWithContext(ctx(lab, 'libya_doctor'), () =>
+      cases.quote(caseId, standard),
+    );
+
+    expect(requoted.status).toBe('quoted');
+    expect(requoted.doctorId).toBe(standard);
+    expect(requoted.quotedAmountMinor).toBe(4000); // 4000 x 1.00 x 1.00
+  });
+
+  it('will not re-quote a case that is already paid for', async () => {
+    const { lab, patient, senior } = await market();
+    const caseId = await submitted(lab, patient);
+    await runWithContext(ctx(lab, 'libya_doctor'), () => cases.quote(caseId, senior));
+    await runWithContext(ctx(lab, 'libya_doctor'), () => cases.markPaid(caseId));
+
+    await expect(
+      runWithContext(ctx(lab, 'libya_doctor'), () => cases.quote(caseId, senior)),
+    ).rejects.toThrow(/cannot be quoted/i);
   });
 });
 
@@ -188,13 +345,13 @@ describe('the receiving doctor answers', () => {
 
   it('accepting moves a paid case to accepted', async () => {
     const { tunis, caseId } = await paidCase();
-    await runWithContext(ctx(tunis, 'tunisia_doctor'), () => scheduling.accept(caseId));
+    await runWithContext(ctx(tunis, 'tunisia_doctor'), () => cases.accept(caseId));
     expect(await statusOf(caseId)).toBe('accepted');
   });
 
   it('accepting starts the answer clock', async () => {
     const { tunis, caseId } = await paidCase();
-    await runWithContext(ctx(tunis, 'tunisia_doctor'), () => scheduling.accept(caseId));
+    await runWithContext(ctx(tunis, 'tunisia_doctor'), () => cases.accept(caseId));
 
     const { rows } = await h.owner.query<{ accepted_at: Date | null; answer_due_at: Date | null }>(
       'SELECT accepted_at, answer_due_at FROM cases_cases WHERE id = $1',
@@ -208,15 +365,15 @@ describe('the receiving doctor answers', () => {
     // The referring lab reads them differently: a refusal means pick another
     // doctor, a cancellation is their own withdrawal.
     const { tunis, caseId } = await paidCase();
-    await runWithContext(ctx(tunis, 'tunisia_doctor'), () => scheduling.decline(caseId));
+    await runWithContext(ctx(tunis, 'tunisia_doctor'), () => cases.decline(caseId));
     expect(await statusOf(caseId)).toBe('declined');
   });
 
   it('does not accept a case that was already declined', async () => {
     const { tunis, caseId } = await paidCase();
-    await runWithContext(ctx(tunis, 'tunisia_doctor'), () => scheduling.decline(caseId));
+    await runWithContext(ctx(tunis, 'tunisia_doctor'), () => cases.decline(caseId));
     await expect(
-      runWithContext(ctx(tunis, 'tunisia_doctor'), () => scheduling.accept(caseId)),
+      runWithContext(ctx(tunis, 'tunisia_doctor'), () => cases.accept(caseId)),
     ).rejects.toThrow(/not found/i);
     expect(await statusOf(caseId)).toBe('declined');
   });
@@ -230,9 +387,9 @@ describe('the receiving doctor answers', () => {
       seen.push(e.caseId);
     });
 
-    await runWithContext(ctx(tunis, 'tunisia_doctor'), () => scheduling.accept(caseId));
+    await runWithContext(ctx(tunis, 'tunisia_doctor'), () => cases.accept(caseId));
     await expect(
-      runWithContext(ctx(tunis, 'tunisia_doctor'), () => scheduling.accept(caseId)),
+      runWithContext(ctx(tunis, 'tunisia_doctor'), () => cases.accept(caseId)),
     ).rejects.toThrow(/not found/i);
 
     expect(seen).toEqual([caseId]);
@@ -245,7 +402,7 @@ describe('the receiving doctor answers', () => {
       seen.push(e.caseId);
     });
 
-    await runWithContext(ctx(tunis, 'tunisia_doctor'), () => scheduling.decline(caseId));
+    await runWithContext(ctx(tunis, 'tunisia_doctor'), () => cases.decline(caseId));
     expect(seen).toEqual([caseId]);
   });
 
@@ -253,7 +410,7 @@ describe('the receiving doctor answers', () => {
     const { caseId } = await paidCase();
     const other = await createUser(h.owner, 'tunisia_doctor');
     await expect(
-      runWithContext(ctx(other, 'tunisia_doctor'), () => scheduling.accept(caseId)),
+      runWithContext(ctx(other, 'tunisia_doctor'), () => cases.accept(caseId)),
     ).rejects.toThrow(/not found/i);
   });
 });

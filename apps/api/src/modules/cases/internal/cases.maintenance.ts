@@ -2,7 +2,7 @@ import { Inject, Injectable, Logger, type OnModuleDestroy, type OnModuleInit } f
 import { APP_CONFIG } from '../../../shared/config/config.module';
 import type { AppConfig } from '../../../shared/config/config.schema';
 import { runWithContext, systemContext } from '../../../shared/context/request-context';
-import { SchedulingService } from './scheduling.service';
+import { CasesService } from './cases.service';
 
 /**
  * The periodic sweep: release unanswered referrals, send due reminders.
@@ -32,14 +32,14 @@ import { SchedulingService } from './scheduling.service';
 const SWEEP_INTERVAL_MS = 15 * 60_000;
 
 @Injectable()
-export class SchedulingMaintenance implements OnModuleInit, OnModuleDestroy {
-  private readonly logger = new Logger(SchedulingMaintenance.name);
+export class CasesMaintenance implements OnModuleInit, OnModuleDestroy {
+  private readonly logger = new Logger(CasesMaintenance.name);
   private timer: NodeJS.Timeout | undefined;
   /** Guards against a slow sweep overlapping the next tick. */
   private running = false;
 
   constructor(
-    private readonly scheduling: SchedulingService,
+    private readonly cases: CasesService,
     @Inject(APP_CONFIG) private readonly config: AppConfig,
   ) {}
 
@@ -69,7 +69,7 @@ export class SchedulingMaintenance implements OnModuleInit, OnModuleDestroy {
     this.running = true;
     try {
       return await runWithContext(systemContext('cases-sweep'), async () => {
-        const expired = await this.scheduling.expireOverdue();
+        const expired = await this.cases.expireOverdue();
         if (expired > 0) this.logger.log(`sweep: expired ${expired}`);
         return { expired };
       });

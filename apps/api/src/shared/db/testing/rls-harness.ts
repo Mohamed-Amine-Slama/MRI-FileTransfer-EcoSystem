@@ -527,6 +527,12 @@ export async function seedDoctor(
     tier?: 'standard' | 'senior' | 'expert';
     accepting?: boolean;
     corridorId?: string;
+    /**
+     * Verified by default. Set false to seed a doctor the directory and the
+     * surge count must both refuse to see — an unverified doctor may not
+     * receive imaging, so quoting against one would price an unusable pick.
+     */
+    verified?: boolean;
   },
 ): Promise<string> {
   const n = uniq();
@@ -549,9 +555,16 @@ export async function seedDoctor(
 
   await owner.query(
     `INSERT INTO identity_doctor_profiles
-       (user_id, country, license_number, specialty, accepting_cases, tier_code)
-     VALUES ($1, 'TN', $2, $3, $4, $5)`,
-    [doctorId, `TN-${n}`, options.specialty, options.accepting ?? false, options.tier ?? 'standard'],
+       (user_id, country, license_number, specialty, accepting_cases, tier_code, verified_at)
+     VALUES ($1, 'TN', $2, $3, $4, $5, CASE WHEN $6::boolean THEN now() END)`,
+    [
+      doctorId,
+      `TN-${n}`,
+      options.specialty,
+      options.accepting ?? false,
+      options.tier ?? 'standard',
+      options.verified ?? true,
+    ],
   );
 
   return doctorId;

@@ -160,7 +160,7 @@ export const configSchema = z.object({
     .string()
     .min(32, 'SIGNED_URL_SECRET must be at least 32 characters'),
 
-  // --- scheduling (DECISION D3) -------------------------------------------
+  // --- cases (DECISION D3) -------------------------------------------
   // Default OFF: the Tunisian doctor sees imaging only after payment succeeds.
   // Consent is required in BOTH modes; this toggle never bypasses consent.
 
