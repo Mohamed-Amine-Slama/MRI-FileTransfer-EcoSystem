@@ -102,7 +102,7 @@ present, since that would make every token claim a second factor.
 | Object Lock verified — originals cannot be deleted | 🔒 **open** | Terraform written (compliance mode). The probe is now **written and runnable** (`pnpm verify:object-lock`), but **has never run against real S3**. This is the spec's single most important infra gate — see the LocalStack note below |
 | Cross-region replication verified | 🔒 open | Configured, never applied |
 | Checksums verified end-to-end on upload | ✅ | `upload.test.ts` — SHA-256 over decoded original; corrupt chunk rejected |
-| PITR restore drill completed within target RTO | 🔒 open / 🏠 local | Managed RDS PITR **unmeasured** (no account). A **local** basebackup restore was executed 2026-08-29: RTO 123.2 s, 18/18 instances still mapped to the right patient and checksum, RLS and the booking exclusion constraint survived. Not the RDS figure — see `dr.md` |
+| PITR restore drill completed within target RTO | 🔒 open / 🏠 local | Managed RDS PITR **unmeasured** (no account). A **local** basebackup restore was executed 2026-08-29: RTO 123.2 s, 18/18 instances still mapped to the right patient and checksum, RLS and the booking exclusion constraint survived (that constraint is gone as of migration 0025 — the drill is still evidence that constraints survive a restore, but it needs re-running against the current schema). Not the RDS figure — see `dr.md` |
 | No lossy transcoding anywhere in the pipeline | ✅ | Byte-for-byte equality asserted; Orthanc `IngestTranscoding` omitted; lossy syntaxes flagged not converted |
 
 **Object Lock — why LocalStack does not count.** The probe was exercised
@@ -130,7 +130,7 @@ Cross-region replication was not exercised at all. **P2.4 stays blocked.**
 | Item | Status | Evidence |
 |---|---|---|
 | Interrupted upload resumes on a poor connection | ✅ | Resume verified three ways: service-level abort, browser hard-close, and a **TCP RST mid-transfer** through an interposed proxy (no FIN) — resumed from server state, checksum matched, deterministic over 5 runs |
-| Concurrency: exactly one booking wins a contested slot | ✅ | 50 concurrent → 1 success, 49 clean 409s; deterministic over 5 rounds |
+| ~~Concurrency: exactly one booking wins a contested slot~~ | ⬜ retired | Migration 0025 removed the slot and its exclusion constraint, so there is no contended resource left to race for. The gate was deleted rather than adapted: a concurrency test that can no longer fail reads as protection that is not there. **What replaced it** is the status guard — every lifecycle verb is a conditional UPDATE naming the state it is legal from, covered by the case lifecycle suite |
 | p95 time-to-first-image under target on throttled connection | ✅ | **~1.0s** vs 5s budget at 2 Mbit/s / 200ms, desktop and mobile |
 
 ---

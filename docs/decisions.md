@@ -187,3 +187,65 @@ D1–D5 are product decisions. They do **not** resolve the legal prerequisites L
 BUILD_SPEC §2, which require local counsel in both jurisdictions and remain open.
 In particular, D2 depends on L7 (payment rails) and the consent implementation behind
 D4 depends on L4 (required form of patient consent).
+
+
+---
+
+# Revision — 2026-09-07: the consult model supersedes booking
+
+Recorded as a revision rather than an edit, per this file's own rule. D1 and D5
+are untouched.
+
+## D2, D2a — superseded
+
+D2 read "authorise at booking, capture when the Tunisian doctor accepts". Both
+halves are gone: migration 0021 removed the patient card the authorisation was
+taken against, and migration 0025 removed the booking.
+
+The replacement is in `docs/superpowers/specs/2026-09-07-consult-model-design.md`.
+A lab picks a doctor from the directory, the platform quotes a price — the
+specialty's base rate, times that doctor's earned tier, times a scarcity surge —
+and locks it against the case. The lab pays the locked number, and the funds are
+released when the doctor submits an answer.
+
+D2a's choice of Stripe stands as the rail and is still unwired pending L7.
+`PAYMENT_AUTHORIZATION_WINDOW_HOURS` is deleted: it bounded a card hold against
+a slot, and there is neither.
+
+**What is NOT decided here:** where the money sits between payment and release.
+No hold exists yet; `POST /cases/:id/pay` records the state and moves nothing.
+
+## D3 — superseded
+
+D3 made triage-before-payment a toggle, default off.
+
+In the consult model a doctor always sees a summary before accepting and never
+sees imaging before accepting, so the toggle has no false position.
+`SCHEDULING_TRIAGE_BEFORE_PAYMENT` is deleted rather than defaulted, because a
+config key that can no longer be false is a lie in the schema.
+
+## D4 — unchanged here, and under review
+
+Arabic and French stand; there is still no English in v1. Sub-project 6 puts
+English-as-default to counsel and to the product owner. Until that is decided,
+this file's answer is the one above.
+
+## New: how a consult is priced
+
+Not previously a decision, because there was no price to set.
+
+**Decision: the platform sets the price. A doctor does not quote, and a lab does
+not negotiate.** Three terms, published: a per-specialty base rate, the doctor's
+tier multiplier (earned from answered cases), and a surge multiplier read off a
+bounded four-rung ladder from how many doctors in that specialty are currently
+accepting.
+
+Rationale: a per-doctor quote turns every case into a negotiation across a
+language barrier and a border, and it makes the platform's own fee
+unexplainable. Three published terms can be shown to a lab, to a doctor, and to
+whichever regulator L2 identifies.
+
+**Unresolved:** whether surge pricing on medical consults is defensible at all
+is a question for counsel, not for this file. The technical mitigation is that
+the ladder is bounded and published rather than continuous and opaque; that is
+not the same as an answer.
