@@ -113,6 +113,44 @@ GRANT SELECT ON billing_fee_schedule TO mir_app;
 GRANT SELECT, INSERT, UPDATE ON billing_ledger_entries TO mir_app;
 
 -- ---------------------------------------------------------------------------
+-- Which organisation owes a referral's fee.
+--
+-- SECURITY DEFINER because accrual runs as the system role, and the system role
+-- CANNOT SEE PATIENTS. There is no admin SELECT policy on patients_patients and
+-- there must not be one — §1.1 gives the platform admin support and
+-- verification duties, not the clinical record — so the join from an
+-- appointment to its referring doctor is invisible to the very context that has
+-- to bill for it. Without this, accrual silently found nothing and every
+-- referral was free.
+--
+-- WHAT IT DELIBERATELY DOES NOT RETURN: anything about the patient. The caller
+-- gets an organisation id and a corridor, which is exactly what a fee needs and
+-- nothing a reader could not already ask the organisations table for.
+--
+-- The role guard is inside the function rather than left to the ledger's INSERT
+-- policy. The policy already stops a clinic writing its own ledger; this stops
+-- a clinic using a definer function to learn who is on the other side of an
+-- appointment id it guessed.
+-- ---------------------------------------------------------------------------
+CREATE OR REPLACE FUNCTION billing_owing_organisation(p_appointment uuid, p_side text)
+RETURNS TABLE (organisation_id uuid, corridor_id text)
+LANGUAGE sql STABLE SECURITY DEFINER SET search_path = public, pg_temp
+AS $$
+  SELECT o.id, o.corridor_id
+    FROM scheduling_appointments a
+    JOIN patients_patients p ON p.id = a.patient_id
+    JOIN identity_memberships m
+      ON m.user_id = CASE WHEN p_side = 'source' THEN p.created_by_doctor ELSE a.doctor_id END
+    JOIN identity_organisations o
+      ON o.id = m.organisation_id AND o.side = p_side
+   WHERE a.id = p_appointment
+     AND app_current_role() = 'admin'
+   LIMIT 1;
+$$;
+
+GRANT EXECUTE ON FUNCTION billing_owing_organisation(uuid, text) TO mir_app;
+
+-- ---------------------------------------------------------------------------
 -- The patient's card is gone.
 --
 -- billing_payments is keyed to patients_patients and was gated on

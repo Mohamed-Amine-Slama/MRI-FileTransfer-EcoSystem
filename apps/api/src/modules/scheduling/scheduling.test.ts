@@ -13,6 +13,7 @@ import {
 } from '../../shared/db/testing/rls-harness';
 import { EventBus } from '../../shared/events/event-bus';
 import { SchedulingService, SlotUnavailableError } from './internal/scheduling.service';
+import { LedgerService } from '../ledger';
 
 /**
  * BUILD_SPEC P10 — scheduling.
@@ -44,7 +45,7 @@ beforeAll(async () => {
   h = await setupTestDatabase();
   db = new DatabaseService({ DATABASE_URL: appUrl(), DATABASE_POOL_MAX: 20 } as AppConfig);
   bus = new EventBus();
-  scheduling = new SchedulingService(db, bus, config);
+  scheduling = new SchedulingService(db, bus, config, new LedgerService(db));
 }, 120_000);
 
 afterAll(async () => {

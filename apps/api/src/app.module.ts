@@ -17,6 +17,7 @@ import { AuditModule } from './modules/audit';
 import { ConsentModule } from './modules/consent';
 import { IdentityModule } from './modules/identity';
 import { ImagingModule } from './modules/imaging';
+import { LedgerModule } from './modules/ledger';
 import { NotificationsModule } from './modules/notifications';
 import { OrganisationsModule } from './modules/organisations';
 import { PlansModule } from './modules/plans';
@@ -48,6 +49,7 @@ import { SchedulingModule } from './modules/scheduling';
     ConsentModule,
     ImagingModule,
     SchedulingModule,
+    LedgerModule,
     NotificationsModule,
     OrganisationsModule,
     PlansModule,

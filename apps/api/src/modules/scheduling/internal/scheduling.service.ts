@@ -5,6 +5,7 @@ import { requireContext } from '../../../shared/context/request-context';
 import { DatabaseService, type Tx } from '../../../shared/db/database.service';
 import type { DomainEventBase } from '../../../shared/events/domain-events';
 import { EventBus } from '../../../shared/events/event-bus';
+import { LedgerService } from '../../ledger';
 
 /**
  * Availability and booking — BUILD_SPEC P10.
@@ -236,6 +237,7 @@ export class SchedulingService {
     private readonly db: DatabaseService,
     private readonly bus: EventBus,
     @Inject(APP_CONFIG) private readonly config: AppConfig,
+    private readonly ledger: LedgerService,
   ) {}
 
   // -------------------------------------------------------------------------
@@ -500,6 +502,14 @@ export class SchedulingService {
         notes: row.notes,
       };
     });
+
+    // The referring side's coordination fee, accrued at assignment.
+    //
+    // AFTER the booking transaction, not inside it: a billing configuration
+    // must never be able to fail a clinical hand-off. `accrueCoordinationFee`
+    // returns null rather than throwing when no rate is configured, and the
+    // partial unique index makes a retry harmless.
+    await this.ledger.accrueCoordinationFee(appointment.id, 'source');
 
     await this.bus.publish({
       type: 'AppointmentBooked',
@@ -906,6 +916,12 @@ export class SchedulingService {
       return res.rows[0];
     });
     if (accepted === undefined) throw new NotFoundException('Appointment not found');
+
+    // The receiving side's fee, accrued on acceptance rather than on
+    // assignment: the destination organisation owes for a referral it took on,
+    // and a declined one costs it nothing. `decline` deliberately accrues
+    // neither side's — see the plan's split.
+    await this.ledger.accrueCoordinationFee(appointmentId, 'destination');
 
     // Published where PaymentSucceeded used to be. The card's capture is what
     // told audit and notifications a booking was confirmed; the doctor's

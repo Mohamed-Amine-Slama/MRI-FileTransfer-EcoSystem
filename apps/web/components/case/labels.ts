@@ -22,17 +22,22 @@ import type { Dictionary } from '../../lib/i18n/dictionary';
  * lookups with a fallback, so adding a status to the contract is a compile
  * error here rather than a screen that quietly renders a raw enum value like
  * `under_review` to a clinic receptionist.
+ *
+ * The consult-model spec replaced the booking pipeline with the lifecycle
+ * below; every map here is exhaustive over the new one.
  */
 
 export function caseStatusLabel(t: Dictionary, status: CaseStatus): string {
   const labels: Record<CaseStatus, string> = {
     submitted: t.caseStatusSubmitted,
-    under_review: t.caseStatusUnderReview,
-    matched: t.caseStatusMatched,
-    in_progress: t.caseStatusInProgress,
-    completed: t.caseStatusCompleted,
-    rejected: t.caseStatusRejected,
+    quoted: t.caseStatusQuoted,
+    paid: t.caseStatusPaid,
+    accepted: t.caseStatusAccepted,
+    answered: t.caseStatusAnswered,
+    closed: t.caseStatusClosed,
+    declined: t.caseStatusDeclined,
     cancelled: t.caseStatusCancelled,
+    expired: t.caseStatusExpired,
   };
   return labels[status];
 }
@@ -47,12 +52,16 @@ export type Tone = 'info' | 'warning' | 'danger' | 'success';
 export function caseStatusTone(status: CaseStatus): Tone | undefined {
   const tones: Record<CaseStatus, Tone | undefined> = {
     submitted: undefined,
-    under_review: 'info',
-    matched: 'info',
-    in_progress: 'warning',
-    completed: 'success',
-    rejected: 'danger',
+    quoted: 'info',
+    paid: 'info',
+    accepted: 'warning',
+    answered: 'success',
+    closed: 'success',
+    declined: 'danger',
     cancelled: undefined,
+    // Not 'danger': an expired case is the platform's failure to deliver, not
+    // the lab's mistake, and it refunds. Warning is the honest register.
+    expired: 'warning',
   };
   return tones[status];
 }
@@ -156,48 +165,61 @@ export function paymentStatusTone(status: PaymentStatus): Tone {
  * it. `isAwaitingSide` and `nextActionLabel` therefore cannot disagree.
  */
 export type NextActionKey =
-  | 'uploadFiles'
-  | 'awaitReview'
-  | 'awaitMatch'
-  | 'schedule'
+  | 'pickDoctor'
+  | 'pay'
+  | 'awaitDoctor'
+  | 'triage'
+  | 'answer'
+  | 'readAnswer'
   | 'none';
 
 export function nextActionKey(status: CaseStatus, side: CaseSide): NextActionKey {
   if (side === 'ops') {
-    // Ops is not a party to the case. The one thing waiting on them is a
-    // newly submitted case nobody has triaged.
-    return status === 'submitted' ? 'awaitReview' : 'none';
+    // Ops has no per-case action in the consult model. The lab picks its own
+    // doctor, so no case waits on platform triage — and a task list that
+    // claimed otherwise would send ops looking for work that does not exist.
+    return 'none';
   }
   if (side === 'source') {
     const bySource: Record<CaseStatus, NextActionKey> = {
-      submitted: 'uploadFiles',
-      under_review: 'awaitReview',
-      matched: 'awaitMatch',
-      in_progress: 'none',
-      completed: 'none',
-      rejected: 'none',
+      submitted: 'pickDoctor',
+      quoted: 'pay',
+      paid: 'awaitDoctor',
+      accepted: 'awaitDoctor',
+      answered: 'readAnswer',
+      closed: 'none',
+      // A refusal is the lab's move again, not an ending. Same action as
+      // `submitted`, which is exactly what the status machine says.
+      declined: 'pickDoctor',
       cancelled: 'none',
+      expired: 'none',
     };
     return bySource[status];
   }
   const byDestination: Record<CaseStatus, NextActionKey> = {
     submitted: 'none',
-    under_review: 'none',
-    matched: 'schedule',
-    in_progress: 'schedule',
-    completed: 'none',
-    rejected: 'none',
+    quoted: 'none',
+    // Paid means the case is in front of the doctor and they have not yet
+    // committed: the action is to accept or decline on the summary.
+    paid: 'triage',
+    accepted: 'answer',
+    answered: 'none',
+    closed: 'none',
+    declined: 'none',
     cancelled: 'none',
+    expired: 'none',
   };
   return byDestination[status];
 }
 
 export function nextActionLabel(t: Dictionary, status: CaseStatus, side: CaseSide): string {
   const labels: Record<NextActionKey, string> = {
-    uploadFiles: t.nextActionUploadFiles,
-    awaitReview: t.nextActionAwaitReview,
-    awaitMatch: t.nextActionAwaitMatch,
-    schedule: t.nextActionSchedule,
+    pickDoctor: t.nextActionPickDoctor,
+    pay: t.nextActionPay,
+    awaitDoctor: t.nextActionAwaitDoctor,
+    triage: t.nextActionTriage,
+    answer: t.nextActionAnswer,
+    readAnswer: t.nextActionReadAnswer,
     none: t.nextActionNone,
   };
   return labels[nextActionKey(status, side)];

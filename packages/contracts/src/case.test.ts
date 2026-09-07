@@ -10,52 +10,67 @@ import {
   parseCaseRef,
 } from './case';
 
-describe('case status', () => {
-  it('carries the pipeline the brief names, in order (§5.3)', () => {
-    expect(CASE_STATUSES.slice(0, 5)).toEqual([
-      'submitted',
-      'under_review',
-      'matched',
-      'in_progress',
-      'completed',
-    ]);
+describe('the consult status machine', () => {
+  it('quotes before it takes money', () => {
+    expect(canTransition('submitted', 'quoted')).toBe(true);
+    expect(canTransition('submitted', 'paid')).toBe(false);
   });
 
-  it('allows only forward moves along the pipeline', () => {
-    expect(canTransition('submitted', 'under_review')).toBe(true);
-    expect(canTransition('under_review', 'matched')).toBe(true);
-    expect(canTransition('matched', 'in_progress')).toBe(true);
-    expect(canTransition('in_progress', 'completed')).toBe(true);
+  /**
+   * A decline is not the end of a case. The lab picks again, so `declined`
+   * must lead back to `submitted` — and it must NOT be terminal, which is the
+   * property the ledger relies on to keep the payment hold open.
+   */
+  it('returns a declined case to the lab rather than ending it', () => {
+    expect(canTransition('paid', 'declined')).toBe(true);
+    expect(canTransition('declined', 'submitted')).toBe(true);
+    expect(isTerminalStatus('declined')).toBe(false);
   });
 
-  it('refuses to skip or reverse a stage', () => {
-    expect(canTransition('submitted', 'matched')).toBe(false);
-    expect(canTransition('completed', 'in_progress')).toBe(false);
-    expect(canTransition('matched', 'submitted')).toBe(false);
+  it('lets an expired quote fall back to submitted', () => {
+    expect(canTransition('quoted', 'submitted')).toBe(true);
+  });
+
+  it('only an accepted case can be answered or expire', () => {
+    expect(canTransition('accepted', 'answered')).toBe(true);
+    expect(canTransition('accepted', 'expired')).toBe(true);
+    expect(canTransition('paid', 'answered')).toBe(false);
+    expect(canTransition('paid', 'expired')).toBe(false);
+  });
+
+  it('refuses to skip or reverse the money steps', () => {
+    expect(canTransition('submitted', 'accepted')).toBe(false);
+    expect(canTransition('answered', 'accepted')).toBe(false);
+    expect(canTransition('closed', 'answered')).toBe(false);
   });
 
   it('lets a live case be cancelled but never a finished one', () => {
     expect(canTransition('submitted', 'cancelled')).toBe(true);
-    expect(canTransition('in_progress', 'cancelled')).toBe(true);
-    expect(canTransition('completed', 'cancelled')).toBe(false);
-    expect(canTransition('rejected', 'cancelled')).toBe(false);
+    expect(canTransition('accepted', 'cancelled')).toBe(true);
+    expect(canTransition('answered', 'cancelled')).toBe(false);
+    expect(canTransition('expired', 'cancelled')).toBe(false);
   });
 
-  it('rejects only out of review, where the decision is actually made', () => {
-    expect(canTransition('under_review', 'rejected')).toBe(true);
-    expect(canTransition('in_progress', 'rejected')).toBe(false);
-  });
-
-  it('treats the three end states as terminal', () => {
-    expect(isTerminalStatus('completed')).toBe(true);
-    expect(isTerminalStatus('rejected')).toBe(true);
+  it('ends at closed, cancelled and expired', () => {
+    expect(isTerminalStatus('closed')).toBe(true);
     expect(isTerminalStatus('cancelled')).toBe(true);
+    expect(isTerminalStatus('expired')).toBe(true);
     expect(isTerminalStatus('submitted')).toBe(false);
   });
 
+  /** There is no appointment to miss. */
+  it('has no no_show status', () => {
+    expect(CASE_STATUSES as readonly string[]).not.toContain('no_show');
+  });
+
+  /** Choosing a doctor and locking their price are one act. */
+  it('has no assigned status', () => {
+    expect(CASE_STATUSES as readonly string[]).not.toContain('assigned');
+  });
+
   it('offers the reachable statuses so admin override UI is generated, not hand-listed (§5.8)', () => {
-    expect(nextStatuses('under_review')).toEqual(['matched', 'rejected', 'cancelled']);
-    expect(nextStatuses('completed')).toEqual([]);
+    expect(nextStatuses('paid')).toEqual(['accepted', 'declined', 'cancelled']);
+    expect(nextStatuses('closed')).toEqual([]);
   });
 
   it('gives every status a transition entry, so no status can strand a case', () => {
@@ -92,7 +107,7 @@ describe('case', () => {
     const parsed = caseSchema.parse({
       ref: 'MIR-2026-0417',
       corridorId: 'ly-tn',
-      status: 'in_progress',
+      status: 'accepted',
       submittedByProviderId: 'prov-1',
       matchedProviderId: 'prov-2',
       patientId: 'pat-1',
@@ -143,7 +158,7 @@ describe('case audience (§5.4 P0, §4.4)', () => {
   const item = caseSchema.parse({
     ref: 'MIR-2026-0417',
     corridorId: 'ly-tn',
-    status: 'in_progress',
+    status: 'accepted',
     submittedByProviderId: 'prov-a',
     matchedProviderId: 'prov-b',
     patientId: 'pat-1',
