@@ -2,25 +2,32 @@ import { z } from 'zod';
 import { caseSideSchema } from './corridor';
 
 /**
- * The case pipeline — brief §5.3.
+ * The consult lifecycle — consult-model spec Part 1.
  *
  * WHY A TABLE RATHER THAN CONDITIONALS.
  * §5.3 requires status labels be shown "consistently across provider and admin
- * views". Two views that each decide for themselves what may follow
- * `under_review` will eventually disagree, and the disagreement will be
- * discovered by a clinic rather than by us. One table, read by both, cannot
- * drift. It also gives the §5.8 admin override UI its options for free, rather
- * than by hand-listing them somewhere a new status will be forgotten.
+ * views". Two views that each decide for themselves what may follow `paid`
+ * will eventually disagree, and the disagreement will be discovered by a clinic
+ * rather than by us. One table, read by both, cannot drift. It also gives the
+ * §5.8 admin override UI its options for free, rather than by hand-listing them
+ * somewhere a new status will be forgotten.
+ *
+ * WHY `quoted` CARRIES THE DOCTOR. A quote is for one case AND one doctor,
+ * because the doctor's earned tier is a term in the price. There is deliberately
+ * no `assigned` state: a case holding a doctor but no price, or a price but no
+ * doctor, is a state the pricing rules cannot describe.
  */
 
 export const CASE_STATUSES = [
   'submitted',
-  'under_review',
-  'matched',
-  'in_progress',
-  'completed',
-  'rejected',
+  'quoted',
+  'paid',
+  'accepted',
+  'answered',
+  'closed',
+  'declined',
   'cancelled',
+  'expired',
 ] as const;
 
 export const caseStatusSchema = z.enum(CASE_STATUSES);
@@ -30,20 +37,30 @@ export type CaseStatus = z.infer<typeof caseStatusSchema>;
  * What may follow what. A terminal status maps to the empty list, which is what
  * `isTerminalStatus` reads — there is no second list to keep in sync.
  *
- * Cancellation is available from every live stage because a patient can
- * withdraw at any point before completion. It is NOT available from a finished
- * case: cancelling a completed case would silently undo a coordination fee.
- * Rejection is available only out of review, because that is the only stage at
- * which the decision to reject is actually taken.
+ * `declined` IS NOT TERMINAL, and that is the load-bearing entry here. The
+ * doctor refused; the lab picks again and the payment hold stays open, so the
+ * case walks back to `submitted` for a fresh quote against whoever they choose
+ * next. Treating a refusal as an ending would strand both the case and the
+ * money.
+ *
+ * `quoted` also walks back to `submitted`, for the other reason a case stalls:
+ * the quote's TTL lapsed before the lab paid. The price is never recomputed in
+ * place — the lab asks for a new one.
+ *
+ * Cancellation is available from every live stage because a lab can withdraw at
+ * any point before an answer exists. It is NOT available from a finished case:
+ * cancelling an answered case would silently undo a coordination fee.
  */
 const TRANSITIONS: Record<CaseStatus, readonly CaseStatus[]> = {
-  submitted: ['under_review', 'cancelled'],
-  under_review: ['matched', 'rejected', 'cancelled'],
-  matched: ['in_progress', 'cancelled'],
-  in_progress: ['completed', 'cancelled'],
-  completed: [],
-  rejected: [],
+  submitted: ['quoted', 'cancelled'],
+  quoted: ['paid', 'submitted', 'cancelled'],
+  paid: ['accepted', 'declined', 'cancelled'],
+  accepted: ['answered', 'expired', 'cancelled'],
+  declined: ['submitted'],
+  answered: ['closed'],
+  closed: [],
   cancelled: [],
+  expired: [],
 };
 
 export function canTransition(from: CaseStatus, to: CaseStatus): boolean {
