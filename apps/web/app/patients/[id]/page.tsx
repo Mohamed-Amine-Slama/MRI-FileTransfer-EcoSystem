@@ -3,7 +3,7 @@
 import Link from 'next/link';
 import { use, useCallback, useEffect, useState } from 'react';
 import { ApiError } from '../../../lib/api/client';
-import { api, type Doctor, type Patient, type Study } from '../../../lib/api/endpoints';
+import { api, type DirectoryEntry, type Patient, type Study } from '../../../lib/api/endpoints';
 import { useDateFormat, useT } from '../../../lib/i18n/provider';
 import { useSession } from '../../../lib/session/session';
 import { RoleGate } from '../../../components/RoleGate';
@@ -56,7 +56,7 @@ function PatientDetail({ patientId }: { patientId: string }): React.JSX.Element 
   const [consents, setConsents] = useState<
     { consentId: string; grantedTo: string; grantedAt: string }[] | null
   >(null);
-  const [doctors, setDoctors] = useState<Doctor[]>([]);
+  const [doctors, setDoctors] = useState<DirectoryEntry[]>([]);
   const [error, setError] = useState<string | null>(null);
   const [notice, setNotice] = useState<string | null>(null);
   const [busy, setBusy] = useState(false);
@@ -94,7 +94,7 @@ function PatientDetail({ patientId }: { patientId: string }): React.JSX.Element 
       try {
         const [{ consents: rows }, { doctors: docs }] = await Promise.all([
           api.consent.forPatient(patientId),
-          api.scheduling.doctors(),
+          api.cases.directory(),
         ]);
         setConsents(rows);
         setDoctors(docs);
@@ -151,11 +151,11 @@ function PatientDetail({ patientId }: { patientId: string }): React.JSX.Element 
               {t.patientIssueClaim}
             </Button>
             <Link
-              href={`/appointments/new?patientId=${patient.id}`}
+              href={`/cases/new?patientId=${patient.id}`}
               className={buttonVariants()}
-              data-testid="book-for-patient"
+              data-testid="submit-for-patient"
             >
-              {t.bookingTitle}
+              {t.casesNew}
             </Link>
           </>
         }

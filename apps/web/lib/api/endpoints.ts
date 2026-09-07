@@ -1,4 +1,5 @@
 import type {
+  CurrencyCode,
   EndpointSide,
   InviteMemberInput,
   Membership,
@@ -45,10 +46,12 @@ export interface UserProfile {
   role: Role;
   status: 'pending_verification' | 'active' | 'suspended';
   createdAt: string;
+  /** Null for an account the availability switch does not apply to. */
+  acceptingCases: boolean | null;
 }
 
 /** The organisation the signed-in user acts for — the durable form of `Provider`. */
-/** A clinician an appointment can be assigned to. */
+/** A clinician a case can be assigned to. */
 export interface Clinician {
   userId: string;
   displayName: string;
@@ -113,57 +116,59 @@ export interface Study {
   instanceCount: number;
 }
 
-export interface Doctor {
+/**
+ * One row of the directory a lab browses.
+ *
+ * The price is INDICATIVE. Surge moves with how many colleagues are switched
+ * on, so the number that binds is the one `quote` writes onto the case — the
+ * screen must show the locked figure after quoting, never this one.
+ */
+export interface DirectoryEntry {
   id: string;
   displayName: string;
-  specialty: string | null;
+  specialty: string;
   city: string | null;
+  tierCode: string;
+  indicativeAmountMinor: number | null;
+  indicativeCurrency: CurrencyCode | null;
 }
 
-export interface Slot {
-  startsAt: string;
-  endsAt: string;
-}
-
-export type AppointmentKind = 'consultation' | 'follow_up' | 'imaging' | 'other';
-
-export interface Appointment {
+/**
+ * A case as the API records it.
+ *
+ * There is no `startsAt`. Nothing here is scheduled — a case is submitted,
+ * priced against a chosen doctor, paid for, accepted and answered, and the only
+ * clock in it is `answerDueAt`, which starts when the doctor takes the work.
+ */
+export interface CaseRecord {
   id: string;
   patientId: string;
   patientName?: string;
   /** Only ever sent to an assistant, whose job is to ring the patient. */
   patientPhone?: string;
-  doctorId: string;
-  doctorName?: string;
-  startsAt: string;
-  endsAt: string;
-  status: 'pending' | 'confirmed' | 'declined' | 'cancelled' | 'completed' | 'no_show';
-  kind: AppointmentKind;
+  doctorId: string | null;
+  doctorName?: string | null;
+  organisationId: string;
+  specialty: string;
+  status:
+    | 'submitted'
+    | 'quoted'
+    | 'paid'
+    | 'accepted'
+    | 'answered'
+    | 'closed'
+    | 'declined'
+    | 'cancelled'
+    | 'expired';
   reason: string | null;
   notes: string | null;
+  quotedAmountMinor: number | null;
+  quotedCurrency: CurrencyCode | null;
+  quoteExpiresAt: string | null;
+  acceptedAt: string | null;
+  answeredAt: string | null;
+  answerDueAt: string | null;
   studyIds: string[];
-}
-
-/** A weekly opening-hours rule, in the clinic's own wall-clock time. */
-export interface AvailabilityRule {
-  id: string;
-  doctorId: string;
-  /** ISO-8601: 1 = Monday .. 7 = Sunday. */
-  weekday: number;
-  startTime: string;
-  endTime: string;
-  timezone: string;
-  slotMinutes: number;
-  validFrom: string;
-  validUntil: string | null;
-}
-
-export interface AvailabilityWindow {
-  id: string;
-  doctorId: string;
-  startsAt: string;
-  endsAt: string;
-  slotMinutes: number;
 }
 
 export interface ConsentTerms {
@@ -214,10 +219,8 @@ export const api = {
   imaging: {
     studiesForPatient: (patientId: string) =>
       apiFetch<{ studies: Study[] }>(`/studies?patientId=${encodeURIComponent(patientId)}`),
-    studiesForAppointment: (appointmentId: string) =>
-      apiFetch<{ studies: Study[] }>(
-        `/studies?appointmentId=${encodeURIComponent(appointmentId)}`,
-      ),
+    studiesForCase: (caseId: string) =>
+      apiFetch<{ studies: Study[] }>(`/studies?caseId=${encodeURIComponent(caseId)}`),
   },
 
   consent: {
@@ -252,115 +255,104 @@ export const api = {
       ),
   },
 
-  scheduling: {
-    doctors: () => apiFetch<{ doctors: Doctor[] }>('/doctors'),
-    openSlots: (doctorId: string, from: string, to: string) =>
-      apiFetch<{ slots: Slot[] }>(
-        `/doctors/${doctorId}/slots?from=${encodeURIComponent(from)}&to=${encodeURIComponent(to)}`,
-      ),
+  /**
+   * Cases — the consult lifecycle.
+   *
+   * WHAT IS NOT HERE. No availability windows, no slots, no reschedule: a
+   * doctor is either accepting work or not, and there is nothing to move. The
+   * calendar client went with migration 0025.
+   */
+  cases: {
     /**
-     * `from`/`to` bound what comes back. The calendar asks for the week it is
-     * showing rather than the whole history, which is also what keeps a busy
-     * practice's agenda from growing without limit.
+     * Doctors accepting work right now.
+     *
+     * No corridor argument. The API reads it from the caller's organisation, so
+     * a lab cannot ask about a corridor it is not party to — and a parameter
+     * here would suggest otherwise.
      */
-    listAppointments: (range?: { from?: string; to?: string }) => {
+    directory: (specialty?: string) =>
+      apiFetch<{ doctors: DirectoryEntry[] }>(
+        specialty === undefined
+          ? '/cases/directory'
+          : `/cases/directory?specialty=${encodeURIComponent(specialty)}`,
+      ),
+
+    /** The doctor's own on/off switch. Takes no id: the API reads the session. */
+    setAccepting: (accepting: boolean) =>
+      apiFetch<{ accepting: boolean }>('/doctors/me/accepting', {
+        method: 'PATCH',
+        body: { accepting },
+      }),
+
+    list: (range?: { from?: string; to?: string }) => {
       const q = new URLSearchParams();
       if (range?.from !== undefined) q.set('from', range.from);
       if (range?.to !== undefined) q.set('to', range.to);
       const suffix = q.toString() === '' ? '' : `?${q.toString()}`;
-      return apiFetch<{ appointments: Appointment[] }>(`/appointments${suffix}`);
+      return apiFetch<{ cases: CaseRecord[] }>(`/cases${suffix}`);
     },
-    getAppointment: (id: string) => apiFetch<Appointment>(`/appointments/${id}`),
-    book: (input: {
+    get: (id: string) => apiFetch<CaseRecord>(`/cases/${id}`),
+
+    submit: (input: {
       patientId: string;
-      doctorId: string;
-      startsAt: string;
-      endsAt: string;
+      specialty: string;
       studyIds: string[];
-      kind?: AppointmentKind;
       reason?: string;
       notes?: string;
     }) =>
-      apiFetch<Appointment>('/appointments', {
+      apiFetch<CaseRecord>('/cases', {
         method: 'POST',
         body: input,
-        // Double-tap on a bad link must not produce two appointments.
+        // Double-tap on a bad link must not produce two cases.
         idempotencyKey: newIdempotencyKey(),
       }),
-    cancel: (id: string) => apiFetch<void>(`/appointments/${id}`, { method: 'DELETE' }),
+
     /**
-     * The receiving doctor confirms the referral. This used to live under
-     * billing because accepting captured the patient's card; migration 0023
-     * removed the card, so it is a scheduling call like the rest.
+     * Pick a doctor and lock a price, in one call because they are one act:
+     * the doctor's tier is a term in the price.
+     *
+     * Answers 409 when that doctor has switched off since the directory was
+     * rendered. The screen must say so — never retry silently against someone
+     * else, which would refer a patient to a doctor nobody chose.
      */
+    quote: (id: string, doctorId: string) =>
+      apiFetch<CaseRecord>(`/cases/${id}/quote`, { method: 'POST', body: { doctorId } }),
+
+    /** Settles the quoted price. 409 once `quoteExpiresAt` has passed. */
+    pay: (id: string) =>
+      apiFetch<CaseRecord>(`/cases/${id}/pay`, {
+        method: 'POST',
+        idempotencyKey: newIdempotencyKey(),
+      }),
+
+    cancel: (id: string) => apiFetch<void>(`/cases/${id}`, { method: 'DELETE' }),
+
     accept: (id: string) =>
-      apiFetch<{ status: string }>(`/appointments/${id}/accept`, {
+      apiFetch<{ status: 'accepted' }>(`/cases/${id}/accept`, {
         method: 'POST',
         idempotencyKey: newIdempotencyKey(),
       }),
     decline: (id: string) =>
-      apiFetch<{ status: 'declined' }>(`/appointments/${id}/decline`, { method: 'POST' }),
-    addAvailability: (input: {
-      startsAt: string;
-      endsAt: string;
-      slotMinutes: number;
-      doctorId?: string;
-    }) => apiFetch<{ id: string }>('/availability', { method: 'POST', body: input }),
-    listAvailability: (doctorId?: string) =>
-      apiFetch<{ windows: AvailabilityWindow[] }>(
-        doctorId === undefined ? '/availability' : `/availability?doctorId=${doctorId}`,
-      ),
+      apiFetch<{ status: 'declined' }>(`/cases/${id}/decline`, { method: 'POST' }),
 
-    // --- running the diary -------------------------------------------------
+    /** The doctor's answer exists. This is what will release their payment. */
+    answer: (id: string) =>
+      apiFetch<{ status: 'answered' }>(`/cases/${id}/answer`, { method: 'POST' }),
 
-    /** Move an appointment. A taken slot answers 409, never a 500. */
-    reschedule: (id: string, startsAt: string, endsAt: string) =>
-      apiFetch<Appointment>(`/appointments/${id}/time`, {
-        method: 'PATCH',
-        body: { startsAt, endsAt },
-      }),
-    /** Scheduling detail only — never the time; that is `reschedule`. */
-    updateAppointment: (
-      id: string,
-      patch: { kind?: AppointmentKind; reason?: string | null; notes?: string | null },
-    ) => apiFetch<Appointment>(`/appointments/${id}`, { method: 'PATCH', body: patch }),
-    complete: (id: string) =>
-      apiFetch<{ status: string }>(`/appointments/${id}/complete`, { method: 'POST' }),
-    noShow: (id: string) =>
-      apiFetch<{ status: string }>(`/appointments/${id}/no-show`, { method: 'POST' }),
+    /** Coordination detail the sides may correct — never a clinical finding. */
+    update: (id: string, patch: { reason?: string | null; notes?: string | null }) =>
+      apiFetch<CaseRecord>(`/cases/${id}`, { method: 'PATCH', body: patch }),
+
     /**
-     * The practice cancelling, which is not `cancel` — that is the patient
-     * withdrawing. The reason reaches the patient, so they can tell a clinic
-     * closure from their own booking lapsing.
+     * The receiving side withdrawing, with a reason. Not `cancel` — that is the
+     * lab withdrawing its own case, and a lab told only "cancelled" cannot tell
+     * a clinic closure from its own request lapsing.
      */
     cancelAsDoctor: (id: string, reason?: string) =>
-      apiFetch<{ status: string }>(`/appointments/${id}/cancel`, {
+      apiFetch<{ status: 'cancelled' }>(`/cases/${id}/cancel`, {
         method: 'POST',
         body: { ...(reason === undefined ? {} : { reason }) },
       }),
-
-    // --- availability upkeep -----------------------------------------------
-
-    withdrawAvailability: (id: string) =>
-      apiFetch<void>(`/availability/${id}`, { method: 'DELETE' }),
-    listRules: (doctorId?: string) =>
-      apiFetch<{ rules: AvailabilityRule[] }>(
-        doctorId === undefined ? '/availability/rules' : `/availability/rules?doctorId=${doctorId}`,
-      ),
-    addRule: (input: {
-      weekday: number;
-      startTime: string;
-      endTime: string;
-      timezone: string;
-      slotMinutes?: number;
-      doctorId?: string;
-    }) =>
-      apiFetch<{ id: string; generated: number }>('/availability/rules', {
-        method: 'POST',
-        body: input,
-      }),
-    withdrawRule: (id: string) =>
-      apiFetch<void>(`/availability/rules/${id}`, { method: 'DELETE' }),
   },
 
   audit: {
@@ -409,8 +401,8 @@ export const api = {
     members: (id: string) =>
       apiFetch<{ members: Membership[] }>(`/organisations/${id}/members`),
     /**
-     * The organisation's clinicians and their specialties — who an appointment
-     * can be routed TO. Distinct from `members`, which lists seats.
+     * The organisation's clinicians and their specialties — who a case can be
+     * routed TO. Distinct from `members`, which lists seats.
      */
     clinicians: (id: string) =>
       apiFetch<{ clinicians: Clinician[] }>(`/organisations/${id}/clinicians`),
