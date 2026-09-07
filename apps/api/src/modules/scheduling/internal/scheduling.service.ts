@@ -313,7 +313,7 @@ export class SchedulingService {
 
       const taken = await tx.query<{ starts_at: Date; ends_at: Date }>(
         `SELECT starts_at, ends_at FROM scheduling_appointments
-         WHERE doctor_id = $1 AND status <> 'cancelled' AND ends_at > $2 AND starts_at < $3`,
+         WHERE doctor_id = $1 AND status NOT IN ('cancelled', 'declined') AND ends_at > $2 AND starts_at < $3`,
         [doctorId, from, to],
       );
 
@@ -345,10 +345,15 @@ export class SchedulingService {
    * and everyone else gets a clean 409 — never a 500, and never a second
    * appointment.
    *
-   * DECISION D2: the appointment starts at `pending_payment`. Authorisation
-   * moves it to `authorised`; capture on the doctor's acceptance moves it to
-   * `confirmed`. Imaging stays invisible to the receiving doctor until then
-   * unless triage is enabled (D3).
+   * The appointment starts at `pending`, meaning "referred, not yet answered".
+   * The receiving doctor's `accept` moves it to `confirmed` and their `decline`
+   * to `declined`. Imaging stays invisible to the receiving doctor until it is
+   * confirmed unless triage is enabled (D3).
+   *
+   * It used to start at `pending_payment` under DECISION D2 — authorise the
+   * patient's card at booking, capture on acceptance. Migration 0023 removed
+   * that state with the card: waiting on a doctor and waiting on a payment are
+   * not the same wait, and only one of them still exists.
    */
   async book(input: BookingInput): Promise<Appointment> {
     const ctx = requireContext();
@@ -426,7 +431,7 @@ export class SchedulingService {
         }>(
           `INSERT INTO scheduling_appointments
              (patient_id, doctor_id, starts_at, ends_at, status, kind, reason, notes, created_by)
-           VALUES ($1, $2, $3, $4, 'pending_payment', $5, $6, $7, $8)
+           VALUES ($1, $2, $3, $4, 'pending', $5, $6, $7, $8)
            RETURNING id, patient_id, doctor_id, starts_at, ends_at, status, kind, reason, notes`,
           [
             input.patientId,
@@ -699,7 +704,7 @@ export class SchedulingService {
          FROM scheduling_appointments a
          JOIN scheduling_availability w ON w.id = $1
          WHERE a.doctor_id = w.doctor_id
-           AND a.status <> 'cancelled'
+           AND a.status NOT IN ('cancelled', 'declined')
            AND a.starts_at < w.ends_at
            AND a.ends_at > w.starts_at`,
         [windowId],
@@ -852,7 +857,7 @@ export class SchedulingService {
              AND NOT EXISTS (
                SELECT 1 FROM scheduling_appointments a
                WHERE a.doctor_id = w.doctor_id
-                 AND a.status <> 'cancelled'
+                 AND a.status NOT IN ('cancelled', 'declined')
                  AND a.starts_at < w.ends_at
                  AND a.ends_at > w.starts_at
              )`,
@@ -867,10 +872,15 @@ export class SchedulingService {
   /**
    * The receiving doctor declines a referral.
    *
-   * Distinct from cancel() only in intent, but the distinction matters to the
-   * patient: a declined referral must release the authorisation so they are
-   * not charged and the held funds return. The release itself is billing's
-   * job, triggered off the resulting state.
+   * Writes `declined`, not `cancelled`. The two used to collapse because the
+   * only thing that turned on the difference was releasing the patient's card
+   * authorisation, and cancelled released it just as well. Migration 0023 keeps
+   * them apart because the referring clinic reads them differently — a refusal
+   * is a signal to send the case elsewhere, a cancellation is their own
+   * withdrawal — and because they accrue differently.
+   *
+   * The exclusion constraint ignores `declined` as well as `cancelled`, so a
+   * refusal puts the slot back in circulation rather than holding it forever.
    */
   /**
    * The receiving doctor accepts the referral.
@@ -885,24 +895,37 @@ export class SchedulingService {
    * row, and an accept on a cancelled appointment does not resurrect it.
    */
   async accept(appointmentId: string): Promise<void> {
-    const changed = await this.db.tx(async (tx) => {
-      const res = await tx.query(
+    const accepted = await this.db.tx(async (tx) => {
+      const res = await tx.query<{ patient_id: string; doctor_id: string }>(
         `UPDATE scheduling_appointments
          SET status = 'confirmed'
-         WHERE id = $1 AND status NOT IN ('cancelled', 'completed', 'confirmed')`,
+         WHERE id = $1 AND status NOT IN ('cancelled', 'declined', 'completed', 'confirmed')
+         RETURNING patient_id, doctor_id`,
         [appointmentId],
       );
-      return res.rowCount ?? 0;
+      return res.rows[0];
     });
-    if (changed === 0) throw new NotFoundException('Appointment not found');
+    if (accepted === undefined) throw new NotFoundException('Appointment not found');
+
+    // Published where PaymentSucceeded used to be. The card's capture is what
+    // told audit and notifications a booking was confirmed; the doctor's
+    // acceptance says it now. Emitted only when a row actually changed, so a
+    // repeated accept does not send a second confirmation.
+    await this.bus.publish({
+      type: 'AppointmentConfirmed',
+      appointmentId,
+      patientId: accepted.patient_id,
+      doctorId: accepted.doctor_id,
+      ...this.actorFields(),
+    });
   }
 
   async decline(appointmentId: string): Promise<void> {
     const changed = await this.db.tx(async (tx) => {
       const res = await tx.query(
         `UPDATE scheduling_appointments
-         SET status = 'cancelled'
-         WHERE id = $1 AND status IN ('pending_payment', 'authorised')`,
+         SET status = 'declined'
+         WHERE id = $1 AND status = 'pending'`,
         [appointmentId],
       );
       return res.rowCount ?? 0;
@@ -955,7 +978,7 @@ export class SchedulingService {
           const res = await tx.query(
             `UPDATE scheduling_appointments
              SET starts_at = $2, ends_at = $3
-             WHERE id = $1 AND status IN ('pending_payment','authorised','confirmed')`,
+             WHERE id = $1 AND status IN ('pending','confirmed')`,
             [appointmentId, startsAt, endsAt],
           );
           return res.rowCount ?? 0;
@@ -1148,23 +1171,27 @@ export class SchedulingService {
   /**
    * Release appointments whose payment authorisation expired (DECISION D2).
    *
-   * An authorisation that is never captured must not hold a slot forever —
-   * that is a slot no other patient can book while no money will ever move.
+   * A referral nobody answers must not hold a slot forever — that is a slot no
+   * other patient can be booked into while no doctor will ever look at it.
    *
-   * The status is `cancelled`, and `cancel_reason` is what distinguishes this
-   * from a patient changing their mind. The web client used to carry an
-   * `expired` status for the difference, which no query could ever return
-   * because nothing writes it — so the branch reading it was dead, and a
-   * patient whose payment window lapsed was told, indistinguishably, that
-   * their appointment had been cancelled.
+   * THE MECHANISM SURVIVED THE CARD; THE REASON DID NOT. This used to release a
+   * Stripe authorisation that was never captured, and the window was the
+   * payment window. There is no authorisation now, so what expires is the
+   * receiving doctor's silence. The status is `cancelled` rather than
+   * `declined` on purpose: nobody refused, the clock ran out, and
+   * `cancel_reason` is what says so.
+   *
+   * The environment variable is still named for the payment window it used to
+   * be. Renaming it is a deployment change and belongs with the other config
+   * rename (`SCHEDULING_TRIAGE_BEFORE_PAYMENT`), not in a migration commit.
    */
-  async releaseExpiredAuthorisations(): Promise<number> {
+  async releaseUnansweredReferrals(): Promise<number> {
     const windowHours = this.config.PAYMENT_AUTHORIZATION_WINDOW_HOURS;
     return this.db.tx(async (tx) => {
       const res = await tx.query(
         `UPDATE scheduling_appointments
-         SET status = 'cancelled', cancel_reason = 'authorisation_expired'
-         WHERE status IN ('pending_payment', 'authorised')
+         SET status = 'cancelled', cancel_reason = 'referral_unanswered'
+         WHERE status = 'pending'
            AND created_at < now() - ($1 || ' hours')::interval`,
         [String(windowHours)],
       );

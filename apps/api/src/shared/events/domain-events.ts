@@ -108,12 +108,24 @@ export interface AppointmentReminderDue extends DomainEventBase {
   startsAt: Date;
 }
 
-export interface PaymentSucceeded extends DomainEventBase {
-  type: 'PaymentSucceeded';
+/**
+ * The receiving doctor accepted the referral.
+ *
+ * This replaces `PaymentSucceeded`, which is what used to confirm a booking:
+ * the patient's card was captured on acceptance, and the payment event was the
+ * only signal anything downstream got. Migration 0023 removed the card, which
+ * left that event with no publisher — an audit branch nothing reached and a
+ * "your booking is confirmed" notification nothing sent.
+ *
+ * Carries no money, because acceptance never was a payment. What downstream
+ * actually needed from `PaymentSucceeded` was "this appointment is now
+ * confirmed", which is what this says.
+ */
+export interface AppointmentConfirmed extends DomainEventBase {
+  type: 'AppointmentConfirmed';
   appointmentId: string;
-  paymentId: string;
-  amountMinor: number;
-  currency: string;
+  patientId: string;
+  doctorId: string;
 }
 
 export interface StudyAccessed extends DomainEventBase {
@@ -145,7 +157,7 @@ export type DomainEvent =
   | AppointmentRescheduled
   | AppointmentCancelled
   | AppointmentReminderDue
-  | PaymentSucceeded
+  | AppointmentConfirmed
   | StudyAccessed;
 
 export type DomainEventType = DomainEvent['type'];

@@ -20,6 +20,11 @@ import { describe, expect, it } from 'vitest';
  * it: the new workspace gates on PROVIDER_ROLES rather than naming the
  * receiving role, so both corridor sides get a calendar from the same screen.
  * The route now 308s to /schedule/availability (next.config.mjs).
+ *
+ * `app/consent/page.tsx` came off the list by being deleted: migration 0021
+ * removed patient accounts, and that screen existed only so a signed-in
+ * patient could grant consent. Consent is now an attestation the referring
+ * doctor makes, so there is no user for that screen to serve.
  */
 
 // Resolved from this file, not from cwd, so the test does not depend on where
@@ -31,7 +36,6 @@ const ALLOWED = new Set([
   'app/appointments/[id]/page.tsx',
   'app/appointments/new/page.tsx',
   'app/appointments/page.tsx',
-  'app/consent/page.tsx',
   'app/doctor/page.tsx',
   'app/layout.tsx',
   'app/page.tsx',
@@ -77,8 +81,14 @@ describe('no hardcoded corridor (§4.3)', () => {
   });
 
   it('keeps the debt list honest — a cleaned-up screen must leave ALLOWED', () => {
+    // A deleted screen counts as stale rather than throwing ENOENT, so a
+    // forgotten entry reads as the ratchet failing instead of the test file
+    // crashing on a path that is gone.
+    const present = new Set(files.map(key));
     const stale = [...ALLOWED].filter(
-      (file) => !FORBIDDEN.test(readFileSync(join(WEB_ROOT, file), 'utf8')),
+      (file) =>
+        !present.has(file) ||
+        !FORBIDDEN.test(readFileSync(join(WEB_ROOT, file), 'utf8')),
     );
     expect(stale).toEqual([]);
   });

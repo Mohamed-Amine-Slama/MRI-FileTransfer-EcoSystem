@@ -15,9 +15,13 @@ export type AppointmentStatus = Appointment['status'];
  * here rather than a silent omission at whichever call site was overlooked.
  */
 const LIVE: Record<AppointmentStatus, boolean> = {
-  pending_payment: true,
-  authorised: true,
+  // Referred, awaiting the receiving doctor's answer.
+  pending: true,
   confirmed: true,
+  // A refusal frees the slot exactly as a cancellation does — the database's
+  // exclusion constraint ignores both — so it must not read as still live here
+  // either.
+  declined: false,
   cancelled: false,
   // The visit happened, or the slot was lost. Either way it is history: it
   // must not appear as "upcoming", and it must not offer a cancel button.

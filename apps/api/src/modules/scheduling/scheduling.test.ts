@@ -266,7 +266,99 @@ describe('P10.2 booking concurrency (the gate)', () => {
     expect(second.doctorId).toBe(docB);
   });
 
-  it('starts a booking at pending_payment (DECISION D2)', async () => {
+  /**
+   * The accept/decline pair, after migration 0023 gave declining its own state.
+   *
+   * These are the assertions that would have caught the two ways adding a
+   * status goes wrong: writing the old one, and forgetting that every
+   * "still standing" predicate enumerated the old set.
+   */
+  describe('the receiving doctor answers', () => {
+    async function refer(): Promise<{ libyaDoctor: string; tunisDoctor: string; apptId: string }> {
+      const libyaDoctor = await createUser(h.owner, 'libya_doctor');
+      const tunisDoctor = await createUser(h.owner, 'tunisia_doctor');
+      const p = await createPatient(h.owner, libyaDoctor);
+      const appt = await runWithContext(ctx(libyaDoctor, 'libya_doctor'), () =>
+        scheduling.book({
+          patientId: p,
+          doctorId: tunisDoctor,
+          startsAt: SLOT_START,
+          endsAt: SLOT_END,
+        }),
+      );
+      return { libyaDoctor, tunisDoctor, apptId: appt.id };
+    }
+
+    async function statusOf(apptId: string): Promise<string | undefined> {
+      const row = await h.owner.query<{ status: string }>(
+        'SELECT status FROM scheduling_appointments WHERE id = $1',
+        [apptId],
+      );
+      return row.rows[0]?.status;
+    }
+
+    it('accepting confirms the referral', async () => {
+      const { tunisDoctor, apptId } = await refer();
+      await runWithContext(ctx(tunisDoctor, 'tunisia_doctor'), () => scheduling.accept(apptId));
+      expect(await statusOf(apptId)).toBe('confirmed');
+    });
+
+    it('declining writes declined, not cancelled', async () => {
+      // The two collapsed while the only thing turning on the difference was
+      // releasing the patient's card. The referring clinic reads them
+      // differently: a refusal means send the case elsewhere.
+      const { tunisDoctor, apptId } = await refer();
+      await runWithContext(ctx(tunisDoctor, 'tunisia_doctor'), () => scheduling.decline(apptId));
+      expect(await statusOf(apptId)).toBe('declined');
+    });
+
+    it('frees the slot when declined, so the refusal is not permanent', async () => {
+      // If the exclusion constraint still counted a declined appointment as
+      // occupying the slot, one refusal would take that time out of
+      // circulation forever.
+      const { libyaDoctor, tunisDoctor, apptId } = await refer();
+      await runWithContext(ctx(tunisDoctor, 'tunisia_doctor'), () => scheduling.decline(apptId));
+
+      const other = await createPatient(h.owner, libyaDoctor);
+      const rebooked = await runWithContext(ctx(libyaDoctor, 'libya_doctor'), () =>
+        scheduling.book({
+          patientId: other,
+          doctorId: tunisDoctor,
+          startsAt: SLOT_START,
+          endsAt: SLOT_END,
+        }),
+      );
+      expect(rebooked.status).toBe('pending');
+    });
+
+    it('does not accept an appointment that was already declined', async () => {
+      const { tunisDoctor, apptId } = await refer();
+      await runWithContext(ctx(tunisDoctor, 'tunisia_doctor'), () => scheduling.decline(apptId));
+      await expect(
+        runWithContext(ctx(tunisDoctor, 'tunisia_doctor'), () => scheduling.accept(apptId)),
+      ).rejects.toThrow(/not found/i);
+      expect(await statusOf(apptId)).toBe('declined');
+    });
+
+    it('emits AppointmentConfirmed once, so a repeated accept sends one confirmation', async () => {
+      // This event replaced PaymentSucceeded, which is what used to tell audit
+      // and notifications a booking was confirmed.
+      const { tunisDoctor, apptId } = await refer();
+      const seen: string[] = [];
+      bus.subscribe('AppointmentConfirmed', (e) => {
+        seen.push(e.appointmentId);
+      });
+
+      await runWithContext(ctx(tunisDoctor, 'tunisia_doctor'), () => scheduling.accept(apptId));
+      await expect(
+        runWithContext(ctx(tunisDoctor, 'tunisia_doctor'), () => scheduling.accept(apptId)),
+      ).rejects.toThrow(/not found/i);
+
+      expect(seen).toEqual([apptId]);
+    });
+  });
+
+  it('starts a booking at pending — referred, not yet answered', async () => {
     const libyaDoctor = await createUser(h.owner, 'libya_doctor');
     const tunisDoctor = await createUser(h.owner, 'tunisia_doctor');
     const p = await createPatient(h.owner, libyaDoctor);
@@ -274,7 +366,7 @@ describe('P10.2 booking concurrency (the gate)', () => {
     const appt = await runWithContext(ctx(libyaDoctor, 'libya_doctor'), () =>
       scheduling.book({ patientId: p, doctorId: tunisDoctor, startsAt: SLOT_START, endsAt: SLOT_END }),
     );
-    expect(appt.status).toBe('pending_payment');
+    expect(appt.status).toBe('pending');
   });
 
   // 120s like its siblings, and for the same reason: these tests are bounded by
@@ -445,7 +537,7 @@ describe('P10.1 availability and timezones', () => {
     expect(after.some((s) => s.startsAt.getTime() === SLOT_START.getTime())).toBe(false);
   });
 
-  it('releases appointments whose payment authorisation expired (D2)', async () => {
+  it('releases a referral no doctor answered inside the window', async () => {
     const libyaDoctor = await createUser(h.owner, 'libya_doctor');
     const tunisDoctor = await createUser(h.owner, 'tunisia_doctor');
     const p = await createPatient(h.owner, libyaDoctor);
@@ -454,14 +546,14 @@ describe('P10.1 availability and timezones', () => {
       scheduling.book({ patientId: p, doctorId: tunisDoctor, startsAt: SLOT_START, endsAt: SLOT_END }),
     );
 
-    // Age it past the authorisation window.
+    // Age it past the response window.
     await h.owner.query(
       `UPDATE scheduling_appointments SET created_at = now() - interval '100 hours' WHERE id = $1`,
       [appt.id],
     );
 
     const released = await runWithContext(ctx(libyaDoctor, 'libya_doctor'), () =>
-      scheduling.releaseExpiredAuthorisations(),
+      scheduling.releaseUnansweredReferrals(),
     );
     expect(released).toBeGreaterThanOrEqual(1);
 

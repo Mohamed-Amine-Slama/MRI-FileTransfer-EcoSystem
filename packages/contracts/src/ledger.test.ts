@@ -1,7 +1,9 @@
 import { describe, expect, it } from 'vitest';
 import {
   CURRENCY_MINOR_UNITS,
+  LEDGER_ENTRY_KINDS,
   currencySchema,
+  ledgerEntryKindSchema,
   ledgerEntrySchema,
   summariseLedger,
   toMajorUnits,
@@ -150,5 +152,40 @@ describe('minor units are per-currency (§5.7 multi-currency)', () => {
     for (const currency of currencySchema.options) {
       expect(CURRENCY_MINOR_UNITS[currency]).toBeGreaterThan(0);
     }
+  });
+});
+
+/**
+ * The kinds as a value, not just as a type.
+ *
+ * Migration 0023's CHECK constraint mirrors this list, and the accrual service
+ * writes against it. A type alone cannot be compared to a database constraint;
+ * a `const` can be, and the assertion below is what makes the two drift
+ * visibly rather than silently.
+ */
+describe('ledger entry kinds', () => {
+  it('exposes the closed set the database CHECK mirrors', () => {
+    expect(LEDGER_ENTRY_KINDS).toEqual(['coordination_fee', 'saas_subscription']);
+  });
+
+  it('rejects a kind outside the set', () => {
+    expect(ledgerEntryKindSchema.safeParse('overage').success).toBe(false);
+  });
+
+  it('covers exactly the kinds the union discriminates on', () => {
+    // The two must not drift: a kind in the union but not in this list would
+    // pass the schema and fail the database CHECK, at write time, in
+    // production.
+    const fromUnion = ledgerEntrySchema.options.map((o) => o.shape.kind.value).sort();
+    expect(fromUnion).toEqual([...LEDGER_ENTRY_KINDS].sort());
+  });
+
+  it('summariseLedger still produces no total across kinds', () => {
+    const summary = summariseLedger([]);
+    expect(summary).not.toHaveProperty('total');
+    expect(Object.keys(summary.outstanding).sort()).toEqual([
+      'coordination_fee',
+      'saas_subscription',
+    ]);
   });
 });

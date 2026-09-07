@@ -145,7 +145,53 @@ DROP FUNCTION IF EXISTS app_claimed_patient(uuid);
 
 -- ---------------------------------------------------------------------------
 -- The role itself.
+--
+-- WHAT A PATIENT ACCOUNT LEAVES BEHIND. Every foreign key into identity_users
+-- is NO ACTION, so deleting the accounts without clearing what points at them
+-- fails on the first dependent row. The rows fall into two kinds, and they are
+-- treated differently on purpose:
+--
+--  * ACCOUNT FURNITURE — preferences and email verifications. These exist only
+--    to serve a login. With no login they describe nothing, so they go.
+--
+--  * CLINICAL WORK the patient happened to author. A patient could book their
+--    own appointment under `appointments_patient_insert`, and that booking is a
+--    real slot with a real doctor. Deleting it would throw away scheduling data
+--    to remove an account, so `created_by` is REPOINTED to the doctor who
+--    created the patient record — which is exactly who would have booked it
+--    under the new model. `patient_id` already says whose appointment it is, so
+--    nothing about the booking becomes less true.
+--
+-- Anything else — a membership, an invitation, an organisation decision — a
+-- patient could never have had, because every one of those paths is role-gated
+-- to staff. If one exists anyway, the foreign key still fires and this
+-- migration fails loudly. That is the correct outcome: an unexplained row is
+-- not something to delete quietly.
 -- ---------------------------------------------------------------------------
+DELETE FROM identity_user_preferences
+  WHERE user_id IN (SELECT id FROM identity_users WHERE role = 'patient');
+
+DELETE FROM identity_email_verifications
+  WHERE user_id IN (SELECT id FROM identity_users WHERE role = 'patient');
+
+UPDATE scheduling_appointments a
+   SET created_by = p.created_by_doctor
+  FROM patients_patients p
+ WHERE p.id = a.patient_id
+   AND a.created_by IN (SELECT id FROM identity_users WHERE role = 'patient');
+
+UPDATE imaging_studies s
+   SET uploaded_by = p.created_by_doctor
+  FROM patients_patients p
+ WHERE p.id = s.patient_id
+   AND s.uploaded_by IN (SELECT id FROM identity_users WHERE role = 'patient');
+
+UPDATE imaging_upload_sessions u
+   SET created_by = p.created_by_doctor
+  FROM patients_patients p
+ WHERE p.id = u.patient_id
+   AND u.created_by IN (SELECT id FROM identity_users WHERE role = 'patient');
+
 DELETE FROM identity_users WHERE role = 'patient';
 
 ALTER TABLE identity_users DROP CONSTRAINT IF EXISTS identity_users_role_check;

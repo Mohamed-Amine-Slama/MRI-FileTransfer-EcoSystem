@@ -5,7 +5,6 @@ import { Suspense, useCallback, useEffect, useState } from 'react';
 import { ApiError } from '../../../lib/api/client';
 import { api, type Doctor, type Slot, type Study } from '../../../lib/api/endpoints';
 import { useDateFormat, useLocale, useT } from '../../../lib/i18n/provider';
-import { useSession } from '../../../lib/session/session';
 import { RoleGate } from '../../../components/RoleGate';
 import {
   Alert,
@@ -52,7 +51,6 @@ function BookingFlow(): React.JSX.Element {
   const router = useRouter();
   const formatDate = useDateFormat();
   const { locale } = useLocale();
-  const { user } = useSession();
   const searchParams = useSearchParams();
 
   // The patient is named in the query string, by the doctor who picked them.
@@ -317,7 +315,7 @@ function BookingFlow(): React.JSX.Element {
               <dd className="font-medium tabular-nums">{selectedStudies.length}</dd>
             </div>
           </dl>
-          <Alert tone="info">{t.checkoutDescription}</Alert>
+          <Alert tone="info">{t.bookingAwaitsAcceptance}</Alert>
           <Button
             variant="primary"
             className="h-11 w-full sm:w-auto"

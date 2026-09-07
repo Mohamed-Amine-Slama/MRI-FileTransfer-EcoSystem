@@ -137,7 +137,7 @@ export interface Appointment {
   doctorName?: string;
   startsAt: string;
   endsAt: string;
-  status: 'pending_payment' | 'authorised' | 'confirmed' | 'cancelled' | 'completed' | 'no_show';
+  status: 'pending' | 'confirmed' | 'declined' | 'cancelled' | 'completed' | 'no_show';
   kind: AppointmentKind;
   reason: string | null;
   notes: string | null;
@@ -288,7 +288,11 @@ export const api = {
         idempotencyKey: newIdempotencyKey(),
       }),
     cancel: (id: string) => apiFetch<void>(`/appointments/${id}`, { method: 'DELETE' }),
-    /** Accepting CAPTURES the held payment (D2) — see the billing controller. */
+    /**
+     * The receiving doctor confirms the referral. This used to live under
+     * billing because accepting captured the patient's card; migration 0023
+     * removed the card, so it is a scheduling call like the rest.
+     */
     accept: (id: string) =>
       apiFetch<{ status: string }>(`/appointments/${id}/accept`, {
         method: 'POST',
@@ -357,23 +361,6 @@ export const api = {
       }),
     withdrawRule: (id: string) =>
       apiFetch<void>(`/availability/rules/${id}`, { method: 'DELETE' }),
-  },
-
-  billing: {
-    /**
-     * Authorise, never capture. DECISION D2: the money is held when the
-     * patient books and taken only when the doctor accepts, so a referral
-     * nobody answers costs the patient nothing.
-     */
-    authorise: (appointmentId: string) =>
-      apiFetch<{ status: string; clientSecret?: string }>(
-        `/appointments/${appointmentId}/payment`,
-        { method: 'POST', idempotencyKey: newIdempotencyKey() },
-      ),
-    status: (appointmentId: string) =>
-      apiFetch<{ status: string; amountMinor: number | null; currency: string | null }>(
-        `/appointments/${appointmentId}/payment`,
-      ),
   },
 
   audit: {

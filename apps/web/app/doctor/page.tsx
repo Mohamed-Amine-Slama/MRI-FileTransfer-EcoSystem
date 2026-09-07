@@ -122,11 +122,14 @@ function Inbox(): React.JSX.Element {
                   <AppointmentStatusBadge status={a.status} />
                 </TableCell>
                 <TableCell>
-                  {a.status === 'authorised' && (
+                  {a.status === 'pending' && (
                     <div className="flex flex-wrap justify-end gap-2">
-                      {/* Accepting CAPTURES the payment (D2), so it is the one
-                          primary action; declining releases the hold and stays
-                          a plain button. The asymmetry is deliberate. */}
+                      {/* Accepting confirms the referral and unlocks the
+                          imaging, so it is the one primary action; declining
+                          frees the slot and stays a plain button. The asymmetry
+                          is deliberate. It used to be justified by accepting
+                          CAPTURING the patient's card (D2); the shape is right
+                          for the same reason without the money. */}
                       <Button
                         variant="primary"
                         size="sm"

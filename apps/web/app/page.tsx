@@ -11,7 +11,6 @@ import {
   FolderKanban,
   Inbox,
   ScrollText,
-  ShieldCheck,
   Upload,
   UserRoundPlus,
   Users,
@@ -199,7 +198,7 @@ function LibyaDoctorDashboard(): React.JSX.Element {
           value={appointments === null ? null : appointments.length}
           href="/appointments"
         />
-        <StatTile label={t.statusAuthorised} value={count('authorised')} href="/appointments" />
+        <StatTile label={t.statusPending} value={count('pending')} href="/appointments" />
         <StatTile label={t.statusConfirmed} value={count('confirmed')} href="/appointments" />
       </StatGrid>
       {appointments !== null && (
@@ -216,13 +215,15 @@ function TunisiaDoctorDashboard(): React.JSX.Element {
   const count = (s: Appointment['status']): number | null =>
     appointments === null ? null : appointments.filter((a) => a.status === s).length;
 
+  // Awaiting THIS doctor's answer. `pending` is the only state that means it,
+  // now that there is no card to be authorised first.
   const awaiting =
-    appointments === null ? [] : appointments.filter((a) => a.status === 'authorised');
+    appointments === null ? [] : appointments.filter((a) => a.status === 'pending');
 
   return (
     <>
       <StatGrid>
-        <StatTile label={t.dashboardAwaitingDecision} value={count('authorised')} href="/doctor" />
+        <StatTile label={t.dashboardAwaitingDecision} value={count('pending')} href="/doctor" />
         <StatTile label={t.statusConfirmed} value={count('confirmed')} href="/appointments" />
         <StatTile
           label={t.statAppointmentsTotal}
