@@ -222,6 +222,23 @@ describe('PHASE 12 notification templates', () => {
     }
   });
 
+  /**
+   * A price is not clinical, and it is still not allowed here.
+   *
+   * Two reasons. An amount tells whoever reads the lock screen roughly what was
+   * ordered — a 6500-cent consult is not a 4000-cent one — and a message
+   * carrying a figure plus a link is a phishing template that arrives looking
+   * exactly like ours. The quote lives on the platform beside its expiry.
+   */
+  it('never carries an amount, a price or a currency', () => {
+    for (const id of ALL_TEMPLATES) {
+      const allowed = TEMPLATES[id].allowed as string[];
+      for (const forbidden of ['amount', 'amountMinor', 'price', 'currency', 'total']) {
+        expect(allowed, id).not.toContain(forbidden);
+      }
+    }
+  });
+
   it('leaves an unfilled placeholder empty rather than printing its name', () => {
     const out = render('case_accepted', 'sms', 'fr', { caseRef: 'MIR-2026-0417' });
     expect(out.body).not.toContain('{{doctorName}}');

@@ -160,18 +160,11 @@ export const configSchema = z.object({
     .string()
     .min(32, 'SIGNED_URL_SECRET must be at least 32 characters'),
 
-  // --- cases (DECISION D3) -------------------------------------------
-  // Default OFF: the Tunisian doctor sees imaging only after payment succeeds.
-  // Consent is required in BOTH modes; this toggle never bypasses consent.
-
-  // --- billing (DECISION D2) ----------------------------------------------
-  // Authorise at booking, capture on acceptance. An authorisation that is
-  // never captured must expire and release the slot.
-  PAYMENT_AUTHORIZATION_WINDOW_HOURS: intFromEnv(
-    'PAYMENT_AUTHORIZATION_WINDOW_HOURS',
-    1,
-    720,
-  ).prefault('72'),
+  // No PAYMENT_AUTHORIZATION_WINDOW_HOURS. It bounded how long a card
+  // authorisation could sit before the slot was released; migration 0023
+  // removed the authorisation and 0025 removed the slot. Sub-project 4 brings
+  // its own hold window under a name that describes what it bounds — reusing
+  // this one would carry D2's meaning into a model that does not have it.
 
   // --- billing (DECISION D2a: Stripe) -------------------------------------
   // Secret key and webhook secret come from AWS Secrets Manager (§6) and are

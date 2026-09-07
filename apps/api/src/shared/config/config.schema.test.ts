@@ -98,4 +98,33 @@ describe('config validation (P1.6)', () => {
     const cfg = loadConfig({ ...VALID, IMAGING_RETENTION_DAYS: '7300' });
     expect(cfg.IMAGING_RETENTION_DAYS).toBe(7300);
   });
+
+  it('carries the quote TTL and the answer window as configuration', () => {
+    // §2: anything a legal answer might move is configuration, and PRD open
+    // question 2 — how long a doctor has before a case refunds — is exactly
+    // that. Both are bounded, so a deploy cannot set the window to a year.
+    const cfg = loadConfig({ ...VALID });
+    expect(cfg.CASES_QUOTE_TTL_MINUTES).toBe(30);
+    expect(cfg.CASES_ANSWER_WINDOW_HOURS).toBe(72);
+    expect(() => loadConfig({ ...VALID, CASES_ANSWER_WINDOW_HOURS: '0' })).toThrow(
+      /CASES_ANSWER_WINDOW_HOURS/,
+    );
+    expect(() => loadConfig({ ...VALID, CASES_QUOTE_TTL_MINUTES: '1' })).toThrow(
+      /CASES_QUOTE_TTL_MINUTES/,
+    );
+  });
+
+  /**
+   * Both keys described a model this codebase no longer has, and a stale toggle
+   * is worse than a missing one: it reads as a supported mode.
+   */
+  it('has retired the booking-era switches', () => {
+    const cfg = loadConfig({ ...VALID }) as Record<string, unknown>;
+    // Triage before payment was D3's toggle. A summary before acceptance is now
+    // the flow itself, not something an operator turns on.
+    expect(cfg).not.toHaveProperty('SCHEDULING_TRIAGE_BEFORE_PAYMENT');
+    // D2's authorisation window bounded a card hold against a slot. There is
+    // neither a card nor a slot.
+    expect(cfg).not.toHaveProperty('PAYMENT_AUTHORIZATION_WINDOW_HOURS');
+  });
 });
