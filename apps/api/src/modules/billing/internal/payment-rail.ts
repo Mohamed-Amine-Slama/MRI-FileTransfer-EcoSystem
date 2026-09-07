@@ -4,8 +4,8 @@
  * The patient's card was the only payer this platform ever had, and migration
  * 0021 removed patient accounts. The Stripe authorise-at-booking /
  * capture-on-acceptance flow that used this port went with them, along with
- * `billing_payments` and the module that owned it. Acceptance is now a
- * scheduling decision (SchedulingService.accept) because that is what it
+ * `billing_payments` and the module that owned it. Acceptance is now the
+ * receiving doctor's decision (CasesService.accept) because that is what it
  * always was once money stopped moving through it.
  *
  * WHY THE FILE STAYS. Organisation-side collection will need a rail when
@@ -33,8 +33,8 @@ import { createHmac, timingSafeEqual } from 'node:crypto';
  * country it supports, and to the best of our knowledge neither Libya nor
  * Tunisia is on that list — so the corporate structure, and possibly the rail
  * itself, may still change. Everything behind this interface is replaceable
- * without touching scheduling, which is the module that actually cares whether
- * an appointment is paid for.
+ * without touching cases, which is the module that actually cares whether
+ * a case is paid for.
  *
  * D2 requires AUTHORISE-THEN-CAPTURE: hold the money when the patient books,
  * take it when the Tunisian doctor accepts the case. Any rail that cannot do
