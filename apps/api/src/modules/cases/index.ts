@@ -2,7 +2,7 @@
  * Public API of the `cases` module (consult-model spec Part 1).
  *
  * Accepting a case lives here rather than in `billing`: it used to be
- * billing's because capturing the patient's card was what confirmed a booking,
+ * billing's because capturing the patient's card was what confirmed a case,
  * and migration 0023 removed the card.
  *
  * Deliberately NOT exported: the controller, and any way to write a case's

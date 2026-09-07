@@ -122,17 +122,7 @@ const CASE_COLUMNS = `a.id, a.patient_id, a.doctor_id, a.organisation_id, a.spec
 /**
  * Translate a failed write on `cases_cases` into an HTTP answer.
  *
- * Shared by book and reschedule because they fail in exactly the same ways and
- * must answer identically. The version of this that lived inline in
- * `attemptBooking` was the only correct handling in the module, so a second
- * writer would otherwise have grown its own — and the one that matters,
- * 23P01 -> a clean 409 rather than a 500, is the P10.2 gate.
- *
- * 42501 is RLS refusing the row. It becomes 404, never 403: §6 requires that
- * "does not exist" and "not yours" be indistinguishable.
- */
-/**
- * PostgreSQL's "insufficient privilege" — RLS refusing the row.
+ * 42501 is PostgreSQL's "insufficient privilege" — RLS refusing the row.
  *
  * It becomes 404 and never 403, because §6 requires that "does not exist" and
  * "not yours" be indistinguishable: a 403 confirms the row is real, which is an
@@ -176,18 +166,11 @@ export class CasesService {
 
 
   // -------------------------------------------------------------------------
-  // P10.2 — booking
-  // -------------------------------------------------------------------------
-
-
-
-
-  // -------------------------------------------------------------------------
   // Reads for the UI
   //
   // NONE of these filter by caller. Every one is scoped by row-level security:
-  // a patient sees their own appointments, a Tunisian doctor sees the ones
-  // referred to them, and neither can widen that by changing a parameter,
+  // a referring clinic sees its own cases, a receiving doctor sees the ones
+  // sent to them, and neither can widen that by changing a parameter,
   // because there is no parameter to change. Adding `WHERE patient_id =
   // $currentUser` here would look safer and would in fact be WEAKER — it would
   // move the decision out of the database and into a line of code that a later
@@ -411,10 +394,10 @@ export class CasesService {
   }
 
   /**
-   * One appointment, with its linked studies. 404 when not visible.
+   * One case, with its linked studies. 404 when not visible.
    *
    * An assistant gets the agenda projection and NO study ids: the linkage
-   * table would return nothing for them anyway (`app_can_see_appointment`), and
+   * table would return nothing for them anyway (`app_can_see_case`), and
    * asking would imply they were meant to have some.
    */
   async getCase(caseId: string): Promise<CaseSummary> {
@@ -484,20 +467,19 @@ export class CasesService {
    * is a signal to send the case elsewhere, a cancellation is their own
    * withdrawal — and because they accrue differently.
    *
-   * The exclusion constraint ignores `declined` as well as `cancelled`, so a
-   * refusal puts the slot back in circulation rather than holding it forever.
+   * A declined case can be quoted again, which is what makes a refusal cheap:
+   * the lab picks another doctor and is re-quoted at that doctor's tier.
    */
   /**
-   * The receiving doctor accepts the referral.
+   * The receiving doctor accepts the case.
    *
    * This lived in the billing module until migration 0021, because accepting
    * used to CAPTURE the patient's card and the code that moved money owned the
    * transition. There is no card and no patient, so acceptance is what it
-   * always actually was: a decision by the doctor who will do the
-   * read.
+   * always actually was: a decision by the doctor who will do the read.
    *
    * The status guard is what makes it idempotent — a second accept matches no
-   * row, and an accept on a cancelled appointment does not resurrect it.
+   * row, and an accept on a cancelled case does not resurrect it.
    */
   async accept(caseId: string): Promise<void> {
     const accepted = await this.db.tx(async (tx) => {
@@ -577,25 +559,16 @@ export class CasesService {
   }
 
   // -------------------------------------------------------------------------
-  // Running the diary — the verbs a practice needs and the referral flow never
-  // did. Every one of these leans on RLS for "may this caller touch this row":
-  // there is no ownership check here, and `rowCount === 0` is the answer to
-  // both "no such appointment" and "not yours", which §6 requires be
+  // Closing a case out. Every verb below leans on RLS for "may this caller
+  // touch this row": there is no ownership check here, and `rowCount === 0` is
+  // the answer to both "no such case" and "not yours", which §6 requires be
   // indistinguishable.
   // -------------------------------------------------------------------------
 
-
-  /**
-   * The visit happened.
-   *
-   * Only from `confirmed`, and only once the appointment has actually started —
-   * marking tomorrow's consultation complete is a data-entry slip, not a
-   * workflow, and allowing it makes the no-show statistics meaningless.
-   */
   /**
    * The doctor's answer exists. Only from `accepted`: answering a case nobody
    * accepted would skip the moment imaging unlocks, so the guard is the state
-   * rather than a clock — there is no appointment time left to have passed.
+   * and not a clock.
    */
   async markAnswered(caseId: string): Promise<void> {
     await this.transition(caseId, 'answered', "status = 'accepted'");
@@ -606,12 +579,12 @@ export class CasesService {
 
 
   /**
-   * The practice cancels, with a reason.
+   * The receiving side withdraws, with a reason.
    *
-   * Separate from `cancel()` (the patient changing their mind) and from
-   * `decline()` (refusing a referral) because the reason is the point: a
-   * patient told only "cancelled" cannot tell a clinic closure from their own
-   * booking having lapsed.
+   * Separate from `cancel()` (the lab withdrawing its own case) and from
+   * `decline()` (refusing one before accepting it) because the reason is the
+   * point: a lab told only "cancelled" cannot tell a clinic closure from its
+   * own request having lapsed.
    */
   async cancelAsDoctor(caseId: string, reason?: string): Promise<void> {
     // Read BEFORE the write. Cancelling ends this doctor's access to the case,
