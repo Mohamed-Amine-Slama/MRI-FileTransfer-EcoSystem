@@ -21,6 +21,7 @@ import { LedgerModule } from './modules/ledger';
 import { NotificationsModule } from './modules/notifications';
 import { OrganisationsModule } from './modules/organisations';
 import { PlansModule } from './modules/plans';
+import { PricingModule } from './modules/pricing';
 import { PatientsModule } from './modules/patients';
 import { SchedulingModule } from './modules/scheduling';
 
@@ -53,6 +54,7 @@ import { SchedulingModule } from './modules/scheduling';
     NotificationsModule,
     OrganisationsModule,
     PlansModule,
+    PricingModule,
   ],
   providers: [
     TokenVerifier,
