@@ -32,6 +32,12 @@ export interface ProfileRow {
   role: string;
   status: string;
   createdAt: string;
+  /**
+   * Whether this doctor is taking work. `null` for everyone who has no doctor
+   * profile — a lab, an admin, an applicant — rather than `false`, which would
+   * read as "switched off" for accounts the switch does not apply to.
+   */
+  acceptingCases: boolean | null;
 }
 
 @Injectable()
@@ -50,9 +56,16 @@ export class ProfileService {
         role: string;
         status: string;
         created_at: Date;
+        accepting_cases: boolean | null;
       }>(
-        `SELECT id, email, full_name, phone_e164, job_title, role, status, created_at
-         FROM identity_users WHERE id = $1`,
+        // LEFT JOIN, and it reads the caller's OWN profile row — which
+        // `doctor_profiles_self` (0002) is exactly the policy for. Nobody
+        // else's availability is reachable from here.
+        `SELECT u.id, u.email, u.full_name, u.phone_e164, u.job_title, u.role,
+                u.status, u.created_at, dp.accepting_cases
+           FROM identity_users u
+           LEFT JOIN identity_doctor_profiles dp ON dp.user_id = u.id
+          WHERE u.id = $1`,
         [ctx.userId],
       );
       const row = res.rows[0];
@@ -67,6 +80,7 @@ export class ProfileService {
         role: row.role,
         status: row.status,
         createdAt: row.created_at.toISOString(),
+        acceptingCases: row.accepting_cases,
       };
     });
   }

@@ -16,10 +16,15 @@ import { describe, expect, it } from 'vitest';
  * only ever SHRINK. Deleting an entry as each screen is migrated is what turns
  * the rule into a ratchet rather than a comment nobody enforces.
  *
- * `app/doctor/availability/page.tsx` came off the list when /schedule replaced
- * it: the new workspace gates on PROVIDER_ROLES rather than naming the
- * receiving role, so both corridor sides get a calendar from the same screen.
- * The route now 308s to /schedule/availability (next.config.mjs).
+ * The three `app/appointments/*` entries came off the list by being deleted.
+ * The consult model has no booking screen: a lab picks a doctor from the
+ * directory and the price is locked against that choice, which is
+ * `app/cases/[ref]/pick-doctor` — written corridor-agnostically, so it never
+ * joined the list.
+ *
+ * `app/doctor/availability/page.tsx` is back — the availability switch that
+ * replaced the calendar — and it is NOT on the list: it gates on
+ * DESTINATION_ROLES, so it names a corridor side rather than a country's role.
  *
  * `app/consent/page.tsx` came off the list by being deleted: migration 0021
  * removed patient accounts, and that screen existed only so a signed-in
@@ -33,9 +38,6 @@ const WEB_ROOT = resolve(dirname(fileURLToPath(import.meta.url)), '..', '..');
 const ROOTS = ['app', 'components'];
 
 const ALLOWED = new Set([
-  'app/appointments/[id]/page.tsx',
-  'app/appointments/new/page.tsx',
-  'app/appointments/page.tsx',
   'app/doctor/page.tsx',
   'app/layout.tsx',
   'app/page.tsx',

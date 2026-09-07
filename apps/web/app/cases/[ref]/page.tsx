@@ -273,23 +273,6 @@ function CaseDetail({ caseRef }: { caseRef: string }): React.JSX.Element {
                 <dt className="text-xs text-muted-foreground">{t.colUpdated}</dt>
                 <dd>{formatDate(item.updatedAt)}</dd>
               </div>
-              {/* §5.5 P1: the appointment tied to this case. The scheduling
-                  module already owns booking, so the case links into it rather
-                  than growing a second calendar. */}
-              {item.appointmentId !== undefined && (
-                <div>
-                  <dt className="text-xs text-muted-foreground">{t.navAppointments}</dt>
-                  <dd>
-                    <Link
-                      href={`/appointments/${item.appointmentId}`}
-                      className="font-semibold text-primary hover:underline"
-                      data-testid="case-appointment"
-                    >
-                      {t.viewDetails}
-                    </Link>
-                  </dd>
-                </div>
-              )}
             </dl>
           </Card>
 

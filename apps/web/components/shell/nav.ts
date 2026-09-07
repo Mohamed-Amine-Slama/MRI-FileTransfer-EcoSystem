@@ -4,7 +4,6 @@ import {
   Briefcase,
   Building2,
   CalendarClock,
-  CalendarDays,
   FolderKanban,
   Inbox,
   ScrollText,
@@ -109,19 +108,12 @@ export const NAV_SECTIONS: readonly NavSection[] = [
         Icon: Upload,
       },
       {
-        href: '/appointments',
-        labelKey: 'navAppointments',
-        descriptionKey: 'bookingTitle',
-        roles: SOURCE_ROLES,
-        Icon: CalendarDays,
-      },
-      {
-        // Replaces the bare /doctor/availability form. Both corridor sides run
-        // a diary, and a seated assistant runs it on the doctor's behalf.
-        href: '/schedule',
-        labelKey: 'navSchedule',
-        descriptionKey: 'scheduleDescription',
-        roles: [...PROVIDER_ROLES, 'assistant'],
+        // The receiving doctor's own door. There is no diary behind it — one
+        // switch, which is the whole of availability in the consult model.
+        href: '/doctor/availability',
+        labelKey: 'navAvailability',
+        descriptionKey: 'availabilityDescription',
+        roles: DESTINATION_ROLES,
         Icon: CalendarClock,
       },
       {

@@ -138,7 +138,7 @@ export class CasesController {
    * lab cannot browse a corridor it is not party to.
    */
   @RequiresRole('libya_doctor')
-  @Get('directory')
+  @Get('cases/directory')
   async listDirectory(@Query() query: unknown): Promise<{ doctors: DirectoryEntry[] }> {
     const { specialty } = directoryQuerySchema.parse(query ?? {});
     return { doctors: await this.directory.listAcceptingDoctors(specialty) };
@@ -152,7 +152,7 @@ export class CasesController {
    */
   @RequiresRole('tunisia_doctor')
   @RateLimit('scheduleWrite')
-  @Post('doctors/me/accepting')
+  @Patch('doctors/me/accepting')
   @HttpCode(200)
   async setAccepting(@Body() body: unknown): Promise<{ accepting: boolean }> {
     const { accepting } = acceptingSchema.parse(body);
@@ -303,7 +303,7 @@ export class CasesController {
    * closure from its own request having lapsed, and the reason is what makes
    * the difference legible.
    */
-  @RequiresRole(...CASE_ROLES)
+  @RequiresRole('tunisia_doctor', 'assistant')
   @RateLimit('scheduleWrite')
   @Post('cases/:id/cancel')
   @HttpCode(200)

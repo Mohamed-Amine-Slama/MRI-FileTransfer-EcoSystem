@@ -44,6 +44,27 @@ test.describe('public surface (§4.1)', () => {
     }
   });
 
+  /**
+   * The calendar surface is gone, and gone means 404.
+   *
+   * Not a redirect. There is nowhere honest to send a bookmark that asked for a
+   * week view or a slot picker — the consult model has neither — and a 308 to
+   * the case list would answer a question nobody asked. A 404 tells the person
+   * holding the old link the truth.
+   */
+  test('the calendar surface is gone', async ({ page }) => {
+    for (const path of [
+      '/schedule',
+      '/schedule/calendar',
+      '/schedule/availability',
+      '/appointments',
+      '/appointments/new',
+    ]) {
+      const res = await page.goto(path);
+      expect(res?.status(), path).toBe(404);
+    }
+  });
+
   test('keeps the document RTL on the public surface too (D4)', async ({ page }) => {
     await page.goto('/');
     await expect(page.locator('html')).toHaveAttribute('dir', 'rtl');

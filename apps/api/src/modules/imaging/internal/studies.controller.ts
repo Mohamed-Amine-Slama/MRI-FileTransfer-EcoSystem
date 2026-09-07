@@ -19,11 +19,11 @@ import { StudyAccessService, type StudySummary } from './study-access.service';
 const querySchema = z
   .object({
     patientId: z.string().uuid().optional(),
-    appointmentId: z.string().uuid().optional(),
+    caseId: z.string().uuid().optional(),
   })
   .refine(
-    (q) => (q.patientId === undefined) !== (q.appointmentId === undefined),
-    'Provide exactly one of patientId or appointmentId',
+    (q) => (q.patientId === undefined) !== (q.caseId === undefined),
+    'Provide exactly one of patientId or caseId',
   );
 
 @Controller('studies')
@@ -35,7 +35,7 @@ export class StudiesController {
   async list(@Query() query: unknown): Promise<{ studies: StudySummary[] }> {
     const parsed = querySchema.safeParse(query);
     if (!parsed.success) {
-      throw new BadRequestException('Provide exactly one of patientId or appointmentId');
+      throw new BadRequestException('Provide exactly one of patientId or caseId');
     }
     return { studies: await this.studies.listStudies(parsed.data) };
   }

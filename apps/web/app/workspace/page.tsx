@@ -158,14 +158,12 @@ function Workspace(): React.JSX.Element {
           </Card>
 
           <Card>
-            <h2 className="mb-3 text-lg font-semibold">{t.dashboardUpcoming}</h2>
-            {/* Appointments live in the V0 scheduling module; the workspace
-                links to it rather than re-implementing a second calendar. */}
-            <Link
-              href="/appointments"
-              className={buttonVariants({ variant: 'outline', size: 'sm' })}
-            >
-              {t.navAppointments}
+            <h2 className="mb-3 text-lg font-semibold">{t.navCases}</h2>
+            {/* The workspace links into the case list rather than carrying its
+                own copy of it: two views of the same rows competing to be the
+                real one is how they drift apart. */}
+            <Link href="/cases" className={buttonVariants({ variant: 'outline', size: 'sm' })}>
+              {t.casesTitle}
             </Link>
           </Card>
         </div>

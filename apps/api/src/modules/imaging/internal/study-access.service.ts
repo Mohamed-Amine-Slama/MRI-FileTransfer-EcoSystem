@@ -70,10 +70,10 @@ export class StudyAccessService {
    * Tunisian doctor listing by appointment sees nothing until the appointment
    * is confirmed.
    */
-  async listStudies(filter: { patientId?: string; appointmentId?: string }): Promise<StudySummary[]> {
+  async listStudies(filter: { patientId?: string; caseId?: string }): Promise<StudySummary[]> {
     return this.db.tx(async (tx) => {
       const rows =
-        filter.appointmentId !== undefined
+        filter.caseId !== undefined
           ? await tx.query<StudyRow>(
               `SELECT s.id, s.study_instance_uid, s.description, s.study_date,
                       s.modality, s.file_count
@@ -81,7 +81,7 @@ export class StudyAccessService {
                JOIN cases_case_studies l ON l.study_id = s.id
                WHERE l.case_id = $1
                ORDER BY s.study_date DESC NULLS LAST`,
-              [filter.appointmentId],
+              [filter.caseId],
             )
           : await tx.query<StudyRow>(
               `SELECT s.id, s.study_instance_uid, s.description, s.study_date,
