@@ -146,8 +146,8 @@ describe('PHASE 12 notification templates', () => {
     // The real risk is not the template, it is a caller passing extra data.
     // Silently ignoring it would let the next refactor start using it.
     expect(() =>
-      render('booking_confirmed', 'sms', 'ar', {
-        appointmentTime: '10:00',
+      render('case_accepted', 'sms', 'ar', {
+        caseRef: 'MIR-2026-0417',
         // @ts-expect-error — the type does not permit this, which is the point
         modality: 'CT',
       }),
@@ -190,15 +190,18 @@ describe('PHASE 12 notification templates', () => {
     }
   });
 
-  it('covers the six events PHASE 12 names, plus payment failure', () => {
-    // "patient claim, consent request, upload complete, booking confirmed,
-    //  appointment reminder, consent revoked"
+  it('covers the events the consult flow raises, plus payment failure', () => {
+    // PHASE 12 named "patient claim, consent request, upload complete, booking
+    // confirmed, appointment reminder, consent revoked". Three of those were
+    // about an appointment the patient attends; migration 0025 removed it. The
+    // moments a lab now needs told about are acceptance, refusal and the answer.
     for (const required of [
       'patient_claim',
       'consent_request',
       'upload_complete',
-      'booking_confirmed',
-      'appointment_reminder',
+      'case_accepted',
+      'case_declined',
+      'case_answered',
       'consent_revoked',
     ] as TemplateId[]) {
       expect(ALL_TEMPLATES).toContain(required);
@@ -220,7 +223,7 @@ describe('PHASE 12 notification templates', () => {
   });
 
   it('leaves an unfilled placeholder empty rather than printing its name', () => {
-    const out = render('booking_confirmed', 'sms', 'fr', { appointmentTime: '10:00' });
+    const out = render('case_accepted', 'sms', 'fr', { caseRef: 'MIR-2026-0417' });
     expect(out.body).not.toContain('{{doctorName}}');
     expect(out.body).not.toContain('doctorName');
   });

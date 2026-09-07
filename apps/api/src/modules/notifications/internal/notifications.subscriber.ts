@@ -23,37 +23,23 @@ export class NotificationsSubscriber implements OnModuleInit {
       this.queue('upload_complete', { fileCount: String(event.fileCount) });
     });
 
-    this.bus.subscribe('AppointmentBooked', (event) => {
-      // D2 says a PATIENT's booking is not yet confirmed when it is made — the
-      // money is only held, and the message goes out on payment. That reasoning
-      // is about the payment step, and an appointment the practice itself
-      // enters has no payment step to wait for: it is confirmed the moment the
-      // receptionist writes it down. So the caller's role decides.
-      if (event.actorRole === 'patient') return;
-      this.queue('booking_confirmed', {});
+    // Acceptance is what the lab is waiting for: the doctor has committed and
+    // the imaging is now open to them.
+    this.bus.subscribe('CaseAccepted', () => {
+      this.queue('case_accepted', {});
     });
 
-    this.bus.subscribe('AppointmentReminderDue', () => {
-      this.queue('appointment_reminder', {});
+    // A refusal needs the lab to act — pick someone else — so it is a message,
+    // not just a status change they might notice later.
+    this.bus.subscribe('CaseDeclined', () => {
+      this.queue('case_declined', {});
     });
 
-    this.bus.subscribe('AppointmentRescheduled', () => {
-      this.queue('appointment_moved', {});
-    });
-
-    this.bus.subscribe('AppointmentCancelled', () => {
-      // Note what is NOT forwarded: the event's `reason`. It is free text a
-      // receptionist typed, and this file's whole guarantee is that a
-      // notification cannot carry something a template author never anticipated.
-      this.queue('appointment_cancelled', {});
-    });
-
-    // Was subscribed to PaymentSucceeded, because capturing the patient's card
-    // is what used to confirm a booking. The doctor's acceptance is what does
-    // now, so the template is unchanged and only its trigger moved.
-    this.bus.subscribe('AppointmentConfirmed', () => {
-      this.queue('booking_confirmed', {});
-    });
+    // Note what is NOT forwarded on a cancellation: the event's `reason`. It is
+    // free text somebody typed, and this file's whole guarantee is that a
+    // notification cannot carry something a template author never anticipated.
+    // There is deliberately no template for it either — a cancellation the lab
+    // itself performed needs no SMS telling them so.
 
     this.bus.subscribe('ConsentGranted', () => {
       this.queue('consent_request', {});

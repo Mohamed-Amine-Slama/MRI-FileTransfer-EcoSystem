@@ -52,7 +52,6 @@ class TestAuthGuard {
     setContext({
       userId,
       role,
-      triageBeforePayment: false,
       ipAddress: '41.208.1.5',
       userAgent: 'vitest',
       requestId: 'e2e',
@@ -81,7 +80,7 @@ beforeAll(async () => {
   @Module({
     controllers: [PatientsController],
     providers: [
-      { provide: APP_CONFIG, useValue: { SCHEDULING_TRIAGE_BEFORE_PAYMENT: false } as AppConfig },
+      { provide: APP_CONFIG, useValue: {} as AppConfig },
       { provide: DatabaseService, useValue: db },
       EventBus,
       PatientsService,

@@ -86,7 +86,6 @@ export class AuthGuard implements CanActivate {
     const ctx: RequestContext = {
       userId: identity.userId,
       role: identity.role,
-      triageBeforePayment: this.config.SCHEDULING_TRIAGE_BEFORE_PAYMENT,
       ipAddress: clientIp(request),
       userAgent: firstHeader(request.headers['user-agent']),
       requestId: firstHeader(request.headers['x-request-id']) ?? randomUUID(),

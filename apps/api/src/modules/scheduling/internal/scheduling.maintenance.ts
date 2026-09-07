@@ -31,9 +31,6 @@ import { SchedulingService } from './scheduling.service';
 /** How often the sweep runs. */
 const SWEEP_INTERVAL_MS = 15 * 60_000;
 
-/** How far ahead an appointment must be to earn a reminder. */
-const REMINDER_LEAD_HOURS = 24;
-
 @Injectable()
 export class SchedulingMaintenance implements OnModuleInit, OnModuleDestroy {
   private readonly logger = new Logger(SchedulingMaintenance.name);
@@ -67,21 +64,18 @@ export class SchedulingMaintenance implements OnModuleInit, OnModuleDestroy {
    * callback takes the process down, and a missed sweep is a far smaller
    * problem than an API that restarts every fifteen minutes.
    */
-  async sweep(): Promise<{ released: number; reminded: number }> {
-    if (this.running) return { released: 0, reminded: 0 };
+  async sweep(): Promise<{ expired: number }> {
+    if (this.running) return { expired: 0 };
     this.running = true;
     try {
-      return await runWithContext(systemContext('scheduling-sweep'), async () => {
-        const released = await this.scheduling.releaseUnansweredReferrals();
-        const reminded = await this.scheduling.sendDueReminders(REMINDER_LEAD_HOURS);
-        if (released > 0 || reminded > 0) {
-          this.logger.log(`sweep: released ${released}, reminded ${reminded}`);
-        }
-        return { released, reminded };
+      return await runWithContext(systemContext('cases-sweep'), async () => {
+        const expired = await this.scheduling.expireOverdue();
+        if (expired > 0) this.logger.log(`sweep: expired ${expired}`);
+        return { expired };
       });
     } catch (err) {
       this.logger.error(`sweep failed: ${err instanceof Error ? err.message : String(err)}`);
-      return { released: 0, reminded: 0 };
+      return { expired: 0 };
     } finally {
       this.running = false;
     }

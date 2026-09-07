@@ -56,77 +56,102 @@ export interface StudyUploadCompleted extends DomainEventBase {
   containsLossy: boolean;
 }
 
-export interface AppointmentBooked extends DomainEventBase {
-  type: 'AppointmentBooked';
-  appointmentId: string;
+/**
+ * A case was submitted by the referring lab.
+ *
+ * Carries no price: at submission there is no doctor and therefore no quote,
+ * because the doctor's tier is a term in the price.
+ */
+export interface CaseSubmitted extends DomainEventBase {
+  type: 'CaseSubmitted';
+  caseId: string;
   patientId: string;
-  doctorId: string;
-  startsAt: Date;
+  organisationId: string;
+  specialty: string;
 }
 
 /**
- * An appointment moved to a different time.
+ * The lab chose a doctor and the platform locked a price.
  *
- * Carries the NEW instant. The old one is not repeated here: it is already in
- * the audit log via this event's own record of the change, and a notification
- * that says only "your appointment moved to X" is the one a patient can act on.
+ * The amount is here because the ledger and the audit trail both need to know
+ * what was promised, and reading it back off the row later would not prove what
+ * the lab was shown at the moment they committed.
  */
-export interface AppointmentRescheduled extends DomainEventBase {
-  type: 'AppointmentRescheduled';
-  appointmentId: string;
+export interface CaseQuoted extends DomainEventBase {
+  type: 'CaseQuoted';
+  caseId: string;
   patientId: string;
   doctorId: string;
-  startsAt: Date;
+  amountMinor: number;
+  currency: string;
 }
 
 /**
- * The practice cancelled an appointment.
+ * The case was cancelled or withdrawn.
  *
- * `reason` is a short scheduling note, never a clinical one — it reaches the
- * patient, and this system holds no medical record to quote from.
+ * `reason` is a short coordination note, never a clinical one — it reaches the
+ * other side, and this system holds no medical record to quote from.
  */
-export interface AppointmentCancelled extends DomainEventBase {
-  type: 'AppointmentCancelled';
-  appointmentId: string;
+export interface CaseCancelled extends DomainEventBase {
+  type: 'CaseCancelled';
+  caseId: string;
   patientId: string;
-  doctorId: string;
-  startsAt: Date;
+  /**
+   * Null when the lab withdrew before choosing anyone. Not optional: the
+   * difference between "cancelled on a doctor" and "cancelled before there was
+   * one" is exactly what a later dispute turns on, so the absence is recorded
+   * rather than left out.
+   */
+  doctorId: string | null;
   reason?: string;
 }
 
 /**
- * An appointment is close enough to remind the patient about.
+ * The doctor refused the case after reading the summary.
  *
- * Raised by the periodic sweep, not by a request, so its actor is the system
- * identity rather than a person.
+ * Distinct from CaseCancelled because the lab reads them differently: a refusal
+ * means pick someone else, a cancellation is their own withdrawal. The payment
+ * hold survives this event.
  */
-export interface AppointmentReminderDue extends DomainEventBase {
-  type: 'AppointmentReminderDue';
-  appointmentId: string;
+export interface CaseDeclined extends DomainEventBase {
+  type: 'CaseDeclined';
+  caseId: string;
   patientId: string;
   doctorId: string;
-  startsAt: Date;
 }
 
 /**
- * The receiving doctor accepted the referral.
+ * An accepted case passed its answer deadline without a diagnosis.
+ *
+ * Raised by the periodic sweep, not by a request, so its actor is the system
+ * identity rather than a person. This is the refund trigger.
+ */
+export interface CaseExpired extends DomainEventBase {
+  type: 'CaseExpired';
+  caseId: string;
+  patientId: string;
+  doctorId: string;
+}
+
+/**
+ * The receiving doctor accepted the case.
  *
  * This replaces `PaymentSucceeded`, which is what used to confirm a booking:
  * the patient's card was captured on acceptance, and the payment event was the
  * only signal anything downstream got. Migration 0023 removed the card, which
  * left that event with no publisher — an audit branch nothing reached and a
- * "your booking is confirmed" notification nothing sent.
+ * notification nothing sent.
  *
- * Carries no money, because acceptance never was a payment. What downstream
- * actually needed from `PaymentSucceeded` was "this appointment is now
- * confirmed", which is what this says.
+ * Carries no money, because acceptance never was a payment. It is also the
+ * moment imaging unlocks, which is why audit cares about it.
  */
-export interface AppointmentConfirmed extends DomainEventBase {
-  type: 'AppointmentConfirmed';
-  appointmentId: string;
+export interface CaseAccepted extends DomainEventBase {
+  type: 'CaseAccepted';
+  caseId: string;
   patientId: string;
   doctorId: string;
 }
+
 
 export interface StudyAccessed extends DomainEventBase {
   type: 'StudyAccessed';
@@ -153,11 +178,12 @@ export type DomainEvent =
   | ConsentGranted
   | ConsentRevoked
   | StudyUploadCompleted
-  | AppointmentBooked
-  | AppointmentRescheduled
-  | AppointmentCancelled
-  | AppointmentReminderDue
-  | AppointmentConfirmed
+  | CaseSubmitted
+  | CaseQuoted
+  | CaseCancelled
+  | CaseDeclined
+  | CaseExpired
+  | CaseAccepted
   | StudyAccessed;
 
 export type DomainEventType = DomainEvent['type'];

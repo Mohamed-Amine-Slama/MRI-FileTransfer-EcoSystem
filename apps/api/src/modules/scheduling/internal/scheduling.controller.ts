@@ -15,8 +15,7 @@ import { RequiresRole } from '../../../shared/authz/access-metadata';
 import { RateLimit } from '../../../shared/ratelimit/rate-limit.guard';
 import {
   SchedulingService,
-  type AppointmentSummary,
-  type AvailabilityRule,
+  type CaseSummary,
   type DoctorSummary,
 } from './scheduling.service';
 
@@ -39,45 +38,25 @@ const isoDate = z
   .datetime({ offset: true })
   .transform((s) => new Date(s));
 
-const bookSchema = z.object({
-  patientId: z.string().uuid(),
-  doctorId: z.string().uuid(),
-  startsAt: isoDate,
-  endsAt: isoDate,
-  studyIds: z.array(z.string().uuid()).max(50).optional(),
-  kind: z.enum(['consultation', 'follow_up', 'imaging', 'other']).optional(),
-  reason: z.string().trim().max(500).optional(),
-  notes: z.string().trim().max(500).optional(),
-});
-
-const availabilitySchema = z.object({
-  startsAt: isoDate,
-  endsAt: isoDate,
-  // A slot shorter than five minutes is a data-entry slip, not a booking
-  // policy, and it would generate thousands of slots for one window.
-  slotMinutes: z.number().int().min(5).max(240).optional(),
-  /** An assistant writes to a doctor's calendar; RLS decides whether they may. */
-  doctorId: z.string().uuid().optional(),
-});
-
-const slotQuerySchema = z.object({ from: isoDate, to: isoDate });
-
 const rangeQuerySchema = z.object({ from: isoDate.optional(), to: isoDate.optional() });
 
-const appointmentKind = z.enum(['consultation', 'follow_up', 'imaging', 'other']);
-
 /**
- * Free text that reaches the patient and the audit log, so it is bounded.
- * Nothing here is clinical: §1.3 keeps this a scheduling service, and an
- * unbounded note box with no stated purpose is how that line gets crossed.
+ * Free text that reaches the other side and the audit log, so it is bounded.
+ * Nothing here is a clinical finding: an unbounded note box with no stated
+ * purpose is how a coordination field turns into a medical record.
  */
 const shortNote = z.string().trim().max(500);
 
-const rescheduleSchema = z.object({ startsAt: isoDate, endsAt: isoDate });
+const submitSchema = z.object({
+  patientId: z.string().uuid(),
+  specialty: z.string().min(1).max(64),
+  studyIds: z.array(z.string().uuid()).optional(),
+  reason: z.string().max(500).optional(),
+  notes: z.string().max(2000).optional(),
+});
 
-const updateAppointmentSchema = z
+const updateCaseSchema = z
   .object({
-    kind: appointmentKind.optional(),
     reason: shortNote.nullable().optional(),
     notes: shortNote.nullable().optional(),
   })
@@ -86,36 +65,29 @@ const updateAppointmentSchema = z
 const cancelSchema = z.object({ reason: shortNote.optional() });
 
 /** ISO-8601 weekday and 24-hour wall-clock times, as the rules table stores. */
-const ruleSchema = z.object({
-  weekday: z.number().int().min(1).max(7),
-  startTime: z.string().regex(/^([01]\d|2[0-3]):[0-5]\d$/),
-  endTime: z.string().regex(/^([01]\d|2[0-3]):[0-5]\d$/),
-  // An IANA zone: "every Tuesday at 09:00" is meaningless without one.
-  timezone: z.string().min(1).max(64),
-  slotMinutes: z.number().int().min(5).max(240).optional(),
-  validFrom: isoDate.optional(),
-  validUntil: isoDate.optional(),
-  doctorId: z.string().uuid().optional(),
-});
-
-interface AppointmentDto {
+interface CaseDto {
   id: string;
   patientId: string;
-  patientName: string;
+  patientName: string | null;
   /** Present only for an assistant, whose job is to ring the patient. */
   patientPhone?: string;
-  doctorId: string;
-  doctorName: string;
-  startsAt: string;
-  endsAt: string;
+  doctorId: string | null;
+  doctorName: string | null;
+  organisationId: string;
+  specialty: string;
   status: string;
-  kind: string;
   reason: string | null;
   notes: string | null;
+  quotedAmountMinor: number | null;
+  quotedCurrency: string | null;
+  quoteExpiresAt: string | null;
+  acceptedAt: string | null;
+  answeredAt: string | null;
+  answerDueAt: string | null;
   studyIds: string[];
 }
 
-function toDto(a: AppointmentSummary): AppointmentDto {
+function toDto(a: CaseSummary): CaseDto {
   return {
     id: a.id,
     patientId: a.patientId,
@@ -123,39 +95,18 @@ function toDto(a: AppointmentSummary): AppointmentDto {
     ...(a.patientPhone === undefined ? {} : { patientPhone: a.patientPhone }),
     doctorId: a.doctorId,
     doctorName: a.doctorName,
-    startsAt: a.startsAt.toISOString(),
-    endsAt: a.endsAt.toISOString(),
+    organisationId: a.organisationId,
+    specialty: a.specialty,
     status: a.status,
-    kind: a.kind,
     reason: a.reason,
     notes: a.notes,
+    quotedAmountMinor: a.quotedAmountMinor,
+    quotedCurrency: a.quotedCurrency,
+    quoteExpiresAt: a.quoteExpiresAt?.toISOString() ?? null,
+    acceptedAt: a.acceptedAt?.toISOString() ?? null,
+    answeredAt: a.answeredAt?.toISOString() ?? null,
+    answerDueAt: a.answerDueAt?.toISOString() ?? null,
     studyIds: a.studyIds ?? [],
-  };
-}
-
-interface AvailabilityRuleDto {
-  id: string;
-  doctorId: string;
-  weekday: number;
-  startTime: string;
-  endTime: string;
-  timezone: string;
-  slotMinutes: number;
-  validFrom: string;
-  validUntil: string | null;
-}
-
-function toRuleDto(r: AvailabilityRule): AvailabilityRuleDto {
-  return {
-    id: r.id,
-    doctorId: r.doctorId,
-    weekday: r.weekday,
-    startTime: r.startTime,
-    endTime: r.endTime,
-    timezone: r.timezone,
-    slotMinutes: r.slotMinutes,
-    validFrom: r.validFrom.toISOString().slice(0, 10),
-    validUntil: r.validUntil === null ? null : r.validUntil.toISOString().slice(0, 10),
   };
 }
 
@@ -182,100 +133,47 @@ export class SchedulingController {
     return { doctors: await this.scheduling.listDoctors() };
   }
 
-  @RequiresRole('libya_doctor')
-  @Get('doctors/:id/slots')
-  async openSlots(
-    @Param('id', ParseUUIDPipe) doctorId: string,
-    @Query() query: unknown,
-  ): Promise<{ slots: { startsAt: string; endsAt: string }[] }> {
-    const { from, to } = slotQuerySchema.parse(query);
-    const slots = await this.scheduling.listOpenSlots(doctorId, from, to);
-    return {
-      slots: slots.map((s) => ({
-        startsAt: s.startsAt.toISOString(),
-        endsAt: s.endsAt.toISOString(),
-      })),
-    };
-  }
-
-  @RequiresRole(...CALENDAR_ROLES)
-  @Get('availability')
-  async listAvailability(@Query('doctorId') doctorId?: string): Promise<{
-    windows: { id: string; doctorId: string; startsAt: string; endsAt: string; slotMinutes: number }[];
-  }> {
-    const windows = await this.scheduling.listAvailability(
-      doctorId === undefined ? undefined : z.string().uuid().parse(doctorId),
-    );
-    return {
-      windows: windows.map((w) => ({
-        id: w.id,
-        doctorId: w.doctorId,
-        startsAt: w.startsAt.toISOString(),
-        endsAt: w.endsAt.toISOString(),
-        slotMinutes: w.slotMinutes,
-      })),
-    };
-  }
-
-  @RequiresRole(...CALENDAR_ROLES)
-  @RateLimit('scheduleWrite')
-  @Post('availability')
-  @HttpCode(201)
-  async addAvailability(@Body() body: unknown): Promise<{ id: string }> {
-    const input = availabilitySchema.parse(body);
-    const window = await this.scheduling.addAvailability(input);
-    return { id: window.id };
-  }
-
-  // --- appointments --------------------------------------------------------
+  // --- cases ---------------------------------------------------------------
 
   @RequiresRole('libya_doctor', 'tunisia_doctor', 'assistant')
-  @Get('appointments')
-  async list(@Query() query: unknown): Promise<{ appointments: AppointmentDto[] }> {
+  @Get('cases')
+  async list(@Query() query: unknown): Promise<{ cases: CaseDto[] }> {
     const range = rangeQuerySchema.parse(query ?? {});
-    const rows = await this.scheduling.listAppointments(range);
-    return { appointments: rows.map(toDto) };
+    const rows = await this.scheduling.listCases(range);
+    return { cases: rows.map(toDto) };
   }
 
   @RequiresRole('libya_doctor', 'tunisia_doctor', 'assistant')
-  @Get('appointments/:id')
-  async get(@Param('id', ParseUUIDPipe) id: string): Promise<AppointmentDto> {
-    return toDto(await this.scheduling.getAppointment(id));
+  @Get('cases/:id')
+  async get(@Param('id', ParseUUIDPipe) id: string): Promise<CaseDto> {
+    return toDto(await this.scheduling.getCase(id));
   }
 
   /**
-   * Book a slot.
-   *
-   * A losing booker gets 409 from SlotUnavailableError, which the global
-   * exception filter renders without any driver detail (§6). That is P10.2's
-   * gate: a clean conflict, never a 500.
+   * Submit a case. Only the referring side may: a case is a lab asking for an
+   * opinion, and a doctor creating one would be a doctor referring to himself.
    */
-  @RequiresRole('libya_doctor', 'tunisia_doctor', 'assistant')
+  @RequiresRole('libya_doctor')
   @RateLimit('scheduleWrite')
-  @Post('appointments')
+  @Post('cases')
   @HttpCode(201)
-  async book(@Body() body: unknown): Promise<AppointmentDto> {
-    const input = bookSchema.parse(body);
-    const appointment = await this.scheduling.book({
+  async submit(@Body() body: unknown): Promise<CaseDto> {
+    const input = submitSchema.parse(body);
+    const item = await this.scheduling.submit({
       patientId: input.patientId,
-      doctorId: input.doctorId,
-      startsAt: input.startsAt,
-      endsAt: input.endsAt,
+      specialty: input.specialty,
       studyIds: input.studyIds,
-      ...(input.kind === undefined ? {} : { kind: input.kind }),
       ...(input.reason === undefined ? {} : { reason: input.reason }),
       ...(input.notes === undefined ? {} : { notes: input.notes }),
     });
-
-    // Read the row back rather than returning blank names. The old response
-    // sent patientName: '' and doctorName: '', which was survivable when the
-    // caller navigated away to a list that refetched — and is not, now that a
-    // calendar renders the appointment where it stands.
-    return toDto(await this.scheduling.getAppointment(appointment.id));
+    // Read the row back rather than returning blank names: the old response
+    // sent patientName: '' and doctorName: '', which the case list then had to
+    // refetch to correct.
+    return toDto(await this.scheduling.getCase(item.id));
   }
 
   @RequiresRole('libya_doctor')
-  @Delete('appointments/:id')
+  @Delete('cases/:id')
   @HttpCode(204)
   async cancel(@Param('id', ParseUUIDPipe) id: string): Promise<void> {
     await this.scheduling.cancel(id);
@@ -290,7 +188,7 @@ export class SchedulingController {
    * decision are back in one place.
    */
   @RequiresRole('tunisia_doctor')
-  @Post('appointments/:id/accept')
+  @Post('cases/:id/accept')
   @HttpCode(200)
   async accept(@Param('id', ParseUUIDPipe) id: string): Promise<{ status: 'confirmed' }> {
     await this.scheduling.accept(id);
@@ -299,7 +197,7 @@ export class SchedulingController {
 
   /** The receiving doctor refuses the referral. */
   @RequiresRole('tunisia_doctor')
-  @Post('appointments/:id/decline')
+  @Post('cases/:id/decline')
   @HttpCode(200)
   async decline(@Param('id', ParseUUIDPipe) id: string): Promise<{ status: 'declined' }> {
     await this.scheduling.decline(id);
@@ -308,50 +206,25 @@ export class SchedulingController {
 
   // --- running the diary ---------------------------------------------------
 
-  /**
-   * Move an appointment.
-   *
-   * Rate limited for the same reason booking is: this writes the exclusion
-   * constraint under contention, and a script retrying it is indistinguishable
-   * from a busy morning until it is bounded.
-   */
-  @RequiresRole(...CALENDAR_ROLES)
-  @RateLimit('scheduleWrite')
-  @Patch('appointments/:id/time')
-  async reschedule(
-    @Param('id', ParseUUIDPipe) id: string,
-    @Body() body: unknown,
-  ): Promise<AppointmentDto> {
-    const input = rescheduleSchema.parse(body);
-    return toDto(await this.scheduling.reschedule(id, input.startsAt, input.endsAt));
-  }
 
   /** Scheduling detail — reason, kind, notes. Never a time change; that is above. */
   @RequiresRole(...CALENDAR_ROLES)
   @RateLimit('scheduleWrite')
-  @Patch('appointments/:id')
+  @Patch('cases/:id')
   async update(
     @Param('id', ParseUUIDPipe) id: string,
     @Body() body: unknown,
-  ): Promise<AppointmentDto> {
-    const patch = updateAppointmentSchema.parse(body);
-    return toDto(await this.scheduling.updateAppointment(id, patch));
+  ): Promise<CaseDto> {
+    const patch = updateCaseSchema.parse(body);
+    return toDto(await this.scheduling.updateCase(id, patch));
   }
 
   @RequiresRole(...CALENDAR_ROLES)
-  @Post('appointments/:id/complete')
+  @Post('cases/:id/complete')
   @HttpCode(200)
   async complete(@Param('id', ParseUUIDPipe) id: string): Promise<{ status: 'completed' }> {
     await this.scheduling.markCompleted(id);
     return { status: 'completed' };
-  }
-
-  @RequiresRole(...CALENDAR_ROLES)
-  @Post('appointments/:id/no-show')
-  @HttpCode(200)
-  async noShow(@Param('id', ParseUUIDPipe) id: string): Promise<{ status: 'no_show' }> {
-    await this.scheduling.markNoShow(id);
-    return { status: 'no_show' };
   }
 
   /**
@@ -364,7 +237,7 @@ export class SchedulingController {
    */
   @RequiresRole(...CALENDAR_ROLES)
   @RateLimit('scheduleWrite')
-  @Post('appointments/:id/cancel')
+  @Post('cases/:id/cancel')
   @HttpCode(200)
   async cancelAsDoctor(
     @Param('id', ParseUUIDPipe) id: string,
@@ -377,38 +250,4 @@ export class SchedulingController {
 
   // --- availability upkeep -------------------------------------------------
 
-  /** Take a window down. An UPDATE, not an erasure — see the service. */
-  @RequiresRole(...CALENDAR_ROLES)
-  @Delete('availability/:id')
-  @HttpCode(204)
-  async withdrawAvailability(@Param('id', ParseUUIDPipe) id: string): Promise<void> {
-    await this.scheduling.withdrawAvailability(id);
-  }
-
-  @RequiresRole(...CALENDAR_ROLES)
-  @Get('availability/rules')
-  async listRules(
-    @Query('doctorId') doctorId?: string,
-  ): Promise<{ rules: AvailabilityRuleDto[] }> {
-    const rules = await this.scheduling.listAvailabilityRules(
-      doctorId === undefined ? undefined : z.string().uuid().parse(doctorId),
-    );
-    return { rules: rules.map(toRuleDto) };
-  }
-
-  @RequiresRole(...CALENDAR_ROLES)
-  @RateLimit('scheduleWrite')
-  @Post('availability/rules')
-  @HttpCode(201)
-  async addRule(@Body() body: unknown): Promise<{ id: string; generated: number }> {
-    const input = ruleSchema.parse(body);
-    return this.scheduling.addAvailabilityRule(input);
-  }
-
-  @RequiresRole(...CALENDAR_ROLES)
-  @Delete('availability/rules/:id')
-  @HttpCode(204)
-  async withdrawRule(@Param('id', ParseUUIDPipe) id: string): Promise<void> {
-    await this.scheduling.withdrawAvailabilityRule(id);
-  }
 }

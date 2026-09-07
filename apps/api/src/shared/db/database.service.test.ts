@@ -31,7 +31,6 @@ let db: DatabaseService;
 const ctx = (userId: string, role: RequestContext['role']): RequestContext => ({
   userId,
   role,
-  triageBeforePayment: false,
   ipAddress: '127.0.0.1',
   userAgent: 'vitest',
   requestId: 'test-request',
@@ -63,17 +62,15 @@ describe('DatabaseService RLS context', () => {
     const userId = '018f8e6a-0000-7000-8000-0000000000aa';
 
     const settings = await db.txAs(ctx(userId, 'libya_doctor'), async (tx) => {
-      const r = await tx.query<{ uid: string; role: string; triage: string }>(
+      const r = await tx.query<{ uid: string; role: string }>(
         `SELECT current_setting('app.user_id', true)  AS uid,
-                current_setting('app.user_role', true) AS role,
-                current_setting('app.triage_before_payment', true) AS triage`,
+                current_setting('app.user_role', true) AS role`,
       );
       return r.rows[0];
     });
 
     expect(settings?.uid).toBe(userId);
     expect(settings?.role).toBe('libya_doctor');
-    expect(settings?.triage).toBe('false');
   });
 
   it('does not leak the context to the next transaction on the same pooled connection', async () => {

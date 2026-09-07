@@ -1,7 +1,7 @@
 import { afterAll, beforeAll, beforeEach, describe, expect, it } from 'vitest';
 import {
   asUser,
-  createAppointment,
+  createCase,
   createPatient,
   createStudy,
   createUser,
@@ -79,7 +79,7 @@ describe('P3.2 row-level security', () => {
         `SELECT relname, relrowsecurity, relforcerowsecurity
          FROM pg_class
          WHERE relname IN ('imaging_studies','imaging_instances','patients_patients',
-                           'consent_records','scheduling_appointments','audit_events')`,
+                           'consent_records','cases_cases','audit_events')`,
       );
       expect(res.rows.length).toBe(6);
       for (const row of res.rows) {
@@ -149,7 +149,7 @@ describe('P3.2 row-level security', () => {
     await createStudy(h.owner, theirs, libyaDoctor);
 
     // A complete, valid path to exactly one of the two patients.
-    const appt = await createAppointment(h.owner, mine, tunisDoctor, 'confirmed');
+    const appt = await createCase(h.owner, mine, tunisDoctor, 'accepted');
     await linkStudy(h.owner, appt, myStudy);
     await grantConsent(h.owner, mine, tunisDoctor, libyaDoctor);
 
@@ -169,7 +169,7 @@ describe('P3.2 row-level security', () => {
     const tunisDoctor = await createUser(h.owner, 'tunisia_doctor');
     const patient = await createPatient(h.owner, libyaDoctor);
     const study = await createStudy(h.owner, patient, libyaDoctor);
-    const appt = await createAppointment(h.owner, patient, tunisDoctor, 'confirmed');
+    const appt = await createCase(h.owner, patient, tunisDoctor, 'accepted');
     await linkStudy(h.owner, appt, study);
     // Deliberately no consent record.
 
@@ -185,7 +185,7 @@ describe('P3.2 row-level security', () => {
     const tunisDoctor = await createUser(h.owner, 'tunisia_doctor');
     const patient = await createPatient(h.owner, libyaDoctor);
     const study = await createStudy(h.owner, patient, libyaDoctor);
-    const appt = await createAppointment(h.owner, patient, tunisDoctor, 'confirmed');
+    const appt = await createCase(h.owner, patient, tunisDoctor, 'accepted');
     await linkStudy(h.owner, appt, study);
     await grantConsent(h.owner, patient, tunisDoctor, libyaDoctor);
 
@@ -201,7 +201,7 @@ describe('P3.2 row-level security', () => {
     const tunisDoctor = await createUser(h.owner, 'tunisia_doctor');
     const patient = await createPatient(h.owner, libyaDoctor);
     const study = await createStudy(h.owner, patient, libyaDoctor);
-    const appt = await createAppointment(h.owner, patient, tunisDoctor, 'confirmed');
+    const appt = await createCase(h.owner, patient, tunisDoctor, 'accepted');
     await linkStudy(h.owner, appt, study);
     const consent = await grantConsent(h.owner, patient, tunisDoctor, libyaDoctor);
 
@@ -255,89 +255,70 @@ describe('P3.2 row-level security', () => {
   });
 
   // -------------------------------------------------------------------------
-  // DECISION D3 — the triage toggle, at the RLS layer (P10.3)
+  // Imaging unlocks on ACCEPTANCE (migration 0025), not on payment.
+  //
+  // This replaces the D3 triage toggle. A summary before acceptance is now the
+  // flow rather than a configuration of it, so there is no longer a setting
+  // that can make these pass or fail — only the case's status.
   // -------------------------------------------------------------------------
-  describe('D3 triage gating', () => {
-    async function scenario(status: 'pending' | 'confirmed') {
+  describe('imaging unlocks on acceptance', () => {
+    async function scenario(status: 'paid' | 'accepted' | 'answered' | 'declined',
+                            opts: { consent?: boolean } = {}) {
       const libyaDoctor = await createUser(h.owner, 'libya_doctor');
       const tunisDoctor = await createUser(h.owner, 'tunisia_doctor');
       const patient = await createPatient(h.owner, libyaDoctor);
       const study = await createStudy(h.owner, patient, libyaDoctor);
-      const appt = await createAppointment(h.owner, patient, tunisDoctor, status);
-      await linkStudy(h.owner, appt, study);
-      await grantConsent(h.owner, patient, tunisDoctor, libyaDoctor);
-      return { tunisDoctor };
+      const caseId = await createCase(h.owner, patient, tunisDoctor, status);
+      await linkStudy(h.owner, caseId, study);
+      if (opts.consent !== false) {
+        await grantConsent(h.owner, patient, tunisDoctor, libyaDoctor);
+      }
+      return { tunisDoctor, caseId };
     }
 
-    it('triage OFF (default): an unanswered referral sees nothing', async () => {
-      const { tunisDoctor } = await scenario('pending');
-      const rows = await asUser(
-        h.app,
-        { userId: tunisDoctor, role: 'tunisia_doctor', triageBeforePayment: false },
-        async (c) => (await c.query('SELECT id FROM imaging_studies')).rowCount,
+    const studiesVisibleTo = async (userId: string): Promise<number | null> =>
+      asUser(h.app, { userId, role: 'tunisia_doctor' }, async (c) =>
+        (await c.query('SELECT id FROM imaging_studies')).rowCount,
       );
-      expect(rows).toBe(0);
+
+    it('a paid case shows the doctor no imaging — they triage on the summary', async () => {
+      const { tunisDoctor } = await scenario('paid');
+      expect(await studiesVisibleTo(tunisDoctor)).toBe(0);
     });
 
-    it('triage ON: an unanswered referral sees the study', async () => {
-      const { tunisDoctor } = await scenario('pending');
-      const rows = await asUser(
-        h.app,
-        { userId: tunisDoctor, role: 'tunisia_doctor', triageBeforePayment: true },
-        async (c) => (await c.query('SELECT id FROM imaging_studies')).rowCount,
-      );
-      expect(rows).toBe(1);
+    it('an accepted case shows the doctor the imaging', async () => {
+      const { tunisDoctor } = await scenario('accepted');
+      expect(await studiesVisibleTo(tunisDoctor)).toBe(1);
     });
 
-    it('triage ON stops at a declined referral — refusing gives up the imaging', async () => {
-      // The predicate this guards used to read `status <> 'cancelled'`, which
-      // was a complete way to say "still standing" only while 'declined' did
-      // not exist. Adding the state without widening the predicate would have
-      // let a doctor refuse a referral and keep reading its studies.
-      const libyaDoctor = await createUser(h.owner, 'libya_doctor');
-      const tunisDoctor = await createUser(h.owner, 'tunisia_doctor');
-      const patient = await createPatient(h.owner, libyaDoctor);
-      const study = await createStudy(h.owner, patient, libyaDoctor);
-      const appt = await createAppointment(h.owner, patient, tunisDoctor, 'pending');
-      await linkStudy(h.owner, appt, study);
-      await grantConsent(h.owner, patient, tunisDoctor, libyaDoctor);
+    it('a declined case gives the imaging back up', async () => {
+      // The predicate used to read `status <> 'cancelled'`, which was a
+      // complete way to say "still standing" only while 'declined' did not
+      // exist. Refusing a case must surrender its imaging.
+      const { tunisDoctor, caseId } = await scenario('accepted');
+      expect(await studiesVisibleTo(tunisDoctor)).toBe(1);
 
-      // Positive control: with triage on, a pending referral DOES see it, so a
-      // zero below is the decline and not a broken fixture.
-      const before = await asUser(
-        h.app,
-        { userId: tunisDoctor, role: 'tunisia_doctor', triageBeforePayment: true },
-        async (c) => (await c.query('SELECT id FROM imaging_studies')).rowCount,
-      );
-      expect(before).toBe(1);
+      await h.owner.query(`UPDATE cases_cases SET status = 'declined' WHERE id = $1`, [caseId]);
 
-      await h.owner.query(`UPDATE scheduling_appointments SET status = 'declined' WHERE id = $1`, [
-        appt,
-      ]);
-
-      const after = await asUser(
-        h.app,
-        { userId: tunisDoctor, role: 'tunisia_doctor', triageBeforePayment: true },
-        async (c) => (await c.query('SELECT id FROM imaging_studies')).rowCount,
-      );
-      expect(after).toBe(0);
+      expect(await studiesVisibleTo(tunisDoctor)).toBe(0);
     });
 
-    it('triage ON still requires consent — the toggle never bypasses it', async () => {
-      const libyaDoctor = await createUser(h.owner, 'libya_doctor');
-      const tunisDoctor = await createUser(h.owner, 'tunisia_doctor');
-      const patient = await createPatient(h.owner, libyaDoctor);
-      const study = await createStudy(h.owner, patient, libyaDoctor);
-      const appt = await createAppointment(h.owner, patient, tunisDoctor, 'pending');
-      await linkStudy(h.owner, appt, study);
-      // No consent.
+    it('an answered case keeps the imaging readable to its author', async () => {
+      // A doctor must be able to re-read what they diagnosed from, or the
+      // record they signed is one they can no longer inspect.
+      const { tunisDoctor } = await scenario('answered');
+      expect(await studiesVisibleTo(tunisDoctor)).toBe(1);
+    });
 
-      const rows = await asUser(
-        h.app,
-        { userId: tunisDoctor, role: 'tunisia_doctor', triageBeforePayment: true },
-        async (c) => (await c.query('SELECT id FROM imaging_studies')).rowCount,
-      );
-      expect(rows).toBe(0);
+    it('acceptance never bypasses consent', async () => {
+      const { tunisDoctor } = await scenario('accepted', { consent: false });
+      expect(await studiesVisibleTo(tunisDoctor)).toBe(0);
+    });
+
+    it('an expired case surrenders the imaging with the fee', async () => {
+      const { tunisDoctor, caseId } = await scenario('accepted');
+      await h.owner.query(`UPDATE cases_cases SET status = 'expired' WHERE id = $1`, [caseId]);
+      expect(await studiesVisibleTo(tunisDoctor)).toBe(0);
     });
   });
 
@@ -353,14 +334,10 @@ describe('P3.2 row-level security', () => {
       const study = await createStudy(h.owner, patient, libyaDoctor);
 
       // Both doctors have an appointment; consent names only A.
-      const apptA = await createAppointment(h.owner, patient, doctorA, 'confirmed');
-      const apptB = await createAppointment(
-        h.owner,
-        patient,
-        doctorB,
-        'confirmed',
-        new Date(Date.now() + 172_800_000),
-      );
+      const apptA = await createCase(h.owner, patient, doctorA, 'accepted');
+      // No second timestamp: with no slots, two cases for the same patient do
+      // not collide, so there is nothing left to space them apart.
+      const apptB = await createCase(h.owner, patient, doctorB, 'accepted');
       await linkStudy(h.owner, apptA, study);
       await linkStudy(h.owner, apptB, study);
       await grantConsent(h.owner, patient, doctorA, libyaDoctor);
@@ -381,7 +358,7 @@ describe('P3.2 row-level security', () => {
       const tunisDoctor = await createUser(h.owner, 'tunisia_doctor');
       const patient = await createPatient(h.owner, libyaDoctor);
       const study = await createStudy(h.owner, patient, libyaDoctor);
-      const appt = await createAppointment(h.owner, patient, tunisDoctor, 'cancelled');
+      const appt = await createCase(h.owner, patient, tunisDoctor, 'cancelled');
       await linkStudy(h.owner, appt, study);
       await grantConsent(h.owner, patient, tunisDoctor, libyaDoctor);
 
@@ -465,17 +442,5 @@ describe('P3.2 row-level security', () => {
       expect(rows).toBe(0);
     });
 
-    it('the database rejects double-booking regardless of application logic', async () => {
-      const libyaDoctor = await createUser(h.owner, 'libya_doctor');
-      const tunisDoctor = await createUser(h.owner, 'tunisia_doctor');
-      const p1 = await createPatient(h.owner, libyaDoctor);
-      const p2 = await createPatient(h.owner, libyaDoctor);
-      const slot = new Date(Date.now() + 86_400_000);
-
-      await createAppointment(h.owner, p1, tunisDoctor, 'confirmed', slot);
-      await expect(
-        createAppointment(h.owner, p2, tunisDoctor, 'confirmed', slot),
-      ).rejects.toThrow(/exclusion constraint|conflicting key value/i);
-    });
   });
 });

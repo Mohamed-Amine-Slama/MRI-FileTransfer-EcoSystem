@@ -28,8 +28,6 @@ import type { Role } from '@mir/contracts';
 export interface RequestContext {
   userId: string;
   role: Role;
-  /** DECISION D3. Read from config per request so the toggle needs no redeploy. */
-  triageBeforePayment: boolean;
   /** For the audit trail (P4.4). */
   ipAddress: string | undefined;
   userAgent: string | undefined;
@@ -115,7 +113,6 @@ export function systemContext(userAgent: string): RequestContext {
   return {
     userId: '00000000-0000-7000-8000-000000000000',
     role: 'admin',
-    triageBeforePayment: false,
     ipAddress: undefined,
     userAgent,
     requestId: randomUUID(),

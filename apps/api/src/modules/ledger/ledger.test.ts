@@ -4,7 +4,7 @@ import { runWithContext, type RequestContext } from '../../shared/context/reques
 import { DatabaseService } from '../../shared/db/database.service';
 import {
   appUrl,
-  createAppointment,
+  createCase,
   createPatient,
   createPractice,
   setupTestDatabase,
@@ -25,7 +25,6 @@ let ledger: LedgerService;
 const sys = (userId: string): RequestContext => ({
   userId,
   role: 'admin',
-  triageBeforePayment: false,
   ipAddress: '41.208.1.5',
   userAgent: 'test',
   requestId: 'req-ledger-test',
@@ -54,7 +53,7 @@ async function referral(): Promise<{
   const src = await createPractice(h.owner, 'libya_doctor');
   const dst = await createPractice(h.owner, 'tunisia_doctor');
   const patient = await createPatient(h.owner, src.doctorId);
-  const appt = await createAppointment(h.owner, patient, dst.doctorId, 'pending');
+  const appt = await createCase(h.owner, patient, dst.doctorId, 'paid');
   return { src, dst, appt };
 }
 
@@ -71,7 +70,7 @@ describe('coordination fee accrual', () => {
 
     const rows = await h.owner.query<{ organisation_id: string; amount_minor: string }>(
       `SELECT organisation_id, amount_minor FROM billing_ledger_entries
-       WHERE appointment_id = $1 ORDER BY amount_minor DESC`,
+       WHERE case_id = $1 ORDER BY amount_minor DESC`,
       [appt],
     );
     expect(rows.rows.length).toBe(2);
@@ -92,7 +91,7 @@ describe('coordination fee accrual', () => {
     });
 
     const rows = await h.owner.query(
-      `SELECT id FROM billing_ledger_entries WHERE appointment_id = $1`,
+      `SELECT id FROM billing_ledger_entries WHERE case_id = $1`,
       [appt],
     );
     expect(rows.rows.length).toBe(1);
@@ -119,7 +118,7 @@ describe('coordination fee accrual', () => {
     // a clinical hand-off does not wait on a billing configuration.
     expect(id).toBeNull();
     const rows = await h.owner.query(
-      `SELECT id FROM billing_ledger_entries WHERE appointment_id = $1`,
+      `SELECT id FROM billing_ledger_entries WHERE case_id = $1`,
       [appt],
     );
     expect(rows.rows).toEqual([]);
@@ -157,7 +156,7 @@ describe('coordination fee accrual', () => {
     );
 
     const rows = await h.owner.query(
-      `SELECT id FROM billing_ledger_entries WHERE appointment_id = $1`,
+      `SELECT id FROM billing_ledger_entries WHERE case_id = $1`,
       [appt],
     );
     expect(rows.rows).toEqual([]);

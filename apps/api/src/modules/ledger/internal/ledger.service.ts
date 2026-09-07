@@ -78,7 +78,7 @@ export class LedgerService {
 
       const inserted = await tx.query<{ id: string }>(
         `INSERT INTO billing_ledger_entries
-           (organisation_id, kind, appointment_id, amount_minor, currency)
+           (organisation_id, kind, case_id, amount_minor, currency)
          VALUES ($1, 'coordination_fee', $2, $3, $4)
          ON CONFLICT DO NOTHING
          RETURNING id`,
@@ -104,7 +104,7 @@ export class LedgerService {
         `SELECT e.id, e.kind, e.amount_minor, e.currency, e.status, e.occurred_at,
                 a.case_ref
            FROM billing_ledger_entries e
-           LEFT JOIN scheduling_appointments a ON a.id = e.appointment_id
+           LEFT JOIN cases_cases a ON a.id = e.case_id
           WHERE e.organisation_id = $1
           ORDER BY e.occurred_at DESC`,
         [organisationId],

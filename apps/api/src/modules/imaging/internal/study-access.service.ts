@@ -78,8 +78,8 @@ export class StudyAccessService {
               `SELECT s.id, s.study_instance_uid, s.description, s.study_date,
                       s.modality, s.file_count
                FROM imaging_studies s
-               JOIN scheduling_appointment_studies l ON l.study_id = s.id
-               WHERE l.appointment_id = $1
+               JOIN cases_case_studies l ON l.study_id = s.id
+               WHERE l.case_id = $1
                ORDER BY s.study_date DESC NULLS LAST`,
               [filter.appointmentId],
             )

@@ -1,6 +1,5 @@
 import { Body, Controller, Get, HttpCode, Param, ParseUUIDPipe, Post, Query } from '@nestjs/common';
 import { z } from 'zod';
-import { RateLimit } from '../../../shared/ratelimit/rate-limit.guard';
 import { RequiresRole } from '../../../shared/authz/access-metadata';
 import { PatientsService, type CreatePatientResult } from './patients.service';
 import type { PatientCandidate } from './patient-matching';

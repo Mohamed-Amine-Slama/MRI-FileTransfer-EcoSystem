@@ -9,6 +9,7 @@ import { LedgerService } from '../ledger';
 import { SchedulingService } from './internal/scheduling.service';
 import {
   appUrl,
+  createCase,
   createPatient,
   createPractice,
   createStudy,
@@ -56,7 +57,6 @@ const asRole = async <T>(
     await client.query('BEGIN');
     await client.query('SELECT set_config($1, $2, true)', ['app.user_id', userId]);
     await client.query('SELECT set_config($1, $2, true)', ['app.user_role', role]);
-    await client.query('SELECT set_config($1, $2, true)', ['app.triage_before_payment', 'false']);
     const out = await fn(client);
     await client.query(commit ? 'COMMIT' : 'ROLLBACK');
     return out;
@@ -88,17 +88,18 @@ beforeEach(async () => {
   await truncateAll(h.owner);
 });
 
-const SLOT_START = new Date(Date.UTC(2026, 8, 20, 9, 0, 0));
-const SLOT_END = new Date(Date.UTC(2026, 8, 20, 9, 30, 0));
 
 describe('what an assistant can do', () => {
   it('reads the agenda of the doctor they are seated with', async () => {
     const { doctorId, assistantId } = await createPractice(h.owner);
     const patient = await createPatient(h.owner, doctorId);
     await h.owner.query(
-      `INSERT INTO scheduling_appointments (patient_id, doctor_id, starts_at, ends_at, status)
-       VALUES ($1, $2, $3, $4, 'confirmed')`,
-      [patient, doctorId, SLOT_START, SLOT_END],
+      `INSERT INTO cases_cases (patient_id, doctor_id, status, organisation_id, specialty)
+         SELECT $1, $2, 'accepted', o.id, 'radiology'
+           FROM identity_memberships m
+           JOIN identity_organisations o ON o.id = m.organisation_id
+          WHERE m.user_id = $2 LIMIT 1`,
+      [patient, doctorId],
     );
 
     const rows = await asRole(assistantId, 'assistant', async (c) =>
@@ -115,15 +116,18 @@ describe('what an assistant can do', () => {
 
     await asRoleCommitting(assistantId, 'assistant', (c) =>
       c.query(
-        `INSERT INTO scheduling_appointments (patient_id, doctor_id, starts_at, ends_at, status)
-         VALUES ($1, $2, $3, $4, 'confirmed')`,
-        [patient, doctorId, SLOT_START, SLOT_END],
+        `INSERT INTO cases_cases (patient_id, doctor_id, status, organisation_id, specialty)
+         SELECT $1, $2, 'accepted', o.id, 'radiology'
+           FROM identity_memberships m
+           JOIN identity_organisations o ON o.id = m.organisation_id
+          WHERE m.user_id = $2 LIMIT 1`,
+        [patient, doctorId],
       ),
     );
 
     // Asserted on the owner connection: the row really landed, rather than the
     // INSERT having been silently filtered to nothing.
-    const check = await h.owner.query('SELECT doctor_id FROM scheduling_appointments');
+    const check = await h.owner.query('SELECT doctor_id FROM cases_cases');
     expect(check.rowCount).toBe(1);
     expect(check.rows[0]?.doctor_id).toBe(doctorId);
   });
@@ -172,20 +176,6 @@ describe('what an assistant can do', () => {
     expect(miss).toHaveLength(0);
   });
 
-  it('manages the doctor’s availability', async () => {
-    const { doctorId, assistantId } = await createPractice(h.owner);
-
-    await asRoleCommitting(assistantId, 'assistant', (c) =>
-      c.query(
-        `INSERT INTO scheduling_availability (doctor_id, starts_at, ends_at, slot_minutes)
-         VALUES ($1, $2, $3, 30)`,
-        [doctorId, SLOT_START, SLOT_END],
-      ),
-    );
-
-    const windows = await h.owner.query('SELECT doctor_id FROM scheduling_availability');
-    expect(windows.rowCount).toBe(1);
-  });
 });
 
 describe('what an assistant cannot do', () => {
@@ -194,9 +184,12 @@ describe('what an assistant cannot do', () => {
     const theirs = await createPractice(h.owner);
     const patient = await createPatient(h.owner, theirs.doctorId);
     await h.owner.query(
-      `INSERT INTO scheduling_appointments (patient_id, doctor_id, starts_at, ends_at, status)
-       VALUES ($1, $2, $3, $4, 'confirmed')`,
-      [patient, theirs.doctorId, SLOT_START, SLOT_END],
+      `INSERT INTO cases_cases (patient_id, doctor_id, status, organisation_id, specialty)
+         SELECT $1, $2, 'accepted', o.id, 'radiology'
+           FROM identity_memberships m
+           JOIN identity_organisations o ON o.id = m.organisation_id
+          WHERE m.user_id = $2 LIMIT 1`,
+      [patient, theirs.doctorId],
     );
 
     const rows = await asRole(mine.assistantId, 'assistant', async (c) =>
@@ -213,9 +206,12 @@ describe('what an assistant cannot do', () => {
     await expect(
       asRole(mine.assistantId, 'assistant', (c) =>
         c.query(
-          `INSERT INTO scheduling_appointments (patient_id, doctor_id, starts_at, ends_at, status)
-           VALUES ($1, $2, $3, $4, 'confirmed')`,
-          [stranger, mine.doctorId, SLOT_START, SLOT_END],
+          `INSERT INTO cases_cases (patient_id, doctor_id, status, organisation_id, specialty)
+         SELECT $1, $2, 'accepted', o.id, 'radiology'
+           FROM identity_memberships m
+           JOIN identity_organisations o ON o.id = m.organisation_id
+          WHERE m.user_id = $2 LIMIT 1`,
+          [stranger, mine.doctorId],
         ),
       ),
     ).rejects.toThrow(/row-level security/i);
@@ -241,12 +237,16 @@ describe('what an assistant cannot do', () => {
     const study = await createStudy(h.owner, patient, referrer);
     await grantConsent(h.owner, patient, doctorId, referrer);
     const appt = await h.owner.query<{ id: string }>(
-      `INSERT INTO scheduling_appointments (patient_id, doctor_id, starts_at, ends_at, status)
-       VALUES ($1, $2, $3, $4, 'confirmed') RETURNING id`,
-      [patient, doctorId, SLOT_START, SLOT_END],
+      `INSERT INTO cases_cases (patient_id, doctor_id, status, organisation_id, specialty)
+         SELECT $1, $2, 'accepted', o.id, 'radiology'
+           FROM identity_memberships m
+           JOIN identity_organisations o ON o.id = m.organisation_id
+          WHERE m.user_id = $2 LIMIT 1
+       RETURNING id`,
+      [patient, doctorId],
     );
     await h.owner.query(
-      `INSERT INTO scheduling_appointment_studies (appointment_id, study_id) VALUES ($1, $2)`,
+      `INSERT INTO cases_case_studies (case_id, study_id) VALUES ($1, $2)`,
       [appt.rows[0]?.id, study],
     );
 
@@ -266,9 +266,12 @@ describe('what an assistant cannot do', () => {
     const { doctorId } = await createPractice(h.owner);
     const patient = await createPatient(h.owner, doctorId);
     await h.owner.query(
-      `INSERT INTO scheduling_appointments (patient_id, doctor_id, starts_at, ends_at, status)
-       VALUES ($1, $2, $3, $4, 'confirmed')`,
-      [patient, doctorId, SLOT_START, SLOT_END],
+      `INSERT INTO cases_cases (patient_id, doctor_id, status, organisation_id, specialty)
+         SELECT $1, $2, 'accepted', o.id, 'radiology'
+           FROM identity_memberships m
+           JOIN identity_organisations o ON o.id = m.organisation_id
+          WHERE m.user_id = $2 LIMIT 1`,
+      [patient, doctorId],
     );
 
     const rows = await asRole(unseated, 'assistant', async (c) =>
@@ -285,9 +288,12 @@ describe('what an assistant cannot do', () => {
     await seatMember(h.owner, orgId, outsider, 'member');
     const patient = await createPatient(h.owner, doctorId);
     await h.owner.query(
-      `INSERT INTO scheduling_appointments (patient_id, doctor_id, starts_at, ends_at, status)
-       VALUES ($1, $2, $3, $4, 'confirmed')`,
-      [patient, doctorId, SLOT_START, SLOT_END],
+      `INSERT INTO cases_cases (patient_id, doctor_id, status, organisation_id, specialty)
+         SELECT $1, $2, 'accepted', o.id, 'radiology'
+           FROM identity_memberships m
+           JOIN identity_organisations o ON o.id = m.organisation_id
+          WHERE m.user_id = $2 LIMIT 1`,
+      [patient, doctorId],
     );
 
     const rows = await asRole(outsider, 'assistant', async (c) =>
@@ -305,27 +311,31 @@ describe('the agenda function exposes no clinical column', () => {
     const { doctorId, assistantId } = await createPractice(h.owner);
     const patient = await createPatient(h.owner, doctorId);
     await h.owner.query(
-      `INSERT INTO scheduling_appointments (patient_id, doctor_id, starts_at, ends_at, status)
-       VALUES ($1, $2, $3, $4, 'confirmed')`,
-      [patient, doctorId, SLOT_START, SLOT_END],
+      `INSERT INTO cases_cases (patient_id, doctor_id, status, organisation_id, specialty)
+         SELECT $1, $2, 'accepted', o.id, 'radiology'
+           FROM identity_memberships m
+           JOIN identity_organisations o ON o.id = m.organisation_id
+          WHERE m.user_id = $2 LIMIT 1`,
+      [patient, doctorId],
     );
 
     const rows = await asRole(assistantId, 'assistant', async (c) =>
       (await c.query('SELECT * FROM scheduling_assistant_agenda($1, $2)', [null, null])).rows,
     );
 
+    // `starts_at`, `ends_at` and `kind` left with the calendar; `specialty`
+    // arrived with it, and it is not clinical — it is which kind of doctor the
+    // lab asked for, which the receptionist needs to route the call.
     expect(Object.keys(rows[0] ?? {}).sort()).toEqual([
       'doctor_id',
       'doctor_name',
-      'ends_at',
       'id',
-      'kind',
       'notes',
       'patient_id',
       'patient_name',
       'patient_phone',
       'reason',
-      'starts_at',
+      'specialty',
       'status',
     ]);
   });
@@ -336,12 +346,19 @@ describe('a refused write is a 404, never a 500', () => {
    * The failure this covers was found by driving the real HTTP API, not by the
    * suite above: RLS correctly refused an assistant writing to a doctor they do
    * not assist, and the raw 42501 escaped as a 500. That is both a lie and an
-   * oracle — an attacker probing calendars could tell "refused" from "no such
-   * doctor" by the status code alone, which §6 exists to prevent.
+   * oracle — an attacker probing could tell "refused" from "no such record" by
+   * the status code alone, which §6 exists to prevent.
+   *
+   * It was written against publishing availability. Migration 0025 removed the
+   * calendar, so it now drives the same refusal through a case write: the
+   * guarantee is about how RLS refusals surface, not about which table.
    */
-  it('refuses availability for an unassisted doctor as not-found', async () => {
+  it('refuses a write for an unassisted doctor as not-found', async () => {
     const mine = await createPractice(h.owner);
     const theirs = await createPractice(h.owner);
+    const referrer = await createUser(h.owner, 'libya_doctor');
+    const theirPatient = await createPatient(h.owner, referrer);
+    const theirCase = await createCase(h.owner, theirPatient, theirs.doctorId, 'accepted');
 
     const db = new DatabaseService({
       DATABASE_URL: appUrl(),
@@ -350,7 +367,7 @@ describe('a refused write is a 404, never a 500', () => {
     const scheduling = new SchedulingService(
       db,
       new EventBus(),
-      { PAYMENT_AUTHORIZATION_WINDOW_HOURS: 72 } as AppConfig,
+      { CASES_ANSWER_WINDOW_HOURS: 72 } as AppConfig,
       new LedgerService(db),
     );
 
@@ -360,17 +377,12 @@ describe('a refused write is a 404, never a 500', () => {
           {
             userId: mine.assistantId,
             role: 'assistant',
-            triageBeforePayment: false,
             ipAddress: '41.208.1.5',
             userAgent: 'vitest',
             requestId: 'assistant-rls',
           },
           () =>
-            scheduling.addAvailability({
-              startsAt: SLOT_START,
-              endsAt: SLOT_END,
-              doctorId: theirs.doctorId,
-            }),
+            scheduling.updateCase(theirCase, { notes: 'should not land' }),
         ),
       ).rejects.toThrow(NotFoundException);
     } finally {

@@ -4,7 +4,7 @@ import { runWithContext, type RequestContext } from '../../shared/context/reques
 import { DatabaseService } from '../../shared/db/database.service';
 import {
   appUrl,
-  createAppointment,
+  createCase,
   createPatient,
   createStudy,
   createUser,
@@ -54,7 +54,6 @@ const signedUrls = (): SignedUrlService =>
 const ctx = (userId: string, role: RequestContext['role']): RequestContext => ({
   userId,
   role,
-  triageBeforePayment: false,
   ipAddress: '41.208.1.5',
   userAgent: 'vitest',
   requestId: 'p8-test',
@@ -80,12 +79,12 @@ beforeEach(async () => {
   now = Date.UTC(2026, 0, 1, 12, 0, 0);
 });
 
-async function scenario(opts: { withConsent: boolean; status?: 'confirmed' | 'pending' }) {
+async function scenario(opts: { withConsent: boolean; status?: 'accepted' | 'paid' }) {
   const libyaDoctor = await createUser(h.owner, 'libya_doctor');
   const tunisDoctor = await createUser(h.owner, 'tunisia_doctor');
   const patient = await createPatient(h.owner, libyaDoctor);
   const studyId = await createStudy(h.owner, patient, libyaDoctor);
-  const appt = await createAppointment(h.owner, patient, tunisDoctor, opts.status ?? 'confirmed');
+  const appt = await createCase(h.owner, patient, tunisDoctor, opts.status ?? 'accepted');
   await linkStudy(h.owner, appt, studyId);
   if (opts.withConsent) await grantConsent(h.owner, patient, tunisDoctor, libyaDoctor);
 
@@ -162,7 +161,7 @@ describe('P8.2 study access authorization', () => {
   });
 
   it('applies the D3 triage gate — an unanswered referral is refused by default', async () => {
-    const s = await scenario({ withConsent: true, status: 'pending' });
+    const s = await scenario({ withConsent: true, status: 'paid' });
 
     await expect(
       runWithContext(ctx(s.tunisDoctor, 'tunisia_doctor'), () =>

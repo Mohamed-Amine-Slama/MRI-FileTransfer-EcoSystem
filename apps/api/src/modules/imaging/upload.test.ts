@@ -71,7 +71,6 @@ const config = {
 const ctx = (userId: string): RequestContext => ({
   userId,
   role: 'libya_doctor',
-  triageBeforePayment: false,
   ipAddress: '41.208.1.5',
   userAgent: 'vitest',
   requestId: 'upload-test',
