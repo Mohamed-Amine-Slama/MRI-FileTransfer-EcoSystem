@@ -59,6 +59,7 @@ ALTER TABLE scheduling_appointments
 -- ---------------------------------------------------------------------------
 -- The ledger.
 -- ---------------------------------------------------------------------------
+DROP FUNCTION IF EXISTS billing_owing_organisation(uuid, text);
 DROP TABLE IF EXISTS billing_ledger_entries;
 DROP TABLE IF EXISTS billing_fee_schedule;
 

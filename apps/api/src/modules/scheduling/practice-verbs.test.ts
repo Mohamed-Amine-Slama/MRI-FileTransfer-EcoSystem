@@ -12,6 +12,7 @@ import {
 } from '../../shared/db/testing/rls-harness';
 import { EventBus } from '../../shared/events/event-bus';
 import { SchedulingService, SlotUnavailableError } from './internal/scheduling.service';
+import { LedgerService } from '../ledger';
 
 /**
  * Running the diary: reschedule, complete, no-show, cancel-with-reason, and
@@ -40,7 +41,7 @@ beforeAll(async () => {
   h = await setupTestDatabase();
   db = new DatabaseService({ DATABASE_URL: appUrl(), DATABASE_POOL_MAX: 8 } as AppConfig);
   bus = new EventBus();
-  scheduling = new SchedulingService(db, bus, config);
+  scheduling = new SchedulingService(db, bus, config, new LedgerService(db));
 }, 120_000);
 
 afterAll(async () => {

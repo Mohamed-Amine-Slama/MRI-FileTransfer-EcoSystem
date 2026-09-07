@@ -5,6 +5,7 @@ import type { AppConfig } from '../../shared/config/config.schema';
 import { runWithContext } from '../../shared/context/request-context';
 import { DatabaseService } from '../../shared/db/database.service';
 import { EventBus } from '../../shared/events/event-bus';
+import { LedgerService } from '../ledger';
 import { SchedulingService } from './internal/scheduling.service';
 import {
   appUrl,
@@ -346,9 +347,12 @@ describe('a refused write is a 404, never a 500', () => {
       DATABASE_URL: appUrl(),
       DATABASE_POOL_MAX: 4,
     } as AppConfig);
-    const scheduling = new SchedulingService(db, new EventBus(), {
-      PAYMENT_AUTHORIZATION_WINDOW_HOURS: 72,
-    } as AppConfig);
+    const scheduling = new SchedulingService(
+      db,
+      new EventBus(),
+      { PAYMENT_AUTHORIZATION_WINDOW_HOURS: 72 } as AppConfig,
+      new LedgerService(db),
+    );
 
     try {
       await expect(
