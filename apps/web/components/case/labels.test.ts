@@ -45,16 +45,17 @@ describe('enum labels resolve in every locale', () => {
   });
 
   it.each(LOCALES)('%s tells the two sides different things about one case (§5.3)', (_l, t) => {
-    // A matched case is the receiving clinic's move and nobody else's. If both
-    // sides read the same sentence, the next-action column is decoration.
-    expect(nextActionLabel(t, 'matched', 'source')).not.toBe(
-      nextActionLabel(t, 'matched', 'destination'),
+    // A paid case is the doctor's move — they triage it — and the lab's only
+    // job is to wait. If both sides read the same sentence, the next-action
+    // column is decoration.
+    expect(nextActionLabel(t, 'paid', 'source')).not.toBe(
+      nextActionLabel(t, 'paid', 'destination'),
     );
   });
 
   it.each(LOCALES)('%s says nothing is expected on a finished case', (_locale, t) => {
     for (const side of CASE_SIDES) {
-      expect(nextActionLabel(t, 'completed', side)).toBe(t.nextActionNone);
+      expect(nextActionLabel(t, 'closed', side)).toBe(t.nextActionNone);
       expect(nextActionLabel(t, 'cancelled', side)).toBe(t.nextActionNone);
     }
   });
@@ -102,13 +103,22 @@ describe('the §5.5 task rule is decided on the enum, not on copy', () => {
     expect(isAwaitingSide('submitted', 'destination')).toBe(false);
   });
 
-  it('hands a matched case to the receiving side', () => {
-    expect(isAwaitingSide('matched', 'destination')).toBe(true);
+  it('hands a paid case to the receiving side to triage', () => {
+    expect(isAwaitingSide('paid', 'destination')).toBe(true);
+  });
+
+  /**
+   * A refusal is not an ending: the lab picks again. This is the property the
+   * payment hold depends on, so it is asserted here as well as in the contract.
+   */
+  it('gives a declined case back to the referring side', () => {
+    expect(isAwaitingSide('declined', 'source')).toBe(true);
+    expect(isAwaitingSide('declined', 'destination')).toBe(false);
   });
 
   it('never leaves a finished case on anyone’s task list', () => {
     for (const side of CASE_SIDES) {
-      for (const status of ['completed', 'rejected', 'cancelled'] as const) {
+      for (const status of ['closed', 'expired', 'cancelled'] as const) {
         expect(isAwaitingSide(status, side)).toBe(false);
       }
     }
