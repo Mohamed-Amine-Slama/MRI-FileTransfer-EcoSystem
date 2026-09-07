@@ -18,11 +18,11 @@ describe('mock cases api', () => {
   it('filters by status, for the §5.3 provider case list', async () => {
     const completed = await mockCasesApi.listCases({
       providerId: 'prov-source-1',
-      status: 'completed',
+      status: 'answered',
     });
     expect(completed.length).toBeGreaterThan(0);
     for (const c of completed) {
-      expect(c.status).toBe('completed');
+      expect(c.status).toBe('answered');
     }
   });
 
@@ -124,13 +124,13 @@ describe('mock cases api mutations', () => {
 
   it('refuses an illegal ops status override rather than coercing it (§5.8)', async () => {
     await expect(
-      mockCasesApi.changeCaseStatus('MIR-2026-0418', 'completed', 'Ops'),
+      mockCasesApi.changeCaseStatus('MIR-2026-0418', 'answered', 'Ops'),
     ).rejects.toThrow(/illegal transition/);
   });
 
   it('records who moved a case and when, for the §5.3 timeline', async () => {
     const before = await mockCasesApi.listCaseEvents('MIR-2026-0418', SOURCE);
-    await mockCasesApi.changeCaseStatus('MIR-2026-0418', 'under_review', 'Ops staff');
+    await mockCasesApi.changeCaseStatus('MIR-2026-0418', 'quoted', 'Ops staff');
     const after = await mockCasesApi.listCaseEvents('MIR-2026-0418', SOURCE);
     expect(after.length).toBe(before.length + 1);
     expect(after.at(-1)?.actorDisplayName).toBe('Ops staff');
@@ -268,9 +268,9 @@ describe('case list date filtering (§5.3 P1)', () => {
   it('combines with the status filter rather than replacing it', async () => {
     const rows = await mockCasesApi.listCases({
       providerId: 'prov-source-1',
-      status: 'completed',
+      status: 'answered',
       updatedFrom: '2026-01-01',
     });
-    for (const row of rows) expect(row.status).toBe('completed');
+    for (const row of rows) expect(row.status).toBe('answered');
   });
 });

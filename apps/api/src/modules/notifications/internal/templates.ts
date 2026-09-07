@@ -34,8 +34,13 @@ export interface TemplateVariables {
   firstName?: string;
   /** Non-clinical, non-identifying: a claim or OTP code. */
   code?: string;
-  /** Localised date/time string, already formatted for the recipient. */
-  appointmentTime?: string;
+  /**
+   * The case's pseudonymous handle, e.g. MIR-2026-0417.
+   *
+   * The ONLY case-level fact these messages may carry. It identifies the case
+   * to both sides without naming the patient to anyone who intercepts the SMS.
+   */
+  caseRef?: string;
   /** Doctor's display name — a professional, not a patient. */
   doctorName?: string;
   /** Deep link into the app. Carries no query parameters with data. */
@@ -48,10 +53,9 @@ export type TemplateId =
   | 'patient_claim'
   | 'consent_request'
   | 'upload_complete'
-  | 'booking_confirmed'
-  | 'appointment_reminder'
-  | 'appointment_moved'
-  | 'appointment_cancelled'
+  | 'case_accepted'
+  | 'case_declined'
+  | 'case_answered'
   | 'consent_revoked'
   | 'payment_failed';
 
@@ -118,70 +122,60 @@ export const TEMPLATES: Record<TemplateId, TemplateDefinition> = {
     },
   },
 
-  booking_confirmed: {
-    allowed: ['appointmentTime', 'doctorName', 'link'],
+  /**
+   * The doctor took the case. For the lab this is the start of the clock, and
+   * the case reference is all it needs to find the right one.
+   */
+  case_accepted: {
+    allowed: ['caseRef', 'doctorName', 'link'],
     sms: {
-      ar: 'تم تأكيد موعدك مع {{doctorName}} في {{appointmentTime}}.',
-      fr: 'Votre rendez-vous avec {{doctorName}} le {{appointmentTime}} est confirmé.',
+      ar: 'تم قبول الحالة {{caseRef}} من قبل {{doctorName}}.',
+      fr: 'Le dossier {{caseRef}} a été accepté par {{doctorName}}.',
     },
-    emailSubject: { ar: 'تأكيد الموعد', fr: 'Rendez-vous confirmé' },
+    emailSubject: { ar: 'تم قبول الحالة', fr: 'Dossier accepté' },
     emailBody: {
-      ar: 'تم تأكيد موعدك مع {{doctorName}} في {{appointmentTime}}. {{link}}',
-      fr: 'Votre rendez-vous avec {{doctorName}} le {{appointmentTime}} est confirmé. {{link}}',
-    },
-  },
-
-  appointment_reminder: {
-    allowed: ['appointmentTime', 'doctorName'],
-    sms: {
-      ar: 'تذكير: لديك موعد مع {{doctorName}} في {{appointmentTime}}.',
-      fr: 'Rappel : rendez-vous avec {{doctorName}} le {{appointmentTime}}.',
-    },
-    emailSubject: { ar: 'تذكير بالموعد', fr: 'Rappel de rendez-vous' },
-    emailBody: {
-      ar: 'تذكير: لديك موعد مع {{doctorName}} في {{appointmentTime}}.',
-      fr: 'Rappel : rendez-vous avec {{doctorName}} le {{appointmentTime}}.',
+      ar: 'تم قبول الحالة {{caseRef}} من قبل {{doctorName}}. {{link}}',
+      fr: 'Le dossier {{caseRef}} a été accepté par {{doctorName}}. {{link}}',
     },
   },
 
   /**
-   * The practice moved an appointment.
+   * The doctor refused after reading the summary.
    *
-   * Carries the NEW time only. A message naming both times is longer than one
-   * SMS in Arabic, and the old time is not what the patient has to act on.
+   * The message says to choose another doctor, because that is the action, and
+   * it deliberately does not say why: a refusal reason is free text a clinician
+   * typed, which is exactly the kind of field the note at the top of this file
+   * keeps out of notifications. It is in the app, behind a login.
    */
-  appointment_moved: {
-    allowed: ['appointmentTime', 'doctorName', 'link'],
+  case_declined: {
+    allowed: ['caseRef', 'link'],
     sms: {
-      ar: 'تم تغيير موعدك مع {{doctorName}} إلى {{appointmentTime}}. {{link}}',
-      fr: 'Votre rendez-vous avec {{doctorName}} est déplacé au {{appointmentTime}}. {{link}}',
+      ar: 'لم تُقبل الحالة {{caseRef}}. اختر طبيبًا آخر: {{link}}',
+      fr: "Le dossier {{caseRef}} n'a pas été accepté. Choisissez un autre médecin : {{link}}",
     },
-    emailSubject: { ar: 'تغيير موعد', fr: 'Rendez-vous déplacé' },
+    emailSubject: { ar: 'لم تُقبل الحالة', fr: 'Dossier non accepté' },
     emailBody: {
-      ar: 'تم تغيير موعدك مع {{doctorName}} إلى {{appointmentTime}}. {{link}}',
-      fr: 'Votre rendez-vous avec {{doctorName}} est déplacé au {{appointmentTime}}. {{link}}',
+      ar: 'لم تُقبل الحالة {{caseRef}}. اختر طبيبًا آخر: {{link}}',
+      fr: "Le dossier {{caseRef}} n'a pas été accepté. Choisissez un autre médecin : {{link}}",
     },
   },
 
   /**
-   * The practice cancelled an appointment.
+   * The diagnosis is ready.
    *
-   * THE REASON IS DELIBERATELY NOT HERE. `AppointmentCancelled` carries one, and
-   * it is free text a receptionist typed — which is exactly the kind of field
-   * the note at the top of this file says does not belong in a notification. It
-   * is shown in the app, behind a login, where the audit log also has it. The
-   * message's job is to make sure the patient does not travel.
+   * Note what is absent: the diagnosis. This message exists to get the lab to
+   * open the app, never to deliver a finding over SMS.
    */
-  appointment_cancelled: {
-    allowed: ['appointmentTime', 'doctorName', 'link'],
+  case_answered: {
+    allowed: ['caseRef', 'link'],
     sms: {
-      ar: 'تم إلغاء موعدك مع {{doctorName}} في {{appointmentTime}}. للتفاصيل: {{link}}',
-      fr: 'Votre rendez-vous avec {{doctorName}} du {{appointmentTime}} est annulé. Détails : {{link}}',
+      ar: 'الرد على الحالة {{caseRef}} جاهز: {{link}}',
+      fr: 'La réponse au dossier {{caseRef}} est prête : {{link}}',
     },
-    emailSubject: { ar: 'إلغاء موعد', fr: 'Rendez-vous annulé' },
+    emailSubject: { ar: 'الرد جاهز', fr: 'Réponse disponible' },
     emailBody: {
-      ar: 'تم إلغاء موعدك مع {{doctorName}} في {{appointmentTime}}. للتفاصيل: {{link}}',
-      fr: 'Votre rendez-vous avec {{doctorName}} du {{appointmentTime}} est annulé. Détails : {{link}}',
+      ar: 'الرد على الحالة {{caseRef}} جاهز: {{link}}',
+      fr: 'La réponse au dossier {{caseRef}} est prête : {{link}}',
     },
   },
 

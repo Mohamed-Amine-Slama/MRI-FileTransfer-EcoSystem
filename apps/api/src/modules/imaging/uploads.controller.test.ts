@@ -73,7 +73,6 @@ class TestAuthGuard {
     setContext({
       userId,
       role,
-      triageBeforePayment: false,
       ipAddress: '41.208.1.5',
       userAgent: 'vitest',
       requestId: 'uploads-e2e',
@@ -100,7 +99,6 @@ beforeAll(async () => {
   const config = {
     UPLOAD_CHUNK_SIZE_BYTES: CHUNK,
     UPLOAD_SESSION_TTL_HOURS: 72,
-    SCHEDULING_TRIAGE_BEFORE_PAYMENT: false,
   } as AppConfig;
 
   @Module({

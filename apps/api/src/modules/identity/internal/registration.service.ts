@@ -47,7 +47,6 @@ function anonymousContext(): RequestContext {
     // NULLIF makes app_current_user_id() resolve it normally; nothing keys on it.
     userId: '00000000-0000-7000-8000-000000000000',
     role: 'applicant',
-    triageBeforePayment: false,
     ipAddress: undefined,
     userAgent: 'self-registration',
     requestId: randomUUID(),

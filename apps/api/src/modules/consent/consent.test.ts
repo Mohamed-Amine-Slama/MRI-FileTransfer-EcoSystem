@@ -5,7 +5,7 @@ import { DatabaseService } from '../../shared/db/database.service';
 import {
   appUrl,
   asUser,
-  createAppointment,
+  createCase,
   createPatient,
   createStudy,
   createUser,
@@ -41,7 +41,6 @@ const V2_AR = 'أوافق على نقل صوري الطبية إلى الطبي�
 const ctx = (userId: string, role: RequestContext['role']): RequestContext => ({
   userId,
   role,
-  triageBeforePayment: false,
   ipAddress: '41.208.1.5',
   userAgent: 'Mozilla/5.0 (test)',
   requestId: 'req-consent-test',
@@ -336,7 +335,7 @@ describe('P5.3 consent', () => {
     it("makes the receiving doctor's access disappear immediately (the gate)", async () => {
       const { libyaDoctor, tunisDoctor, patient } = await setupPatient();
       const study = await createStudy(h.owner, patient, libyaDoctor);
-      const appt = await createAppointment(h.owner, patient, tunisDoctor, 'confirmed');
+      const appt = await createCase(h.owner, patient, tunisDoctor, 'accepted');
       await linkStudy(h.owner, appt, study);
 
       const { consentId } = await runWithContext(ctx(libyaDoctor, 'libya_doctor'), async () =>
@@ -391,7 +390,7 @@ describe('P5.3 consent', () => {
     it('a doctor with an appointment but no consent sees nothing (RLS layer)', async () => {
       const { libyaDoctor, tunisDoctor, patient } = await setupPatient();
       const study = await createStudy(h.owner, patient, libyaDoctor);
-      const appt = await createAppointment(h.owner, patient, tunisDoctor, 'confirmed');
+      const appt = await createCase(h.owner, patient, tunisDoctor, 'accepted');
       await linkStudy(h.owner, appt, study);
 
       const rows = await db.txAs(ctx(tunisDoctor, 'tunisia_doctor'), async (tx) =>
@@ -404,7 +403,7 @@ describe('P5.3 consent', () => {
       const { libyaDoctor, tunisDoctor, patient } = await setupPatient();
       const otherDoctor = await createUser(h.owner, 'tunisia_doctor');
       const study = await createStudy(h.owner, patient, libyaDoctor);
-      const appt = await createAppointment(h.owner, patient, tunisDoctor, 'confirmed');
+      const appt = await createCase(h.owner, patient, tunisDoctor, 'accepted');
       await linkStudy(h.owner, appt, study);
 
       // Consent granted to someone else entirely.

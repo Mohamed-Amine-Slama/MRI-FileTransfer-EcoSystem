@@ -201,12 +201,13 @@ function subjectTypeFor(event: DomainEvent): string {
     case 'StudyUploadCompleted':
     case 'StudyAccessed':
       return 'study';
-    case 'AppointmentBooked':
-    case 'AppointmentRescheduled':
-    case 'AppointmentCancelled':
-    case 'AppointmentReminderDue':
-    case 'AppointmentConfirmed':
-      return 'appointment';
+    case 'CaseSubmitted':
+    case 'CaseQuoted':
+    case 'CaseCancelled':
+    case 'CaseDeclined':
+    case 'CaseExpired':
+    case 'CaseAccepted':
+      return 'case';
   }
 }
 
@@ -220,12 +221,13 @@ function subjectIdFor(event: DomainEvent): string | undefined {
     case 'StudyUploadCompleted':
     case 'StudyAccessed':
       return event.studyId;
-    case 'AppointmentBooked':
-    case 'AppointmentRescheduled':
-    case 'AppointmentCancelled':
-    case 'AppointmentReminderDue':
-    case 'AppointmentConfirmed':
-      return event.appointmentId;
+    case 'CaseSubmitted':
+    case 'CaseQuoted':
+    case 'CaseCancelled':
+    case 'CaseDeclined':
+    case 'CaseExpired':
+    case 'CaseAccepted':
+      return event.caseId;
   }
 }
 
@@ -262,21 +264,31 @@ function metadataFor(event: DomainEvent): Record<string, unknown> {
       };
     case 'ConsentRevoked':
       return { grantedTo: event.grantedTo };
-    case 'AppointmentBooked':
-    case 'AppointmentRescheduled':
-    case 'AppointmentReminderDue':
-      return { doctorId: event.doctorId, startsAt: event.startsAt.toISOString() };
-    case 'AppointmentCancelled':
+    case 'CaseSubmitted':
+      // No doctor yet: one is chosen at quote, because the doctor's tier is a
+      // term in the price.
+      return { organisationId: event.organisationId, specialty: event.specialty };
+    case 'CaseQuoted':
+      // The amount IS recorded here. What the lab was promised at the moment
+      // they committed is the fact a later dispute turns on, and reading it
+      // back off the row would only prove what the row says today.
       return {
         doctorId: event.doctorId,
-        startsAt: event.startsAt.toISOString(),
-        // A short scheduling note. Never clinical — the event carries no
+        amountMinor: event.amountMinor,
+        currency: event.currency,
+      };
+    case 'CaseCancelled':
+      return {
+        doctorId: event.doctorId,
+        // A short coordination note. Never clinical — the event carries no
         // clinical field for a careless subscriber to reach for.
         ...(event.reason === undefined ? {} : { reason: event.reason }),
       };
-    case 'AppointmentConfirmed':
-      // No amount: acceptance moves no money, and a details blob with a
-      // currency in it would imply otherwise to whoever reads the log.
+    case 'CaseDeclined':
+    case 'CaseExpired':
+    case 'CaseAccepted':
+      // No amount: none of these move money on their own, and a details blob
+      // with a currency in it would imply otherwise to whoever reads the log.
       return { doctorId: event.doctorId };
     case 'PatientCreated':
       return { createdByDoctor: event.createdByDoctor };

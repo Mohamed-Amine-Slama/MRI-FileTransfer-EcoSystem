@@ -2,7 +2,7 @@ import { ConflictException, Inject, Injectable, Logger, NotFoundException } from
 import { APP_CONFIG } from '../../../shared/config/config.module';
 import type { AppConfig } from '../../../shared/config/config.schema';
 import { requireContext } from '../../../shared/context/request-context';
-import { DatabaseService, type Tx } from '../../../shared/db/database.service';
+import { DatabaseService } from '../../../shared/db/database.service';
 import type { DomainEventBase } from '../../../shared/events/domain-events';
 import { EventBus } from '../../../shared/events/event-bus';
 import { LedgerService } from '../../ledger';
@@ -12,7 +12,7 @@ import { LedgerService } from '../../ledger';
  *
  * DOUBLE-BOOKING IS PREVENTED BY THE DATABASE, NOT BY THIS CODE.
  *
- * `scheduling_appointments` carries a gist exclusion constraint (P3.1) that
+ * `cases_cases` carries a gist exclusion constraint (P3.1) that
  * makes two overlapping non-cancelled appointments for one doctor impossible.
  * There is deliberately no "check whether the slot is free, then insert" here:
  * that pattern loses to concurrency every time, and the losing case is two
@@ -26,107 +26,39 @@ import { LedgerService } from '../../ledger';
  * offset between them changes nothing here because nothing here is local time.
  */
 
-/** PostgreSQL SQLSTATE for a violated exclusion constraint. */
-const EXCLUSION_VIOLATION = '23P01';
 const UNIQUE_VIOLATION = '23505';
 
-/**
- * Transient concurrency failures, as opposed to genuine conflicts.
- *
- * 40P01 deadlock_detected, 40001 serialization_failure.
- *
- * These are NOT the same as "someone else took the slot". A deadlock means the
- * database aborted one transaction to break a lock cycle — with a gist
- * exclusion constraint plus RLS policy subqueries, 50 simultaneous bookings
- * genuinely produce lock cycles. The transaction is rolled back cleanly and
- * retrying is both safe and correct: the slot may still be free.
- *
- * Left unhandled, a deadlock propagates as a raw driver error and the losing
- * patient gets a 500 — exactly what P10.2 forbids ("a clean conflict error,
- * not a 500").
- */
-const TRANSIENT_CONFLICTS = new Set(['40P01', '40001']);
-
-/** Bounded retries. A slot under this much contention resolves in a few. */
-const MAX_BOOKING_ATTEMPTS = 5;
-
-/**
- * Connection-pool exhaustion, which is transient in the same way.
- *
- * Under heavy contention the pool can be fully checked out and `connect()`
- * times out. That error carries no SQLSTATE, so the code check above misses
- * it and a raw driver message reaches the caller — the same "raw database
- * error escapes" failure the deadlock case had, arriving by a different door.
- */
-function isTransientConnectionFailure(err: unknown): boolean {
-  const message = err instanceof Error ? err.message : String(err);
-  return /timeout exceeded when trying to connect|Connection terminated|too many clients/i.test(
-    message,
-  );
-}
-
-/**
- * How far ahead a recurring rule generates concrete windows.
- *
- * Twelve weeks: far enough that a patient booking "in a couple of months" finds
- * slots, short enough that a rule changed today does not leave a year of stale
- * windows to withdraw.
- */
-const AVAILABILITY_HORIZON_DAYS = 84;
-
-export interface AvailabilityWindow {
-  id: string;
-  doctorId: string;
-  startsAt: Date;
-  endsAt: Date;
-  slotMinutes: number;
-}
-
-/** A weekly opening-hours rule, in the clinic's own wall-clock time. */
-export interface AvailabilityRule {
-  id: string;
-  doctorId: string;
-  /** ISO-8601: 1 = Monday .. 7 = Sunday, matching PostgreSQL's `isodow`. */
-  weekday: number;
-  startTime: string;
-  endTime: string;
-  timezone: string;
-  slotMinutes: number;
-  validFrom: Date;
-  validUntil: Date | null;
-}
-
-export interface BookingInput {
+export interface SubmitInput {
   patientId: string;
-  doctorId: string;
-  startsAt: Date;
-  endsAt: Date;
-  /** Studies to share with this appointment. Consent is still required (P5.3). */
+  specialty: string;
+  /** Studies to share with this case. Consent is still required (P5.3). */
   studyIds?: string[];
-  kind?: AppointmentKind;
   reason?: string;
   notes?: string;
 }
 
-export type AppointmentKind = 'consultation' | 'follow_up' | 'imaging' | 'other';
-
-export interface Appointment {
+export interface Case {
   id: string;
   patientId: string;
-  doctorId: string;
-  startsAt: Date;
-  endsAt: Date;
+  doctorId: string | null;
+  organisationId: string;
+  specialty: string;
   status: string;
-  kind: AppointmentKind;
-  /** Why the patient is coming — scheduling context, never a clinical finding. */
+  /** Why the case was referred — clinical context, never a finding. */
   reason: string | null;
   notes: string | null;
+  quotedAmountMinor: number | null;
+  quotedCurrency: string | null;
+  quoteExpiresAt: Date | null;
+  acceptedAt: Date | null;
+  answeredAt: Date | null;
+  answerDueAt: Date | null;
 }
 
-/** An appointment plus the names the UI needs, so it need not fan out. */
-export interface AppointmentSummary extends Appointment {
-  patientName: string;
-  doctorName: string;
+/** A case plus the names the UI needs, so it need not fan out. */
+export interface CaseSummary extends Case {
+  patientName: string | null;
+  doctorName: string | null;
   /**
    * Present only on the assistant's agenda. A receptionist rings the patient;
    * a doctor opens the record, so nothing else needs it here.
@@ -142,51 +74,60 @@ export interface DoctorSummary {
   city: string | null;
 }
 
-interface AppointmentRow {
+interface CaseRow {
   id: string;
   patient_id: string;
-  doctor_id: string;
-  starts_at: Date;
-  ends_at: Date;
+  doctor_id: string | null;
+  organisation_id: string;
+  specialty: string;
   status: string;
-  kind: string;
   reason: string | null;
   notes: string | null;
-  patient_name: string;
-  doctor_name: string;
+  quoted_amount_minor: string | null;
+  quoted_currency: string | null;
+  quote_expires_at: Date | null;
+  accepted_at: Date | null;
+  answered_at: Date | null;
+  answer_due_at: Date | null;
+  patient_name: string | null;
+  doctor_name: string | null;
   patient_phone?: string;
 }
 
-function toSummary(row: AppointmentRow): AppointmentSummary {
+function toSummary(row: CaseRow): CaseSummary {
   return {
     id: row.id,
     patientId: row.patient_id,
     doctorId: row.doctor_id,
-    startsAt: row.starts_at,
-    endsAt: row.ends_at,
+    organisationId: row.organisation_id,
+    specialty: row.specialty,
     status: row.status,
-    kind: row.kind as AppointmentKind,
     reason: row.reason,
     notes: row.notes,
+    // bigint arrives as a string from pg; Number() only after the null check so
+    // a missing quote stays null rather than becoming 0, which would read as a
+    // free consult.
+    quotedAmountMinor: row.quoted_amount_minor === null ? null : Number(row.quoted_amount_minor),
+    quotedCurrency: row.quoted_currency,
+    quoteExpiresAt: row.quote_expires_at,
+    acceptedAt: row.accepted_at,
+    answeredAt: row.answered_at,
+    answerDueAt: row.answer_due_at,
     patientName: row.patient_name,
     doctorName: row.doctor_name,
     ...(row.patient_phone === undefined ? {} : { patientPhone: row.patient_phone }),
   };
 }
 
-/** The columns every appointment read shares. */
-const APPOINTMENT_COLUMNS = `a.id, a.patient_id, a.doctor_id, a.starts_at, a.ends_at,
-                a.status, a.kind, a.reason, a.notes,
+/** The columns every case read shares. */
+const CASE_COLUMNS = `a.id, a.patient_id, a.doctor_id, a.organisation_id, a.specialty,
+                a.status, a.reason, a.notes,
+                a.quoted_amount_minor, a.quoted_currency, a.quote_expires_at,
+                a.accepted_at, a.answered_at, a.answer_due_at,
                 p.full_name AS patient_name, d.full_name AS doctor_name`;
 
-export class SlotUnavailableError extends ConflictException {
-  constructor() {
-    super('That appointment slot is no longer available');
-  }
-}
-
 /**
- * Translate a failed write on `scheduling_appointments` into an HTTP answer.
+ * Translate a failed write on `cases_cases` into an HTTP answer.
  *
  * Shared by book and reschedule because they fail in exactly the same ways and
  * must answer identically. The version of this that lived inline in
@@ -210,18 +151,12 @@ export class SlotUnavailableError extends ConflictException {
  */
 const RLS_REFUSED = '42501';
 
-/** Translate an RLS refusal on any scheduling write into a clean 404. */
-function translateRlsRefusal(err: unknown, notFound: string): never {
-  if ((err as { code?: string }).code === RLS_REFUSED) {
-    throw new NotFoundException(notFound);
-  }
-  throw err;
-}
-
-function translateAppointmentWriteError(err: unknown, notFound: string): never {
+function translateCaseWriteError(err: unknown, notFound: string): never {
   const code = (err as { code?: string }).code;
-  if (code === EXCLUSION_VIOLATION || code === UNIQUE_VIOLATION) {
-    throw new SlotUnavailableError();
+  // 23505 is the ledger's one-fee-per-case index, or a repeated study link.
+  // Both mean "already recorded", which is a conflict rather than a failure.
+  if (code === UNIQUE_VIOLATION) {
+    throw new ConflictException('That change has already been recorded');
   }
   if (code === RLS_REFUSED) {
     throw new NotFoundException(notFound);
@@ -244,289 +179,14 @@ export class SchedulingService {
   // P10.1 — availability
   // -------------------------------------------------------------------------
 
-  /**
-   * Publish a window of availability.
-   *
-   * `doctorId` defaults to the caller, which is the doctor's own case. An
-   * assistant must pass one — and `availability_assistant` is what decides
-   * whether they may, so this parameter widens nothing on its own.
-   */
-  async addAvailability(input: {
-    startsAt: Date;
-    endsAt: Date;
-    slotMinutes?: number;
-    doctorId?: string;
-  }): Promise<AvailabilityWindow> {
-    const ctx = requireContext();
 
-    if (input.endsAt <= input.startsAt) {
-      throw new ConflictException('Availability must end after it starts');
-    }
-
-    return this.db.tx(async (tx) => {
-      let res;
-      try {
-        res = await tx.query<{
-          id: string;
-          doctor_id: string;
-          starts_at: Date;
-          ends_at: Date;
-          slot_minutes: number;
-        }>(
-          `INSERT INTO scheduling_availability (doctor_id, starts_at, ends_at, slot_minutes)
-           VALUES ($1, $2, $3, $4)
-           RETURNING id, doctor_id, starts_at, ends_at, slot_minutes`,
-          [input.doctorId ?? ctx.userId, input.startsAt, input.endsAt, input.slotMinutes ?? 30],
-        );
-      } catch (err) {
-        // An assistant naming a doctor they do not assist lands here.
-        translateRlsRefusal(err, 'Doctor not found');
-      }
-      const row = res.rows[0];
-      if (row === undefined) throw new NotFoundException('Could not create availability');
-      return {
-        id: row.id,
-        doctorId: row.doctor_id,
-        startsAt: row.starts_at,
-        endsAt: row.ends_at,
-        slotMinutes: row.slot_minutes,
-      };
-    });
-  }
-
-  /**
-   * Bookable slots for a doctor, as UTC instants.
-   *
-   * Slots already taken are excluded. This is a CONVENIENCE for the UI, not a
-   * guarantee: between listing and booking, someone else may take one. The
-   * exclusion constraint is what actually decides, which is why `book()` must
-   * handle 23P01 rather than trusting this list.
-   */
-  async listOpenSlots(doctorId: string, from: Date, to: Date): Promise<{ startsAt: Date; endsAt: Date }[]> {
-    return this.db.tx(async (tx) => {
-      const windows = await tx.query<{ starts_at: Date; ends_at: Date; slot_minutes: number }>(
-        `SELECT starts_at, ends_at, slot_minutes
-         FROM scheduling_availability
-         WHERE doctor_id = $1 AND ends_at > $2 AND starts_at < $3
-           AND withdrawn_at IS NULL
-         ORDER BY starts_at`,
-        [doctorId, from, to],
-      );
-
-      const taken = await tx.query<{ starts_at: Date; ends_at: Date }>(
-        `SELECT starts_at, ends_at FROM scheduling_appointments
-         WHERE doctor_id = $1 AND status NOT IN ('cancelled', 'declined') AND ends_at > $2 AND starts_at < $3`,
-        [doctorId, from, to],
-      );
-
-      const slots: { startsAt: Date; endsAt: Date }[] = [];
-      for (const w of windows.rows) {
-        const step = w.slot_minutes * 60_000;
-        for (let t = w.starts_at.getTime(); t + step <= w.ends_at.getTime(); t += step) {
-          const startsAt = new Date(t);
-          const endsAt = new Date(t + step);
-          const overlaps = taken.rows.some(
-            (a) => a.starts_at.getTime() < endsAt.getTime() && a.ends_at.getTime() > startsAt.getTime(),
-          );
-          if (!overlaps) slots.push({ startsAt, endsAt });
-        }
-      }
-      return slots;
-    });
-  }
 
   // -------------------------------------------------------------------------
   // P10.2 — booking
   // -------------------------------------------------------------------------
 
-  /**
-   * Book a slot.
-   *
-   * One transaction: insert the appointment, link the studies, emit the event.
-   * If the exclusion constraint fires, exactly one concurrent caller has won
-   * and everyone else gets a clean 409 — never a 500, and never a second
-   * appointment.
-   *
-   * The appointment starts at `pending`, meaning "referred, not yet answered".
-   * The receiving doctor's `accept` moves it to `confirmed` and their `decline`
-   * to `declined`. Imaging stays invisible to the receiving doctor until it is
-   * confirmed unless triage is enabled (D3).
-   *
-   * It used to start at `pending_payment` under DECISION D2 — authorise the
-   * patient's card at booking, capture on acceptance. Migration 0023 removed
-   * that state with the card: waiting on a doctor and waiting on a payment are
-   * not the same wait, and only one of them still exists.
-   */
-  async book(input: BookingInput): Promise<Appointment> {
-    const ctx = requireContext();
 
-    if (input.endsAt <= input.startsAt) {
-      throw new ConflictException('Appointment must end after it starts');
-    }
 
-    return this.withContentionRetries('booking', () => this.attemptBooking(input, ctx));
-  }
-
-  /**
-   * Retry the transient failures, surface the real ones.
-   *
-   * A deadlock (40P01) or a serialisation failure is NOT "someone else took the
-   * slot": the transaction rolled back cleanly and the slot may still be free,
-   * so retrying is both safe and correct. Left unhandled it propagates as a raw
-   * driver error and the caller gets a 500 — exactly what P10.2 forbids.
-   *
-   * Shared by book and reschedule: both write the same exclusion constraint
-   * under the same contention, so a reschedule without this would be the 500
-   * that booking was carefully taught not to produce.
-   */
-  private async withContentionRetries<T>(
-    what: string,
-    operation: () => Promise<T>,
-  ): Promise<T> {
-    let lastTransient: unknown;
-    for (let attempt = 1; attempt <= MAX_BOOKING_ATTEMPTS; attempt++) {
-      try {
-        return await operation();
-      } catch (err) {
-        const code = (err as { code?: string }).code;
-        const transient =
-          (code !== undefined && TRANSIENT_CONFLICTS.has(code)) ||
-          isTransientConnectionFailure(err);
-        if (transient) {
-          lastTransient = err;
-          // Jittered backoff. Without jitter the same set of transactions
-          // collide again on the next attempt, in the same order.
-          await new Promise((r) => setTimeout(r, Math.floor(Math.random() * 25) + attempt * 10));
-          continue;
-        }
-        throw err;
-      }
-    }
-
-    // Exhausted retries under sustained contention. Report it as a conflict —
-    // it is one, from the caller's point of view — rather than a 500.
-    this.logger.warn(
-      `${what} gave up after ${MAX_BOOKING_ATTEMPTS} attempts under contention: ` +
-        `${(lastTransient as { code?: string })?.code ?? 'connection'}`,
-    );
-    // Still a clean conflict, never a raw driver error (P10.2).
-    throw new SlotUnavailableError();
-  }
-
-  private async attemptBooking(
-    input: BookingInput,
-    ctx: ReturnType<typeof requireContext>,
-  ): Promise<Appointment> {
-    const appointment = await this.db.tx(async (tx: Tx) => {
-      let inserted;
-      try {
-        inserted = await tx.query<{
-          id: string;
-          patient_id: string;
-          doctor_id: string;
-          starts_at: Date;
-          ends_at: Date;
-          status: string;
-          kind: string;
-          reason: string | null;
-          notes: string | null;
-        }>(
-          `INSERT INTO scheduling_appointments
-             (patient_id, doctor_id, starts_at, ends_at, status, kind, reason, notes, created_by)
-           VALUES ($1, $2, $3, $4, 'pending', $5, $6, $7, $8)
-           RETURNING id, patient_id, doctor_id, starts_at, ends_at, status, kind, reason, notes`,
-          [
-            input.patientId,
-            input.doctorId,
-            input.startsAt,
-            input.endsAt,
-            input.kind ?? 'consultation',
-            input.reason ?? null,
-            input.notes ?? null,
-            ctx.userId,
-          ],
-        );
-      } catch (err) {
-        // Someone else won the slot, or RLS refused the row. Either way a clean
-        // conflict or a 404 — never a 500, and never a duplicate appointment.
-        translateAppointmentWriteError(err, 'Patient not found');
-      }
-
-      const row = inserted.rows[0];
-      if (row === undefined) throw new NotFoundException('Patient not found');
-
-      const requested = input.studyIds ?? [];
-      if (requested.length > 0) {
-        // Resolve which of the requested studies the caller can actually see.
-        // RLS does the deciding; this query just asks it.
-        const visible = await tx.query<{ id: string }>(
-          `SELECT id FROM imaging_studies WHERE id = ANY($1::uuid[])`,
-          [requested],
-        );
-        const visibleIds = new Set(visible.rows.map((r) => r.id));
-
-        // FAIL LOUDLY on anything unlinkable, rather than dropping it.
-        //
-        // Two rejected alternatives:
-        //   * inserting blind — a WITH CHECK violation aborts the whole
-        //     transaction, so one bad id destroys a legitimate booking;
-        //   * silently skipping — the receiving doctor never gets a scan the
-        //     patient believed they had shared, and nobody finds out until the
-        //     consultation. That is a clinical risk, not a UX wrinkle.
-        //
-        // 404 rather than 403, so this cannot be used to probe which study ids
-        // exist (§6).
-        const missing = requested.filter((id) => !visibleIds.has(id));
-        if (missing.length > 0) {
-          throw new NotFoundException('Study not found');
-        }
-
-        for (const studyId of requested) {
-          await tx.query(
-            `INSERT INTO scheduling_appointment_studies (appointment_id, study_id)
-             VALUES ($1, $2) ON CONFLICT DO NOTHING`,
-            [row.id, studyId],
-          );
-        }
-      }
-
-      return {
-        id: row.id,
-        patientId: row.patient_id,
-        doctorId: row.doctor_id,
-        startsAt: row.starts_at,
-        endsAt: row.ends_at,
-        status: row.status,
-        kind: row.kind as AppointmentKind,
-        reason: row.reason,
-        notes: row.notes,
-      };
-    });
-
-    // The referring side's coordination fee, accrued at assignment.
-    //
-    // AFTER the booking transaction, not inside it: a billing configuration
-    // must never be able to fail a clinical hand-off. `accrueCoordinationFee`
-    // returns null rather than throwing when no rate is configured, and the
-    // partial unique index makes a retry harmless.
-    await this.ledger.accrueCoordinationFee(appointment.id, 'source');
-
-    await this.bus.publish({
-      type: 'AppointmentBooked',
-      appointmentId: appointment.id,
-      patientId: appointment.patientId,
-      doctorId: appointment.doctorId,
-      startsAt: appointment.startsAt,
-      actorId: ctx.userId,
-      actorRole: ctx.role,
-      occurredAt: new Date(),
-      requestId: ctx.requestId,
-      ipAddress: ctx.ipAddress,
-      userAgent: ctx.userAgent,
-    });
-
-    return appointment;
-  }
 
   // -------------------------------------------------------------------------
   // Reads for the UI
@@ -541,7 +201,73 @@ export class SchedulingService {
   // -------------------------------------------------------------------------
 
   /**
-   * Appointments visible to the caller, soonest first.
+   * Submit a case. No doctor and no price yet — both arrive together at quote,
+   * because the doctor's earned tier is a term in the price.
+   *
+   * The organisation is resolved from the caller's membership rather than taken
+   * from the request: who owes for a case is not something the requester gets
+   * to assert.
+   */
+  async submit(input: SubmitInput): Promise<CaseSummary> {
+    const ctx = requireContext();
+    const id = await this.db.txAs(ctx, async (tx) => {
+      const org = await tx.query<{ id: string }>(
+        `SELECT o.id
+           FROM identity_memberships m
+           JOIN identity_organisations o ON o.id = m.organisation_id
+          WHERE m.user_id = $1 AND o.side = 'source'
+          LIMIT 1`,
+        [ctx.userId],
+      );
+      const orgId = org.rows[0]?.id;
+      if (orgId === undefined) {
+        throw new ConflictException('Your account is not seated in a referring organisation');
+      }
+
+      const res = await tx
+        .query<{ id: string }>(
+          `INSERT INTO cases_cases
+             (patient_id, organisation_id, specialty, status, reason, notes, created_by)
+           VALUES ($1, $2, $3, 'submitted', $4, $5, $6) RETURNING id`,
+          [
+            input.patientId,
+            orgId,
+            input.specialty,
+            input.reason ?? null,
+            input.notes ?? null,
+            ctx.userId,
+          ],
+        )
+        .catch((err: unknown) => translateCaseWriteError(err, 'Patient not found'));
+
+      const row = res.rows[0];
+      if (row === undefined) throw new NotFoundException('Patient not found');
+
+      for (const studyId of input.studyIds ?? []) {
+        await tx
+          .query(`INSERT INTO cases_case_studies (case_id, study_id) VALUES ($1, $2)`, [
+            row.id,
+            studyId,
+          ])
+          .catch((err: unknown) => translateCaseWriteError(err, 'Study not found'));
+      }
+      return row.id;
+    });
+
+    const item = await this.getCase(id);
+    await this.bus.publish({
+      type: 'CaseSubmitted',
+      caseId: id,
+      patientId: item.patientId,
+      organisationId: item.organisationId,
+      specialty: item.specialty,
+      ...this.actorFields(),
+    });
+    return item;
+  }
+
+  /**
+   * Cases visible to the caller, newest first.
    *
    * THE ASSISTANT TAKES A DIFFERENT ROUTE, and has to. This query joins
    * `patients_patients` for the name, and there is deliberately no SELECT
@@ -551,16 +277,23 @@ export class SchedulingService {
    * "an assistant sees a name and a phone number and nothing else" a property
    * of the schema rather than of this SELECT list.
    */
-  async listAppointments(range?: { from?: Date; to?: Date }): Promise<AppointmentSummary[]> {
+  async listCases(range?: { from?: Date; to?: Date }): Promise<CaseSummary[]> {
     const ctx = requireContext();
     const from = range?.from ?? null;
     const to = range?.to ?? null;
 
     if (ctx.role === 'assistant') {
       return this.db.tx(async (tx) => {
-        const res = await tx.query<AppointmentRow>(
-          `SELECT id, patient_id, doctor_id, starts_at, ends_at, status, kind, reason, notes,
-                  patient_name, doctor_name, patient_phone
+        const res = await tx.query<CaseRow>(
+          `SELECT id, patient_id, doctor_id, status, specialty, reason, notes,
+                  patient_name, doctor_name, patient_phone,
+                  NULL::uuid   AS organisation_id,
+                  NULL::bigint AS quoted_amount_minor,
+                  NULL::text   AS quoted_currency,
+                  NULL::timestamptz AS quote_expires_at,
+                  NULL::timestamptz AS accepted_at,
+                  NULL::timestamptz AS answered_at,
+                  NULL::timestamptz AS answer_due_at
            FROM scheduling_assistant_agenda($1, $2)`,
           [from, to],
         );
@@ -569,11 +302,11 @@ export class SchedulingService {
     }
 
     return this.db.tx(async (tx) => {
-      const res = await tx.query<AppointmentRow>(
-        `SELECT ${APPOINTMENT_COLUMNS}
-         FROM scheduling_appointments a
-         JOIN patients_patients p ON p.id = a.patient_id
-         JOIN identity_users d ON d.id = a.doctor_id
+      const res = await tx.query<CaseRow>(
+        `SELECT ${CASE_COLUMNS}
+         FROM cases_cases a
+         LEFT JOIN patients_patients p ON p.id = a.patient_id
+         LEFT JOIN identity_users d ON d.id = a.doctor_id
          WHERE ($1::timestamptz IS NULL OR a.ends_at > $1)
            AND ($2::timestamptz IS NULL OR a.starts_at < $2)
          ORDER BY a.starts_at DESC`,
@@ -590,40 +323,47 @@ export class SchedulingService {
    * table would return nothing for them anyway (`app_can_see_appointment`), and
    * asking would imply they were meant to have some.
    */
-  async getAppointment(appointmentId: string): Promise<AppointmentSummary> {
+  async getCase(caseId: string): Promise<CaseSummary> {
     const ctx = requireContext();
 
     if (ctx.role === 'assistant') {
       return this.db.tx(async (tx) => {
-        const res = await tx.query<AppointmentRow>(
-          `SELECT id, patient_id, doctor_id, starts_at, ends_at, status, kind, reason, notes,
-                  patient_name, doctor_name, patient_phone
+        const res = await tx.query<CaseRow>(
+          `SELECT id, patient_id, doctor_id, status, specialty, reason, notes,
+                  patient_name, doctor_name, patient_phone,
+                  NULL::uuid   AS organisation_id,
+                  NULL::bigint AS quoted_amount_minor,
+                  NULL::text   AS quoted_currency,
+                  NULL::timestamptz AS quote_expires_at,
+                  NULL::timestamptz AS accepted_at,
+                  NULL::timestamptz AS answered_at,
+                  NULL::timestamptz AS answer_due_at
            FROM scheduling_assistant_agenda(NULL, NULL) WHERE id = $1`,
-          [appointmentId],
+          [caseId],
         );
         const row = res.rows[0];
-        if (row === undefined) throw new NotFoundException('Appointment not found');
+        if (row === undefined) throw new NotFoundException('Case not found');
         return { ...toSummary(row), studyIds: [] };
       });
     }
 
     return this.db.tx(async (tx) => {
-      const res = await tx.query<AppointmentRow>(
-        `SELECT ${APPOINTMENT_COLUMNS}
-         FROM scheduling_appointments a
-         JOIN patients_patients p ON p.id = a.patient_id
-         JOIN identity_users d ON d.id = a.doctor_id
+      const res = await tx.query<CaseRow>(
+        `SELECT ${CASE_COLUMNS}
+         FROM cases_cases a
+         LEFT JOIN patients_patients p ON p.id = a.patient_id
+         LEFT JOIN identity_users d ON d.id = a.doctor_id
          WHERE a.id = $1`,
-        [appointmentId],
+        [caseId],
       );
       const row = res.rows[0];
       // 404 rather than 403 for a row RLS filtered: §6 requires that "does not
       // exist" and "not yours" be indistinguishable.
-      if (row === undefined) throw new NotFoundException('Appointment not found');
+      if (row === undefined) throw new NotFoundException('Case not found');
 
       const studies = await tx.query<{ study_id: string }>(
-        `SELECT study_id FROM scheduling_appointment_studies WHERE appointment_id = $1`,
-        [appointmentId],
+        `SELECT study_id FROM cases_case_studies WHERE case_id = $1`,
+        [caseId],
       );
       return { ...toSummary(row), studyIds: studies.rows.map((s) => s.study_id) };
     });
@@ -663,221 +403,15 @@ export class SchedulingService {
     });
   }
 
-  /**
-   * Published availability windows the caller can see.
-   *
-   * No WHERE on the doctor: RLS scopes it, so a doctor gets their own and an
-   * assistant gets those of the doctors they are seated with. `doctorId`
-   * narrows that further for an assistant looking at one calendar — it cannot
-   * widen it, because the policy still applies.
-   */
-  async listAvailability(doctorId?: string): Promise<AvailabilityWindow[]> {
-    return this.db.tx(async (tx) => {
-      const res = await tx.query<{
-        id: string;
-        doctor_id: string;
-        starts_at: Date;
-        ends_at: Date;
-        slot_minutes: number;
-      }>(
-        `SELECT id, doctor_id, starts_at, ends_at, slot_minutes
-         FROM scheduling_availability
-         WHERE withdrawn_at IS NULL
-           AND ($1::uuid IS NULL OR doctor_id = $1)
-         ORDER BY starts_at`,
-        [doctorId ?? null],
-      );
-      return res.rows.map((r) => ({
-        id: r.id,
-        doctorId: r.doctor_id,
-        startsAt: r.starts_at,
-        endsAt: r.ends_at,
-        slotMinutes: r.slot_minutes,
-      }));
-    });
-  }
 
-  /**
-   * Take a window back down.
-   *
-   * An UPDATE, not a DELETE — the application holds no DELETE grant anywhere
-   * (0002), and a window that was once advertised is worth keeping on the
-   * record. REFUSES while appointments still stand in it: silently withdrawing
-   * the hours around a booked patient would leave an appointment nobody's
-   * calendar admits to, which is the failure mode this whole module exists to
-   * avoid. Cancel them first, deliberately.
-   */
-  async withdrawAvailability(windowId: string): Promise<void> {
-    const booked = await this.db.tx(async (tx) => {
-      const res = await tx.query<{ n: string }>(
-        `SELECT count(*) AS n
-         FROM scheduling_appointments a
-         JOIN scheduling_availability w ON w.id = $1
-         WHERE a.doctor_id = w.doctor_id
-           AND a.status NOT IN ('cancelled', 'declined')
-           AND a.starts_at < w.ends_at
-           AND a.ends_at > w.starts_at`,
-        [windowId],
-      );
-      return Number(res.rows[0]?.n ?? '0');
-    });
-
-    if (booked > 0) {
-      throw new ConflictException('Cancel the appointments in this window first');
-    }
-
-    const changed = await this.db.tx(async (tx) => {
-      const res = await tx.query(
-        `UPDATE scheduling_availability SET withdrawn_at = now()
-         WHERE id = $1 AND withdrawn_at IS NULL`,
-        [windowId],
-      );
-      return res.rowCount ?? 0;
-    });
-    if (changed === 0) throw new NotFoundException('Availability window not found');
-  }
 
   // -------------------------------------------------------------------------
   // Recurring availability (P10.1's "recurring and one-off").
   // -------------------------------------------------------------------------
 
-  /**
-   * Publish a weekly rule, and generate its windows out to the horizon.
-   *
-   * Generation happens here rather than lazily so that everything downstream —
-   * the slot picker, the exclusion constraint, the calendar — keeps reading one
-   * representation. `scheduling_materialise_rule` is SECURITY INVOKER, so the
-   * generated rows are subject to the same policies as a hand-entered window.
-   */
-  async addAvailabilityRule(input: {
-    weekday: number;
-    startTime: string;
-    endTime: string;
-    timezone: string;
-    slotMinutes?: number;
-    validFrom?: Date;
-    validUntil?: Date;
-    doctorId?: string;
-  }): Promise<{ id: string; generated: number }> {
-    const ctx = requireContext();
 
-    const id = await this.db.tx(async (tx) => {
-      let res;
-      try {
-        res = await tx.query<{ id: string }>(
-        `INSERT INTO scheduling_availability_rules
-           (doctor_id, weekday, start_time, end_time, timezone, slot_minutes,
-            valid_from, valid_until)
-         VALUES ($1, $2, $3, $4, $5, $6, COALESCE($7, CURRENT_DATE), $8)
-         RETURNING id`,
-        [
-          input.doctorId ?? ctx.userId,
-          input.weekday,
-          input.startTime,
-          input.endTime,
-          input.timezone,
-          input.slotMinutes ?? 30,
-          input.validFrom ?? null,
-          input.validUntil ?? null,
-        ],
-        );
-      } catch (err) {
-        translateRlsRefusal(err, 'Doctor not found');
-      }
-      const row = res.rows[0];
-      if (row === undefined) throw new NotFoundException('Could not create availability rule');
-      return row.id;
-    });
 
-    const generated = await this.materialiseRule(id);
-    return { id, generated };
-  }
 
-  /** Generate a rule's windows out to the rolling horizon. Idempotent. */
-  async materialiseRule(ruleId: string): Promise<number> {
-    const horizon = new Date();
-    horizon.setUTCDate(horizon.getUTCDate() + AVAILABILITY_HORIZON_DAYS);
-    return this.db.tx(async (tx) => {
-      const res = await tx.query<{ scheduling_materialise_rule: number }>(
-        'SELECT scheduling_materialise_rule($1, $2::date)',
-        [ruleId, horizon.toISOString().slice(0, 10)],
-      );
-      return res.rows[0]?.scheduling_materialise_rule ?? 0;
-    });
-  }
-
-  async listAvailabilityRules(doctorId?: string): Promise<AvailabilityRule[]> {
-    return this.db.tx(async (tx) => {
-      const res = await tx.query<{
-        id: string;
-        doctor_id: string;
-        weekday: number;
-        start_time: string;
-        end_time: string;
-        timezone: string;
-        slot_minutes: number;
-        valid_from: Date;
-        valid_until: Date | null;
-      }>(
-        `SELECT id, doctor_id, weekday, start_time, end_time, timezone, slot_minutes,
-                valid_from, valid_until
-         FROM scheduling_availability_rules
-         WHERE withdrawn_at IS NULL
-           AND ($1::uuid IS NULL OR doctor_id = $1)
-         ORDER BY weekday, start_time`,
-        [doctorId ?? null],
-      );
-      return res.rows.map((r) => ({
-        id: r.id,
-        doctorId: r.doctor_id,
-        weekday: r.weekday,
-        startTime: r.start_time,
-        endTime: r.end_time,
-        timezone: r.timezone,
-        slotMinutes: r.slot_minutes,
-        validFrom: r.valid_from,
-        validUntil: r.valid_until,
-      }));
-    });
-  }
-
-  /**
-   * Withdraw a rule and its FUTURE windows.
-   *
-   * Past windows stay: they record hours that really were advertised. Future
-   * ones that already carry an appointment stay too — withdrawing the rule
-   * means "stop offering this", not "cancel everyone booked into it", and
-   * silently dropping a patient's confirmed slot is not a thing a schedule
-   * editor should be able to do as a side effect.
-   */
-  async withdrawAvailabilityRule(ruleId: string): Promise<void> {
-    const changed = await this.db.tx(async (tx) => {
-      const res = await tx.query(
-        `UPDATE scheduling_availability_rules SET withdrawn_at = now()
-         WHERE id = $1 AND withdrawn_at IS NULL`,
-        [ruleId],
-      );
-      if ((res.rowCount ?? 0) > 0) {
-        await tx.query(
-          `UPDATE scheduling_availability w
-           SET withdrawn_at = now()
-           WHERE w.rule_id = $1
-             AND w.withdrawn_at IS NULL
-             AND w.starts_at > now()
-             AND NOT EXISTS (
-               SELECT 1 FROM scheduling_appointments a
-               WHERE a.doctor_id = w.doctor_id
-                 AND a.status NOT IN ('cancelled', 'declined')
-                 AND a.starts_at < w.ends_at
-                 AND a.ends_at > w.starts_at
-             )`,
-          [ruleId],
-        );
-      }
-      return res.rowCount ?? 0;
-    });
-    if (changed === 0) throw new NotFoundException('Availability rule not found');
-  }
 
   /**
    * The receiving doctor declines a referral.
@@ -904,64 +438,81 @@ export class SchedulingService {
    * The status guard is what makes it idempotent — a second accept matches no
    * row, and an accept on a cancelled appointment does not resurrect it.
    */
-  async accept(appointmentId: string): Promise<void> {
+  async accept(caseId: string): Promise<void> {
     const accepted = await this.db.tx(async (tx) => {
       const res = await tx.query<{ patient_id: string; doctor_id: string }>(
-        `UPDATE scheduling_appointments
-         SET status = 'confirmed'
-         WHERE id = $1 AND status NOT IN ('cancelled', 'declined', 'completed', 'confirmed')
+        `UPDATE cases_cases
+         SET status = 'accepted',
+             accepted_at = now(),
+             -- The clock starts HERE, not at payment. A doctor is answerable
+             -- for a case from the moment they take it, and a window that ran
+             -- from payment would punish them for a lab that paid on Friday.
+             answer_due_at = now() + ($2 || ' hours')::interval
+         WHERE id = $1 AND status = 'paid'
          RETURNING patient_id, doctor_id`,
-        [appointmentId],
+        [caseId, this.config.CASES_ANSWER_WINDOW_HOURS],
       );
       return res.rows[0];
     });
-    if (accepted === undefined) throw new NotFoundException('Appointment not found');
+    if (accepted === undefined) throw new NotFoundException('Case not found');
 
     // The receiving side's fee, accrued on acceptance rather than on
     // assignment: the destination organisation owes for a referral it took on,
     // and a declined one costs it nothing. `decline` deliberately accrues
     // neither side's — see the plan's split.
-    await this.ledger.accrueCoordinationFee(appointmentId, 'destination');
+    await this.ledger.accrueCoordinationFee(caseId, 'destination');
 
     // Published where PaymentSucceeded used to be. The card's capture is what
     // told audit and notifications a booking was confirmed; the doctor's
     // acceptance says it now. Emitted only when a row actually changed, so a
     // repeated accept does not send a second confirmation.
     await this.bus.publish({
-      type: 'AppointmentConfirmed',
-      appointmentId,
+      type: 'CaseAccepted',
+      caseId,
       patientId: accepted.patient_id,
       doctorId: accepted.doctor_id,
       ...this.actorFields(),
     });
   }
 
-  async decline(appointmentId: string): Promise<void> {
+  async decline(caseId: string): Promise<void> {
     const changed = await this.db.tx(async (tx) => {
-      const res = await tx.query(
-        `UPDATE scheduling_appointments
+      const res = await tx.query<{ patient_id: string; doctor_id: string }>(
+        `UPDATE cases_cases
          SET status = 'declined'
-         WHERE id = $1 AND status = 'pending'`,
-        [appointmentId],
+         WHERE id = $1 AND status = 'paid'
+         RETURNING patient_id, doctor_id`,
+        [caseId],
       );
-      return res.rowCount ?? 0;
+      return res.rows[0];
     });
-    if (changed === 0) throw new NotFoundException('Appointment not found');
+    if (changed === undefined) throw new NotFoundException('Case not found');
+
+    // No fee either way. The destination side's coordination fee accrues on
+    // ACCEPTANCE, so a refusal costs the doctor's organisation nothing — and
+    // the lab's payment hold stays open for whoever they pick next.
+    await this.bus.publish({
+      type: 'CaseDeclined',
+      caseId,
+      patientId: changed.patient_id,
+      doctorId: changed.doctor_id,
+      ...this.actorFields(),
+    });
   }
 
-  /** Cancel an appointment, freeing the slot for someone else. */
-  async cancel(appointmentId: string): Promise<void> {
+  /** The referring side withdraws the case. */
+  async cancel(caseId: string): Promise<void> {
     const changed = await this.db.tx(async (tx) => {
       const res = await tx.query(
-        `UPDATE scheduling_appointments
+        `UPDATE cases_cases
          SET status = 'cancelled'
          WHERE id = $1 AND status <> 'cancelled'`,
-        [appointmentId],
+        [caseId],
       );
       return res.rowCount ?? 0;
     });
 
-    if (changed === 0) throw new NotFoundException('Appointment not found');
+    if (changed === 0) throw new NotFoundException('Case not found');
   }
 
   // -------------------------------------------------------------------------
@@ -972,55 +523,6 @@ export class SchedulingService {
   // indistinguishable.
   // -------------------------------------------------------------------------
 
-  /**
-   * Move an appointment to a different time.
-   *
-   * Goes through the same retry-and-translate path as booking because it writes
-   * the same exclusion constraint: rescheduling onto a taken slot is a 409, and
-   * losing a deadlock is a retry, not a 500.
-   */
-  async reschedule(
-    appointmentId: string,
-    startsAt: Date,
-    endsAt: Date,
-  ): Promise<AppointmentSummary> {
-    if (endsAt <= startsAt) {
-      throw new ConflictException('Appointment must end after it starts');
-    }
-
-    await this.withContentionRetries('reschedule', async () => {
-      const changed = await this.db.tx(async (tx) => {
-        try {
-          const res = await tx.query(
-            `UPDATE scheduling_appointments
-             SET starts_at = $2, ends_at = $3
-             WHERE id = $1 AND status IN ('pending','confirmed')`,
-            [appointmentId, startsAt, endsAt],
-          );
-          return res.rowCount ?? 0;
-        } catch (err) {
-          translateAppointmentWriteError(err, 'Appointment not found');
-        }
-      });
-      // A finished appointment is not reschedulable, and neither is one the
-      // caller cannot see. Both arrive here as zero rows.
-      if (changed === 0) throw new NotFoundException('Appointment not found');
-      return changed;
-    });
-
-    const updated = await this.getAppointment(appointmentId);
-
-    await this.bus.publish({
-      type: 'AppointmentRescheduled',
-      appointmentId,
-      patientId: updated.patientId,
-      doctorId: updated.doctorId,
-      startsAt,
-      ...this.actorFields(),
-    });
-
-    return updated;
-  }
 
   /**
    * The visit happened.
@@ -1029,14 +531,18 @@ export class SchedulingService {
    * marking tomorrow's consultation complete is a data-entry slip, not a
    * workflow, and allowing it makes the no-show statistics meaningless.
    */
-  async markCompleted(appointmentId: string): Promise<void> {
-    await this.transition(appointmentId, 'completed', "status = 'confirmed' AND starts_at <= now()");
+  /**
+   * The doctor's answer exists. Only from `accepted`: answering a case nobody
+   * accepted would skip the moment imaging unlocks, so the guard is the state
+   * rather than a clock — there is no appointment time left to have passed.
+   */
+  async markCompleted(caseId: string): Promise<void> {
+    await this.transition(caseId, 'answered', "status = 'accepted'");
+    await this.db.tx(async (tx) => {
+      await tx.query(`UPDATE cases_cases SET answered_at = now() WHERE id = $1`, [caseId]);
+    });
   }
 
-  /** The patient did not arrive. Distinct from a cancellation: the slot was lost. */
-  async markNoShow(appointmentId: string): Promise<void> {
-    await this.transition(appointmentId, 'no_show', "status = 'confirmed' AND starts_at <= now()");
-  }
 
   /**
    * The practice cancels, with a reason.
@@ -1046,45 +552,45 @@ export class SchedulingService {
    * patient told only "cancelled" cannot tell a clinic closure from their own
    * booking having lapsed.
    */
-  async cancelAsDoctor(appointmentId: string, reason?: string): Promise<void> {
+  async cancelAsDoctor(caseId: string, reason?: string): Promise<void> {
+    // Read BEFORE the write. Cancelling ends this doctor's access to the case,
+    // so a read afterwards correctly returns nothing — and the event would be
+    // published with no patient on it, or not at all.
+    const item = await this.getCase(caseId);
     const changed = await this.db.tx(async (tx) => {
       const res = await tx.query(
-        `UPDATE scheduling_appointments
+        `UPDATE cases_cases
          SET status = 'cancelled', cancel_reason = $2
          WHERE id = $1 AND status <> 'cancelled'`,
-        [appointmentId, reason ?? null],
+        [caseId, reason ?? null],
       );
       return res.rowCount ?? 0;
     });
-    if (changed === 0) throw new NotFoundException('Appointment not found');
+    if (changed === 0) throw new NotFoundException('Case not found');
 
-    const appointment = await this.getAppointment(appointmentId);
     await this.bus.publish({
-      type: 'AppointmentCancelled',
-      appointmentId,
-      patientId: appointment.patientId,
-      doctorId: appointment.doctorId,
-      startsAt: appointment.startsAt,
+      type: 'CaseCancelled',
+      caseId,
+      patientId: item.patientId,
+      doctorId: item.doctorId,
       ...(reason === undefined ? {} : { reason }),
       ...this.actorFields(),
     });
   }
 
-  /** Scheduling detail that is not a time change — reason, kind, notes. */
-  async updateAppointment(
-    appointmentId: string,
-    patch: { kind?: AppointmentKind; reason?: string | null; notes?: string | null },
-  ): Promise<AppointmentSummary> {
+  /** Case detail the referring side may correct — the reason and the notes. */
+  async updateCase(
+    caseId: string,
+    patch: { reason?: string | null; notes?: string | null },
+  ): Promise<CaseSummary> {
     const changed = await this.db.tx(async (tx) => {
       const res = await tx.query(
-        `UPDATE scheduling_appointments
-         SET kind   = COALESCE($2, kind),
-             reason = CASE WHEN $3::boolean THEN $4 ELSE reason END,
-             notes  = CASE WHEN $5::boolean THEN $6 ELSE notes  END
+        `UPDATE cases_cases
+         SET reason = CASE WHEN $2::boolean THEN $3 ELSE reason END,
+             notes  = CASE WHEN $4::boolean THEN $5 ELSE notes  END
          WHERE id = $1`,
         [
-          appointmentId,
-          patch.kind ?? null,
+          caseId,
           patch.reason !== undefined,
           patch.reason ?? null,
           patch.notes !== undefined,
@@ -1093,25 +599,25 @@ export class SchedulingService {
       );
       return res.rowCount ?? 0;
     });
-    if (changed === 0) throw new NotFoundException('Appointment not found');
-    return this.getAppointment(appointmentId);
+    if (changed === 0) throw new NotFoundException('Case not found');
+    return this.getCase(caseId);
   }
 
   /** One status move, guarded by the states it is legal from. */
   private async transition(
-    appointmentId: string,
+    caseId: string,
     to: string,
     fromCondition: string,
   ): Promise<void> {
     const changed = await this.db.tx(async (tx) => {
       const res = await tx.query(
-        `UPDATE scheduling_appointments SET status = $2 WHERE id = $1 AND ${fromCondition}`,
-        [appointmentId, to],
+        `UPDATE cases_cases SET status = $2 WHERE id = $1 AND ${fromCondition}`,
+        [caseId, to],
       );
       return res.rowCount ?? 0;
     });
     // Not visible, no such row, or not in a state this move is legal from.
-    if (changed === 0) throw new NotFoundException('Appointment not found');
+    if (changed === 0) throw new NotFoundException('Case not found');
   }
 
   /**
@@ -1136,80 +642,35 @@ export class SchedulingService {
     };
   }
 
-  /**
-   * Emit a reminder for each appointment starting inside the lead time.
-   *
-   * THE CLAIM AND THE SELECT ARE ONE STATEMENT. `UPDATE ... RETURNING` marks
-   * `reminder_sent_at` and hands back the rows it marked, so two concurrent
-   * sweeps cannot both claim the same appointment: the second sees zero rows.
-   * Selecting first and updating after would be the obvious shape and would
-   * send some patients two reminders.
-   *
-   * Marked BEFORE the event is published, deliberately. If publishing fails,
-   * the reminder is lost — and that is the better failure: the alternative
-   * ordering loses the mark instead and re-notifies every patient on the next
-   * tick, forever.
-   */
-  async sendDueReminders(leadHours: number): Promise<number> {
-    const due = await this.db.tx(async (tx) => {
-      const res = await tx.query<{
-        id: string;
-        patient_id: string;
-        doctor_id: string;
-        starts_at: Date;
-      }>(
-        `UPDATE scheduling_appointments
-         SET reminder_sent_at = now()
-         WHERE reminder_sent_at IS NULL
-           AND status = 'confirmed'
-           AND starts_at > now()
-           AND starts_at <= now() + ($1 || ' hours')::interval
-         RETURNING id, patient_id, doctor_id, starts_at`,
-        [String(leadHours)],
-      );
-      return res.rows;
-    });
-
-    for (const row of due) {
-      await this.bus.publish({
-        type: 'AppointmentReminderDue',
-        appointmentId: row.id,
-        patientId: row.patient_id,
-        doctorId: row.doctor_id,
-        startsAt: row.starts_at,
-        ...this.actorFields(),
-      });
-    }
-
-    return due.length;
-  }
 
   /**
-   * Release appointments whose payment authorisation expired (DECISION D2).
-   *
-   * A referral nobody answers must not hold a slot forever — that is a slot no
-   * other patient can be booked into while no doctor will ever look at it.
+   * Move accepted-but-unanswered cases to `expired`.
    *
    * THE MECHANISM SURVIVED THE CARD; THE REASON DID NOT. This used to release a
    * Stripe authorisation that was never captured, and the window was the
    * payment window. There is no authorisation now, so what expires is the
-   * receiving doctor's silence. The status is `cancelled` rather than
-   * `declined` on purpose: nobody refused, the clock ran out, and
-   * `cancel_reason` is what says so.
+   * receiving doctor's silence after they committed to answering.
    *
-   * The environment variable is still named for the payment window it used to
-   * be. Renaming it is a deployment change and belongs with the other config
-   * rename (`SCHEDULING_TRIAGE_BEFORE_PAYMENT`), not in a migration commit.
+   * `expired` rather than `cancelled`: nobody withdrew and nobody refused, the
+   * clock ran out — and only `expired` is the refund trigger. Collapsing it
+   * into `cancelled` would make a lab's own withdrawal indistinguishable from
+   * a doctor's failure to deliver, which is the distinction the refund policy
+   * turns on.
+   *
+   * ONLY FROM `accepted`. A case nobody accepted has no clock running: nothing
+   * was promised, so there is nothing to expire and nothing to refund.
+   *
+   * The conditional UPDATE is the guard, not a select-then-update. Two sweeps
+   * running together would both see the same overdue case and both refund it;
+   * this makes double-expiry unrepresentable rather than unlikely — the same
+   * reasoning as the ledger's partial unique index (0023).
    */
-  async releaseUnansweredReferrals(): Promise<number> {
-    const windowHours = this.config.PAYMENT_AUTHORIZATION_WINDOW_HOURS;
+  async expireOverdue(): Promise<number> {
     return this.db.tx(async (tx) => {
       const res = await tx.query(
-        `UPDATE scheduling_appointments
-         SET status = 'cancelled', cancel_reason = 'referral_unanswered'
-         WHERE status = 'pending'
-           AND created_at < now() - ($1 || ' hours')::interval`,
-        [String(windowHours)],
+        `UPDATE cases_cases
+         SET status = 'expired'
+         WHERE status = 'accepted' AND answer_due_at < now()`,
       );
       return res.rowCount ?? 0;
     });

@@ -17,11 +17,12 @@ const AUDITED_EVENTS: DomainEventType[] = [
   'ConsentGranted',
   'ConsentRevoked',
   'StudyUploadCompleted',
-  'AppointmentBooked',
-  'AppointmentRescheduled',
-  'AppointmentCancelled',
-  'AppointmentReminderDue',
-  'AppointmentConfirmed',
+  'CaseSubmitted',
+  'CaseQuoted',
+  'CaseCancelled',
+  'CaseDeclined',
+  'CaseExpired',
+  'CaseAccepted',
   'StudyAccessed',
 ];
 

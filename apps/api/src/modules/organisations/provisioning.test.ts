@@ -44,7 +44,6 @@ const asRole = async <T>(
     await client.query('BEGIN');
     await client.query('SELECT set_config($1, $2, true)', ['app.user_id', userId]);
     await client.query('SELECT set_config($1, $2, true)', ['app.user_role', role]);
-    await client.query('SELECT set_config($1, $2, true)', ['app.triage_before_payment', 'false']);
     const out = await fn(client);
     await client.query(commit ? 'COMMIT' : 'ROLLBACK');
     return out;
@@ -368,7 +367,6 @@ describe('how a refused invitation is reported', () => {
           {
             userId: clinician,
             role: 'tunisia_doctor',
-            triageBeforePayment: false,
             ipAddress: '41.208.1.5',
             userAgent: 'vitest',
             requestId: 'provisioning',

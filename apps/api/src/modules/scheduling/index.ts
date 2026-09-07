@@ -1,19 +1,15 @@
 /**
- * Public API of the `scheduling` module (BUILD_SPEC §5.1).
+ * Public API of the `cases` module (consult-model spec Part 1).
  *
- * Confirming an appointment lives here rather than in `billing` (§5.2): it used
- * to be billing's because capturing the patient's card was what confirmed a
- * booking, and migration 0023 removed the card. Note that double-booking
- * protection is NOT part of this API — it
- * lives in the database's exclusion constraint, where concurrency cannot
- * defeat it, and no caller can opt out of it.
+ * Accepting a case lives here rather than in `billing`: it used to be billing's
+ * because capturing the patient's card was what confirmed a booking, and
+ * migration 0023 removed the card.
+ *
+ * Deliberately NOT exported: the controller, and any way to write a case's
+ * status directly. Every status move goes through a verb that names the
+ * transition it performs, so the machine in `@mir/contracts` stays the only
+ * description of what may follow what.
  */
-export { SchedulingService, SlotUnavailableError } from './internal/scheduling.service';
-export type {
-  Appointment,
-  AppointmentSummary,
-  AvailabilityWindow,
-  BookingInput,
-  DoctorSummary,
-} from './internal/scheduling.service';
+export { SchedulingService } from './internal/scheduling.service';
+export type { Case, CaseSummary, DoctorSummary } from './internal/scheduling.service';
 export { SchedulingModule } from './scheduling.module';

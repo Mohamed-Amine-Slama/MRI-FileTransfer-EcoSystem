@@ -30,7 +30,6 @@ let audit: AuditService;
 const ctx = (userId: string, role: RequestContext['role']): RequestContext => ({
   userId,
   role,
-  triageBeforePayment: false,
   ipAddress: '41.208.1.5',
   userAgent: 'Mozilla/5.0 (test)',
   requestId: 'req-audit-test',
@@ -205,11 +204,12 @@ describe('P4.4 audit module', () => {
         'ConsentGranted',
         'ConsentRevoked',
         'StudyUploadCompleted',
-        'AppointmentBooked',
-        'AppointmentRescheduled',
-        'AppointmentCancelled',
-        'AppointmentReminderDue',
-        'AppointmentConfirmed',
+        'CaseSubmitted',
+        'CaseQuoted',
+        'CaseCancelled',
+        'CaseDeclined',
+        'CaseExpired',
+        'CaseAccepted',
         'StudyAccessed',
       ];
       expect([...AUDITED_EVENTS].sort()).toEqual([...expected].sort());

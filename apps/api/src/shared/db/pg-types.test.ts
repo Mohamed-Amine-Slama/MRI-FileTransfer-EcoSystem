@@ -31,7 +31,6 @@ let db: DatabaseService;
 const ctx = (userId: string, role: RequestContext['role']): RequestContext => ({
   userId,
   role,
-  triageBeforePayment: false,
   ipAddress: undefined,
   userAgent: undefined,
   requestId: 'pg-types-test',

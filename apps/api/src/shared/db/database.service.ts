@@ -83,10 +83,6 @@ export class DatabaseService implements OnModuleDestroy {
       // is the parameterisable equivalent.
       await client.query('SELECT set_config($1, $2, true)', ['app.user_id', ctx.userId]);
       await client.query('SELECT set_config($1, $2, true)', ['app.user_role', ctx.role]);
-      await client.query('SELECT set_config($1, $2, true)', [
-        'app.triage_before_payment',
-        String(ctx.triageBeforePayment),
-      ]);
 
       const result = await fn(client);
       await client.query('COMMIT');

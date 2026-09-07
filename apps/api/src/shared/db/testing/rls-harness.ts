@@ -246,8 +246,6 @@ export async function setupTestDatabase(options: HarnessOptions = {}): Promise<H
 export interface SessionContext {
   userId: string;
   role: Role;
-  /** DECISION D3. Defaults to false — imaging visible only after payment. */
-  triageBeforePayment?: boolean;
 }
 
 /**
@@ -272,10 +270,6 @@ export async function asUser<T>(
     await client.query('BEGIN');
     await client.query('SELECT set_config($1, $2, true)', ['app.user_id', ctx.userId]);
     await client.query('SELECT set_config($1, $2, true)', ['app.user_role', ctx.role]);
-    await client.query('SELECT set_config($1, $2, true)', [
-      'app.triage_before_payment',
-      String(ctx.triageBeforePayment ?? false),
-    ]);
     const result = await fn(client);
     await client.query('ROLLBACK');
     return result;
@@ -295,9 +289,8 @@ export async function truncateAll(owner: Pool): Promise<void> {
       identity_invitations,
       identity_memberships,
       identity_organisations,
-      scheduling_appointment_studies,
-      scheduling_appointments,
-      scheduling_availability,
+      cases_case_studies,
+      cases_cases,
       imaging_instances,
       imaging_studies,
       consent_records,
@@ -367,39 +360,80 @@ export async function createStudy(
   return row.id;
 }
 
-export async function createAppointment(
+export type CaseStatusFixture =
+  | 'submitted'
+  | 'quoted'
+  | 'paid'
+  | 'accepted'
+  | 'answered'
+  | 'closed'
+  | 'declined'
+  | 'cancelled'
+  | 'expired';
+
+/**
+ * The source organisation that owes for this patient's cases.
+ *
+ * `cases_cases.organisation_id` is NOT NULL (migration 0025) because who owed
+ * the money is a fact of the case, not of where the clinician happens to work
+ * today. Every fixture therefore needs an organisation, and most tests do not
+ * care which — so this resolves the patient's referring doctor's source org and
+ * creates one only when there is none. Callers that DO care pass their own.
+ */
+async function sourceOrganisationFor(owner: Pool, patientId: string): Promise<string> {
+  const found = await owner.query<{ id: string }>(
+    `SELECT o.id
+       FROM patients_patients p
+       JOIN identity_memberships m   ON m.user_id = p.created_by_doctor
+       JOIN identity_organisations o ON o.id = m.organisation_id AND o.side = 'source'
+      WHERE p.id = $1
+      LIMIT 1`,
+    [patientId],
+  );
+  const existing = found.rows[0]?.id;
+  if (existing !== undefined) return existing;
+
+  const created = await owner.query<{ id: string; doctor: string }>(
+    `WITH org AS (
+       INSERT INTO identity_organisations
+         (kind, legal_name, corridor_id, side, verification_status, decided_at)
+       VALUES ('laboratory', $2, 'ly-tn', 'source', 'approved', now())
+       RETURNING id
+     )
+     INSERT INTO identity_memberships (organisation_id, user_id, seat_role)
+     SELECT org.id, p.created_by_doctor, 'owner' FROM org, patients_patients p
+      WHERE p.id = $1
+     RETURNING organisation_id AS id, user_id AS doctor`,
+    [patientId, `Lab ${uniq()}`],
+  );
+  const orgId = created.rows[0]?.id;
+  if (orgId === undefined) throw new Error('could not resolve a source organisation');
+  return orgId;
+}
+
+export async function createCase(
   owner: Pool,
   patientId: string,
   doctorId: string,
-  status:
-    | 'pending'
-    | 'confirmed'
-    | 'declined'
-    | 'cancelled'
-    | 'completed'
-    | 'no_show' = 'confirmed',
-  startsAt: Date = new Date(Date.now() + 86_400_000),
+  status: CaseStatusFixture = 'accepted',
+  opts: { organisationId?: string; specialty?: string } = {},
 ): Promise<string> {
-  const endsAt = new Date(startsAt.getTime() + 30 * 60_000);
+  const orgId = opts.organisationId ?? (await sourceOrganisationFor(owner, patientId));
   const res = await owner.query<{ id: string }>(
-    `INSERT INTO scheduling_appointments (patient_id, doctor_id, starts_at, ends_at, status)
+    `INSERT INTO cases_cases (patient_id, doctor_id, status, organisation_id, specialty)
      VALUES ($1, $2, $3, $4, $5) RETURNING id`,
-    [patientId, doctorId, startsAt, endsAt, status],
+    [patientId, doctorId, status, orgId, opts.specialty ?? 'radiology'],
   );
   const row = res.rows[0];
-  if (row === undefined) throw new Error('createAppointment returned no row');
+  if (row === undefined) throw new Error('createCase returned no row');
   return row.id;
 }
 
-export async function linkStudy(
-  owner: Pool,
-  appointmentId: string,
-  studyId: string,
-): Promise<void> {
-  await owner.query(
-    `INSERT INTO scheduling_appointment_studies (appointment_id, study_id) VALUES ($1, $2)`,
-    [appointmentId, studyId],
-  );
+export async function linkStudy(owner: Pool, caseId: string, studyId: string): Promise<void> {
+  await owner.query(`INSERT INTO cases_case_studies (case_id, study_id) VALUES ($1, $2)`, [
+    caseId,
+    studyId,
+  ]);
 }
 
 /**

@@ -93,7 +93,6 @@ function testConfig(): AppConfig {
     KEYCLOAK_ISSUER_URL: ISSUER,
     KEYCLOAK_AUDIENCE: AUDIENCE,
     KEYCLOAK_JWKS_URL: jwksUrl,
-    SCHEDULING_TRIAGE_BEFORE_PAYMENT: false,
   } as AppConfig;
 }
 

@@ -19,11 +19,6 @@ import { z } from 'zod';
 
 const nonEmpty = (label: string) => z.string().min(1, `${label} must not be empty`);
 
-/** Accepts "true"/"false"/"1"/"0"; rejects anything ambiguous rather than guessing. */
-const boolFromEnv = z
-  .enum(['true', 'false', '1', '0'])
-  .transform((v) => v === 'true' || v === '1');
-
 const intFromEnv = (label: string, min: number, max: number) =>
   z
     .string()
@@ -144,6 +139,20 @@ export const configSchema = z.object({
   // Spec requires 5-15 minutes. The bounds are enforced here so a deployment
   // cannot quietly widen the window to hours.
   SIGNED_URL_TTL_SECONDS: intFromEnv('SIGNED_URL_TTL_SECONDS', 300, 900).prefault('600'),
+
+  /**
+   * How long a quoted price stands. The lab pays this exact number or asks for
+   * a new quote; the API never recomputes at payment time, so this is the only
+   * thing bounding how stale a held price can be.
+   */
+  CASES_QUOTE_TTL_MINUTES: intFromEnv('CASES_QUOTE_TTL_MINUTES', 5, 240).prefault('30'),
+
+  /**
+   * How long an accepted case has before it expires and refunds. BUILD_SPEC §2
+   * requires anything a legal answer might later move to be configuration
+   * rather than a constant, and the refund window is exactly that.
+   */
+  CASES_ANSWER_WINDOW_HOURS: intFromEnv('CASES_ANSWER_WINDOW_HOURS', 1, 720).prefault('72'),
   // Dedicated key for URL signing. Separate from any session secret so the two
   // can be rotated independently — rotating session keys must not silently
   // invalidate every in-flight image request, and vice versa.
@@ -154,7 +163,6 @@ export const configSchema = z.object({
   // --- scheduling (DECISION D3) -------------------------------------------
   // Default OFF: the Tunisian doctor sees imaging only after payment succeeds.
   // Consent is required in BOTH modes; this toggle never bypasses consent.
-  SCHEDULING_TRIAGE_BEFORE_PAYMENT: boolFromEnv.prefault('false'),
 
   // --- billing (DECISION D2) ----------------------------------------------
   // Authorise at booking, capture on acceptance. An authorisation that is

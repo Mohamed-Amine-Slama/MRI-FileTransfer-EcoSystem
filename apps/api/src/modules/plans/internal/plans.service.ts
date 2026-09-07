@@ -126,7 +126,6 @@ export class PlansService {
         userId: '00000000-0000-7000-8000-000000000000',
         // Granted nothing by any policy; the definer function is all that runs.
         role: 'applicant',
-        triageBeforePayment: false,
         ipAddress: undefined,
         userAgent: 'public-pricing',
         requestId: 'public-pricing',

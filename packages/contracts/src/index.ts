@@ -7,5 +7,6 @@ export * from './account';
 export * from './membership';
 export * from './plan';
 export * from './ledger';
+export * from './pricing';
 export * from './messaging';
 export * from './files';

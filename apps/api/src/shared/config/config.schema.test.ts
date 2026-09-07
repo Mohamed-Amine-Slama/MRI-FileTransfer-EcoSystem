@@ -25,7 +25,8 @@ describe('config validation (P1.6)', () => {
     expect(cfg.PORT).toBe(3000);
     expect(cfg.UPLOAD_CHUNK_SIZE_BYTES).toBe(5 * 1024 * 1024); // P7.2 default
     expect(cfg.SIGNED_URL_TTL_SECONDS).toBe(600); // P8.2, within 5-15 min
-    expect(cfg.SCHEDULING_TRIAGE_BEFORE_PAYMENT).toBe(false); // DECISION D3
+    expect(cfg.CASES_QUOTE_TTL_MINUTES).toBe(30);
+    expect(cfg.CASES_ANSWER_WINDOW_HOURS).toBe(72);
   });
 
   it('refuses to start when a required variable is missing, and names it', () => {
@@ -79,17 +80,6 @@ describe('config validation (P1.6)', () => {
     );
   });
 
-  it('rejects an ambiguous boolean instead of guessing', () => {
-    // "yes" silently coercing to false is exactly how a triage gate gets left
-    // open in production while the config file claims it is closed.
-    expect(() => loadConfig({ ...VALID, SCHEDULING_TRIAGE_BEFORE_PAYMENT: 'yes' })).toThrow(
-      /SCHEDULING_TRIAGE_BEFORE_PAYMENT/,
-    );
-    expect(
-      loadConfig({ ...VALID, SCHEDULING_TRIAGE_BEFORE_PAYMENT: 'true' })
-        .SCHEDULING_TRIAGE_BEFORE_PAYMENT,
-    ).toBe(true);
-  });
 
   it('requires a signing key long enough to be a key (P8.2)', () => {
     // A short HMAC key is brute-forceable, and these URLs grant access to
