@@ -357,13 +357,24 @@ export async function createStudy(
   owner: Pool,
   patientId: string,
   uploadedBy: string,
+  overrides: { status?: string; modality?: string; twinStudyUid?: string } = {},
 ): Promise<string> {
   const n = uniq();
+  const digits = n.replace(/\D/g, '');
   const res = await owner.query<{ id: string }>(
     `INSERT INTO imaging_studies
-       (patient_id, uploaded_by, study_instance_uid, modality, status)
-     VALUES ($1, $2, $3, 'CT', 'ready') RETURNING id`,
-    [patientId, uploadedBy, `1.3.6.1.4.1.99999.1.${n.replace(/\D/g, '')}`],
+       (patient_id, uploaded_by, study_instance_uid, modality, status, twin_study_uid)
+     VALUES ($1, $2, $3, $4, $5, $6) RETURNING id`,
+    [
+      patientId,
+      uploadedBy,
+      `1.3.6.1.4.1.99999.1.${digits}`,
+      overrides.modality ?? 'CT',
+      overrides.status ?? 'ready',
+      // Default fixture is a RELEASED study, so every pre-existing test keeps
+      // its meaning. A twin UID is part of being released.
+      overrides.twinStudyUid ?? `1.3.6.1.4.1.99999.2.${digits}`,
+    ],
   );
   const row = res.rows[0];
   if (row === undefined) throw new Error('createStudy returned no row');
