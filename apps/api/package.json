@@ -36,7 +36,7 @@
     "@nestjs/testing": "^11.2.3",
     "@swc/core": "^1.16.1",
     "@types/express": "^5.0.0",
-    "@types/node": "^22.10.5",
+    "@types/node": "^26.4.1",
     "@types/supertest": "^7.2.1",
     "eslint": "^10.9.1",
     "supertest": "^7.0.0",
