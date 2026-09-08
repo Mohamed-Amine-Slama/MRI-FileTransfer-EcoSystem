@@ -14,7 +14,7 @@
     "dicom-parser": "^1.8.21"
   },
   "devDependencies": {
-    "eslint": "^10.9.1",
+    "eslint": "^10.10.0",
     "typescript": "^5.7.3",
     "vitest": "^4.1.11"
   }
