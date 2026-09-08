@@ -26,6 +26,7 @@
     "dicom-parser": "^1.8.21",
     "dotenv": "^17.4.2",
     "express": "^5.2.1",
+    "ioredis": "^6.0.0",
     "jose": "^6.2.12",
     "pg": "^8.23.0",
     "reflect-metadata": "^0.2.2",
