@@ -4,6 +4,7 @@ import Link from 'next/link';
 import { useCallback, useEffect, useState } from 'react';
 import { api, type CaseRecord } from '../../lib/api/endpoints';
 import { useDateFormat, useT } from '../../lib/i18n/provider';
+import { patientBriefLabel } from '../../components/case/labels';
 import { RoleGate } from '../../components/RoleGate';
 import {
   Alert,
@@ -111,6 +112,7 @@ function Inbox(): React.JSX.Element {
           <TableHeader>
             <TableRow>
               <TableHead>{t.colSpecialty}</TableHead>
+              <TableHead>{t.colPatient}</TableHead>
               <TableHead>{t.colReason}</TableHead>
               <TableHead>{t.inboxAnswerDue}</TableHead>
               <TableHead>
@@ -133,6 +135,15 @@ function Inbox(): React.JSX.Element {
                   >
                     {c.specialty}
                   </Link>
+                </TableCell>
+                {/*
+                 * Age and sex, which change how imaging is read — and nothing
+                 * else. Migration 0028 removed this doctor's grant on the
+                 * patient row, so there is no name here to render even if a
+                 * later edit asked for one.
+                 */}
+                <TableCell className="text-muted-foreground tabular-nums">
+                  {patientBriefLabel(t, c)}
                 </TableCell>
                 <TableCell className="text-muted-foreground">{c.reason ?? '—'}</TableCell>
                 <TableCell className="text-muted-foreground tabular-nums">
