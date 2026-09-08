@@ -4,7 +4,7 @@ import type { Locale } from '@mir/contracts';
  * Notification templates — BUILD_SPEC PHASE 12.
  *
  * THE RULE: "notification content must NEVER include clinical details or
- * images. 'Your appointment is confirmed' — not the diagnosis, modality, or
+ * images. 'Your case was accepted' — not the diagnosis, modality, or
  * body part."
  *
  * Why this matters more than it looks: an SMS is delivered to a lock screen,

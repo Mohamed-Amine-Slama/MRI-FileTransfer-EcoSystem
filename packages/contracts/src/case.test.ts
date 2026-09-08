@@ -112,13 +112,15 @@ describe('case', () => {
       matchedProviderId: 'prov-2',
       patientId: 'pat-1',
       studyIds: ['study-1', 'study-2'],
-      appointmentId: 'appt-1',
       createdAt: '2026-08-01T09:00:00.000Z',
       updatedAt: '2026-08-04T11:30:00.000Z',
       intake: { referralReason: 'suspected meniscal tear' },
     });
     expect(parsed.studyIds).toHaveLength(2);
-    expect(parsed.appointmentId).toBe('appt-1');
+    // The patient and the studies hang off the case. An appointment does not:
+    // migration 0025 made the case and the appointment one record, so a field
+    // pointing from a case to its appointment would point at itself.
+    expect(parsed).not.toHaveProperty('appointmentId');
   });
 
   it('accepts a case that has not been matched or scheduled yet', () => {

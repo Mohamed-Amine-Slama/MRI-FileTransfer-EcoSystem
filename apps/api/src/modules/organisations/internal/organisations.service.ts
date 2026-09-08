@@ -53,7 +53,7 @@ export interface OrganisationRow {
   seatCount: number;
 }
 
-/** A clinician an appointment can be routed to. */
+/** A clinician a case can be routed to. */
 export interface ClinicianRow {
   userId: string;
   displayName: string;
@@ -397,7 +397,7 @@ export class OrganisationsService {
   }
 
   /**
-   * The organisation's clinicians, with the specialty an appointment is routed
+   * The organisation's clinicians, with the specialty a case is routed
    * on.
    *
    * Goes through a SECURITY DEFINER function because `identity_doctor_profiles`

@@ -155,6 +155,19 @@ export const caseSchema = z.object({
   submittedByProviderId: z.string().min(1),
   matchedProviderId: z.string().min(1).optional(),
   patientId: z.string().min(1),
+  /**
+   * The receiving doctor's view of the patient — sub-project 2.
+   *
+   * Age rather than date of birth, capped at 90 (migration 0028): a birth date
+   * is an identifier, an age is a clinical fact, and above 89 an age starts
+   * identifying individuals on its own.
+   *
+   * Null for the source side, which holds the identity and reads the patient
+   * record directly. Optional because the ops and lab projections do not carry
+   * it at all.
+   */
+  patientAgeYears: z.number().int().min(0).max(90).nullable().optional(),
+  patientSex: z.enum(['M', 'F', 'O']).nullable().optional(),
   studyIds: z.array(z.string().min(1)),
   createdAt: z.string().datetime(),
   updatedAt: z.string().datetime(),

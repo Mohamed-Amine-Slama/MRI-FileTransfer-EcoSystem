@@ -9,6 +9,7 @@ import {
   createPractice,
   createStudy,
   createUser,
+  grantConsent,
   seedAcceptingDoctors,
   seedDoctor,
   setupTestDatabase,
@@ -342,6 +343,27 @@ describe('the receiving doctor answers', () => {
     const caseId = await createCase(h.owner, patient, tunis, 'paid');
     return { referrer, tunis, caseId };
   }
+
+  it('a doctor reading their case gets age and sex, and never a name', async () => {
+    const { referrer, tunis, caseId } = await paidCase();
+    // paidCase() creates the patient but no consent; the projection needs one.
+    const { rows } = await h.owner.query<{ patient_id: string }>(
+      'SELECT patient_id FROM cases_cases WHERE id = $1',
+      [caseId],
+    );
+    const patientId = rows[0]?.patient_id;
+    if (patientId === undefined) throw new Error('no patient on the fixture case');
+    await grantConsent(h.owner, patientId, tunis, referrer);
+    await runWithContext(ctx(tunis, 'tunisia_doctor'), () => cases.accept(caseId));
+
+    const summary = await runWithContext(ctx(tunis, 'tunisia_doctor'), () =>
+      cases.getCase(caseId),
+    );
+
+    expect(summary.patientName).toBeNull();
+    expect(summary.patientAgeYears).toBeGreaterThan(0);
+    expect(summary.patientSex).not.toBeNull();
+  });
 
   it('accepting moves a paid case to accepted', async () => {
     const { tunis, caseId } = await paidCase();

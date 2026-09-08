@@ -5,13 +5,17 @@ import { runWithContext, systemContext } from '../../../shared/context/request-c
 import { CasesService } from './cases.service';
 
 /**
- * The periodic sweep: release unanswered referrals, send due reminders.
+ * The periodic sweep: expire cases a doctor accepted and never answered.
  *
- * WHY THERE IS A TIMER HERE AT ALL. The release function has existed since P10
+ * WHY THERE IS A TIMER HERE AT ALL. The function it calls has existed since P10
  * and nothing ever called it — no cron, no scheduler, no caller outside its own
- * test. A referral nobody answers held its slot forever, so the one function
- * written to stop that had no effect in production. `appointment_reminder` was in the same state: a template in two
- * languages that nothing emitted.
+ * test, so the one thing written to stop a case hanging open forever had no
+ * effect in production.
+ *
+ * WHAT EXPIRY MEANS NOW. It is the refund trigger: a doctor who takes a case
+ * and lets the window run out has not delivered, and `expired` is the only
+ * status that says so. It is deliberately not `cancelled`, which is the lab's
+ * own withdrawal.
  *
  * WHY setInterval AND NOT @nestjs/schedule. It would be the idiomatic choice
  * and it is one dependency for one timer. This needs no cron expressions, no
@@ -21,11 +25,11 @@ import { CasesService } from './cases.service';
  * to reach for the library.
  *
  * SINGLE-PROCESS ASSUMPTION, stated because it will not hold forever: with more
- * than one API replica every replica runs this. Re-releasing a referral
- * is harmless (the UPDATE matches nothing the second time), and the reminder is
- * protected by `reminder_sent_at` being claimed in the same statement that
- * selects it — so the duplicate work is wasted rather than wrong. A real
- * multi-replica deployment should still move this behind an advisory lock.
+ * than one API replica every replica runs this. Re-running the sweep is
+ * harmless: the conditional UPDATE matches nothing the second time, so a case
+ * cannot expire — or refund — twice. The duplicate work is wasted rather than
+ * wrong. A real multi-replica deployment should still move this behind an
+ * advisory lock.
  */
 
 /** How often the sweep runs. */

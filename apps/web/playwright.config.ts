@@ -21,8 +21,8 @@ export default defineConfig({
 
   projects: [
     { name: 'chromium', use: { ...devices['Desktop Chrome'] } },
-    // Libyan clinic staff and patients are overwhelmingly on mobile. The
-    // upload and booking flows must be exercised at this viewport, not only at
+    // Libyan clinic staff are overwhelmingly on mobile. The upload flow and
+    // the doctor picker must be exercised at this viewport, not only at
     // desktop width.
     { name: 'mobile-chrome', use: { ...devices['Pixel 7'] } },
   ],

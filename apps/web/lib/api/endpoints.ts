@@ -143,7 +143,15 @@ export interface DirectoryEntry {
 export interface CaseRecord {
   id: string;
   patientId: string;
-  patientName?: string;
+  patientName?: string | null;
+  /**
+   * What the receiving doctor gets instead of an identity — sub-project 2.
+   *
+   * Null for the lab, which holds the identity and reads the patient record
+   * directly. Age rather than date of birth, capped at 90 by migration 0028.
+   */
+  patientAgeYears?: number | null;
+  patientSex?: string | null;
   /** Only ever sent to an assistant, whose job is to ring the patient. */
   patientPhone?: string;
   doctorId: string | null;

@@ -29,7 +29,7 @@ export class PatientsController {
   constructor(private readonly patients: PatientsService) {}
 
   /** Search by phone. Phone only — never by name (P3.3). */
-  // Both sides book appointments, and both need to find the patient by phone
+  // Both sides work cases, and both need to find the patient by phone
   // first. Phone-only, and RLS still returns only the caller's own records.
   @RequiresRole('libya_doctor', 'tunisia_doctor')
   @Get('search')

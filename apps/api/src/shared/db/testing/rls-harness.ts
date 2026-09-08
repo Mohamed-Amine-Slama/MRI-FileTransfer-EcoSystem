@@ -330,13 +330,23 @@ export async function createUser(
   return row.id;
 }
 
-export async function createPatient(owner: Pool, createdByDoctor: string): Promise<string> {
+export async function createPatient(
+  owner: Pool,
+  createdByDoctor: string,
+  overrides: { dateOfBirth?: string; sex?: 'M' | 'F' | 'O' } = {},
+): Promise<string> {
   const n = uniq();
   const res = await owner.query<{ id: string }>(
     `INSERT INTO patients_patients
        (phone_e164, full_name, date_of_birth, sex, created_by_doctor)
      VALUES ($1, $2, $3, $4, $5) RETURNING id`,
-    [`+2189${n.replace(/\D/g, '').slice(-9)}`, `Patient ${n}`, '1985-06-15', 'M', createdByDoctor],
+    [
+      `+2189${n.replace(/\D/g, '').slice(-9)}`,
+      `Patient ${n}`,
+      overrides.dateOfBirth ?? '1985-06-15',
+      overrides.sex ?? 'M',
+      createdByDoctor,
+    ],
   );
   const row = res.rows[0];
   if (row === undefined) throw new Error('createPatient returned no row');
