@@ -164,5 +164,10 @@ describe('P1.5 route access declaration', () => {
       await app.close();
       process.env = saved;
     }
-  });
+    // Longer than the file default. This test builds the ENTIRE application —
+    // every module, every provider — and since JobsModule joined the graph that
+    // includes loading bullmq and ioredis, two large CJS packages, before the
+    // DI graph can be resolved. Thirty seconds was marginal and failed as a
+    // timeout, which reads like a hang rather than like slow startup.
+  }, 60_000);
 });
