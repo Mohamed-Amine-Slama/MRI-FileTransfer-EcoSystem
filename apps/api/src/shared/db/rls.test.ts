@@ -444,6 +444,47 @@ describe('P3.2 row-level security', () => {
 
   });
 
+  describe('a study reaches the doctor only once it is released', () => {
+    it('a study still processing is invisible to the doctor and visible to the lab', async () => {
+      const libyaDoctor = await createUser(h.owner, 'libya_doctor');
+      const tunisDoctor = await createUser(h.owner, 'tunisia_doctor');
+      const patient = await createPatient(h.owner, libyaDoctor);
+      const study = await createStudy(h.owner, patient, libyaDoctor, { status: 'processing' });
+      const kase = await createCase(h.owner, patient, tunisDoctor, 'accepted');
+      await linkStudy(h.owner, kase, study);
+      await grantConsent(h.owner, patient, tunisDoctor, libyaDoctor);
+
+      const doctor = await asUser(
+        h.app,
+        { userId: tunisDoctor, role: 'tunisia_doctor' },
+        async (c) => (await c.query('SELECT id FROM imaging_studies')).rowCount,
+      );
+      expect(doctor).toBe(0);
+
+      // The control: the lab keeps its own study throughout. A gate that hid
+      // the study from everyone would pass the assertion above and be useless.
+      const lab = await asUser(h.app, { userId: libyaDoctor, role: 'libya_doctor' }, async (c) =>
+        (await c.query('SELECT id FROM imaging_studies')).rowCount,
+      );
+      expect(lab).toBe(1);
+    });
+
+    it('a quarantined study is invisible to the doctor however complete the case is', async () => {
+      const libyaDoctor = await createUser(h.owner, 'libya_doctor');
+      const tunisDoctor = await createUser(h.owner, 'tunisia_doctor');
+      const patient = await createPatient(h.owner, libyaDoctor);
+      const study = await createStudy(h.owner, patient, libyaDoctor, { status: 'quarantined' });
+      const kase = await createCase(h.owner, patient, tunisDoctor, 'accepted');
+      await linkStudy(h.owner, kase, study);
+      await grantConsent(h.owner, patient, tunisDoctor, libyaDoctor);
+
+      const rows = await asUser(h.app, { userId: tunisDoctor, role: 'tunisia_doctor' }, async (c) =>
+        (await c.query('SELECT id FROM imaging_studies')).rowCount,
+      );
+      expect(rows).toBe(0);
+    });
+  });
+
   describe('the receiving doctor never reads the patient', () => {
     it('a receiving doctor has no read on the patient table at all', async () => {
       const libyaDoctor = await createUser(h.owner, 'libya_doctor');

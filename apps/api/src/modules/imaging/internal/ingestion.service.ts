@@ -13,6 +13,7 @@ import {
 import { stagingKey } from './upload.service';
 import { ORTHANC_CLIENT, type OrthancClient } from './orthanc.client';
 import { ThumbnailService } from './thumbnail.service';
+import { decideRelease } from './burned-in';
 
 /**
  * Server-side ingestion — BUILD_SPEC P7.4.
@@ -253,9 +254,13 @@ export class IngestionService {
     }
 
     const updated = await tx.query<{ id: string; patient_id: string; file_count: number; total_bytes: string }>(
+      // A quarantined study is excluded, not just left alone: completing the
+      // upload is not what clears a burned-in suspicion. It stays quarantined
+      // until someone looks at it, and the doctor's policy (migration 0029)
+      // refuses it in the meantime.
       `UPDATE imaging_studies
        SET status = 'ready'
-       WHERE id = $1 AND status <> 'ready'
+       WHERE id = $1 AND status NOT IN ('ready','quarantined')
        RETURNING id, patient_id, file_count, total_bytes`,
       [studyId],
     );
@@ -298,13 +303,25 @@ export class IngestionService {
     // The study may already exist from an earlier session for the same patient
     // and StudyInstanceUID — a doctor re-uploading a CD, for instance. The
     // unique constraint makes that idempotent rather than duplicating.
+    // Sub-project 2: a study that may carry the patient's name in its PIXELS
+    // never reaches 'processing', because 'processing' is the state the twin
+    // builder picks up. Quarantine is sticky in the conflict branch below for
+    // the same reason a 'ready' study is: one clean slice arriving after a
+    // dirty one must not release the study.
+    const decision = decideRelease(header);
+
     const res = await tx.query<{ id: string }>(
       `INSERT INTO imaging_studies
          (patient_id, uploaded_by, study_instance_uid, modality, study_date, status)
-       VALUES ($1, $2, $3, $4, $5, 'processing')
+       VALUES ($1, $2, $3, $4, $5, $6)
        ON CONFLICT (patient_id, study_instance_uid) DO UPDATE
-         SET status = CASE WHEN imaging_studies.status = 'ready'
-                           THEN imaging_studies.status ELSE 'processing' END
+         SET status = CASE
+                        WHEN imaging_studies.status IN ('ready','quarantined')
+                          THEN imaging_studies.status
+                        WHEN EXCLUDED.status = 'quarantined'
+                          THEN 'quarantined'
+                        ELSE 'processing'
+                      END
        RETURNING id`,
       [
         session.patient_id,
@@ -312,6 +329,7 @@ export class IngestionService {
         header.studyInstanceUID,
         header.modality,
         parseDicomDate(header.studyDate),
+        decision,
       ],
     );
 
