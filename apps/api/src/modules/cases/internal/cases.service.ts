@@ -60,6 +60,12 @@ export interface CaseSummary extends Case {
   patientName: string | null;
   doctorName: string | null;
   /**
+   * What the receiving doctor gets instead of an identity — sub-project 2.
+   * Null for the lab, which holds the identity and reads the record directly.
+   */
+  patientAgeYears: number | null;
+  patientSex: string | null;
+  /**
    * Present only on the assistant's agenda. A receptionist rings the patient;
    * a doctor opens the record, so nothing else needs it here.
    */
@@ -84,6 +90,8 @@ interface CaseRow {
   answer_due_at: Date | null;
   patient_name: string | null;
   doctor_name: string | null;
+  patient_age_years?: number | null;
+  patient_sex?: string | null;
   patient_phone?: string;
 }
 
@@ -107,6 +115,8 @@ function toSummary(row: CaseRow): CaseSummary {
     answeredAt: row.answered_at,
     answerDueAt: row.answer_due_at,
     patientName: row.patient_name,
+    patientAgeYears: row.patient_age_years ?? null,
+    patientSex: row.patient_sex ?? null,
     doctorName: row.doctor_name,
     ...(row.patient_phone === undefined ? {} : { patientPhone: row.patient_phone }),
   };
@@ -426,10 +436,15 @@ export class CasesService {
 
     return this.db.tx(async (tx) => {
       const res = await tx.query<CaseRow>(
-        `SELECT ${CASE_COLUMNS}
+        `SELECT ${CASE_COLUMNS},
+                b.age_years AS patient_age_years, b.sex AS patient_sex
          FROM cases_cases a
          LEFT JOIN patients_patients p ON p.id = a.patient_id
          LEFT JOIN identity_users d ON d.id = a.doctor_id
+         -- ON true, and LEFT: cases_patient_brief returns no row for the lab
+         -- side, and an inner join would drop the whole case rather than the
+         -- projection. The lab reads the patient record directly anyway.
+         LEFT JOIN LATERAL cases_patient_brief(a.id) b ON true
          WHERE a.id = $1`,
         [caseId],
       );
