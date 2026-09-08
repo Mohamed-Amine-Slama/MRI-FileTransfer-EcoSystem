@@ -30,12 +30,12 @@
   "devDependencies": {
     "@playwright/test": "^1.49.1",
     "@tailwindcss/postcss": "^4.3.3",
-    "@types/node": "^22.10.5",
+    "@types/node": "^26.4.1",
     "@types/react": "^19.0.7",
     "@types/react-dom": "^19.2.5",
     "eslint": "^10.9.1",
     "tailwindcss": "^4.3.3",
-    "typescript": "^5.7.3",
+    "typescript": "^6.0.3",
     "vitest": "^4.1.11"
   }
 }
