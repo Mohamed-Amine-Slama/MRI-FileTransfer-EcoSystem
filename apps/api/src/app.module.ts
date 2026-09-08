@@ -9,6 +9,7 @@ import { DatabaseModule } from './shared/db/database.module';
 import { GlobalExceptionFilter } from './shared/errors/global-exception.filter';
 import { SecurityHeadersMiddleware } from './shared/http/security-headers.middleware';
 import { EventsModule } from './shared/events/events.module';
+import { JobsModule } from './shared/jobs/jobs.module';
 import { MailModule } from './shared/mail';
 import { RateLimitModule } from './shared/ratelimit/rate-limit.module';
 import { TracingModule } from './shared/observability/tracing.module';
@@ -38,6 +39,7 @@ import { CasesModule } from './modules/cases';
     ConfigModule,
     DatabaseModule,
     EventsModule,
+    JobsModule,
     MailModule,
     RateLimitModule,
     TracingModule,
