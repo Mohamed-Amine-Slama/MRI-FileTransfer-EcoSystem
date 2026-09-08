@@ -10,7 +10,7 @@ import { render, type TemplateId } from './templates';
  * there is nothing clinical available to leak even by accident.
  *
  * Subscribers here are NON-critical: a failed SMS must not roll back a
- * completed upload or an confirmed booking. The EventBus logs and continues.
+ * completed upload or an accepted case. The EventBus logs and continues.
  */
 @Injectable()
 export class NotificationsSubscriber implements OnModuleInit {

@@ -443,4 +443,178 @@ describe('P3.2 row-level security', () => {
     });
 
   });
+
+  describe('a study reaches the doctor only once it is released', () => {
+    it('a study still processing is invisible to the doctor and visible to the lab', async () => {
+      const libyaDoctor = await createUser(h.owner, 'libya_doctor');
+      const tunisDoctor = await createUser(h.owner, 'tunisia_doctor');
+      const patient = await createPatient(h.owner, libyaDoctor);
+      const study = await createStudy(h.owner, patient, libyaDoctor, { status: 'processing' });
+      const kase = await createCase(h.owner, patient, tunisDoctor, 'accepted');
+      await linkStudy(h.owner, kase, study);
+      await grantConsent(h.owner, patient, tunisDoctor, libyaDoctor);
+
+      const doctor = await asUser(
+        h.app,
+        { userId: tunisDoctor, role: 'tunisia_doctor' },
+        async (c) => (await c.query('SELECT id FROM imaging_studies')).rowCount,
+      );
+      expect(doctor).toBe(0);
+
+      // The control: the lab keeps its own study throughout. A gate that hid
+      // the study from everyone would pass the assertion above and be useless.
+      const lab = await asUser(h.app, { userId: libyaDoctor, role: 'libya_doctor' }, async (c) =>
+        (await c.query('SELECT id FROM imaging_studies')).rowCount,
+      );
+      expect(lab).toBe(1);
+    });
+
+    it('a quarantined study is invisible to the doctor however complete the case is', async () => {
+      const libyaDoctor = await createUser(h.owner, 'libya_doctor');
+      const tunisDoctor = await createUser(h.owner, 'tunisia_doctor');
+      const patient = await createPatient(h.owner, libyaDoctor);
+      const study = await createStudy(h.owner, patient, libyaDoctor, { status: 'quarantined' });
+      const kase = await createCase(h.owner, patient, tunisDoctor, 'accepted');
+      await linkStudy(h.owner, kase, study);
+      await grantConsent(h.owner, patient, tunisDoctor, libyaDoctor);
+
+      const rows = await asUser(h.app, { userId: tunisDoctor, role: 'tunisia_doctor' }, async (c) =>
+        (await c.query('SELECT id FROM imaging_studies')).rowCount,
+      );
+      expect(rows).toBe(0);
+    });
+  });
+
+  describe('the receiving doctor never reads the patient', () => {
+    it('a receiving doctor has no read on the patient table at all', async () => {
+      const libyaDoctor = await createUser(h.owner, 'libya_doctor');
+      const tunisDoctor = await createUser(h.owner, 'tunisia_doctor');
+      const patient = await createPatient(h.owner, libyaDoctor);
+      const kase = await createCase(h.owner, patient, tunisDoctor, 'accepted');
+      await grantConsent(h.owner, patient, tunisDoctor, libyaDoctor);
+
+      // Everything that used to grant the row is present: an accepted case and
+      // a valid consent. The grant is gone anyway.
+      const rows = await asUser(h.app, { userId: tunisDoctor, role: 'tunisia_doctor' }, async (c) =>
+        (await c.query('SELECT id FROM patients_patients')).rowCount,
+      );
+      expect(rows).toBe(0);
+
+      // The control: the lab that created the patient still sees them.
+      const lab = await asUser(h.app, { userId: libyaDoctor, role: 'libya_doctor' }, async (c) =>
+        (await c.query('SELECT id FROM patients_patients')).rowCount,
+      );
+      expect(lab).toBe(1);
+      expect(kase).toBeDefined();
+    });
+
+    it('the case query returns a null patient name to the doctor and a name to the lab', async () => {
+      const libyaDoctor = await createUser(h.owner, 'libya_doctor');
+      const tunisDoctor = await createUser(h.owner, 'tunisia_doctor');
+      const patient = await createPatient(h.owner, libyaDoctor);
+      const kase = await createCase(h.owner, patient, tunisDoctor, 'accepted');
+      await grantConsent(h.owner, patient, tunisDoctor, libyaDoctor);
+
+      // The UNMODIFIED production join. The whole claim of this task is that
+      // the database produces a null here without any application help.
+      const sql = `SELECT p.full_name AS patient_name
+                   FROM cases_cases a
+                   LEFT JOIN patients_patients p ON p.id = a.patient_id
+                   WHERE a.id = $1`;
+
+      const asDoctor = await asUser(
+        h.app,
+        { userId: tunisDoctor, role: 'tunisia_doctor' },
+        async (c) => (await c.query<{ patient_name: string | null }>(sql, [kase])).rows[0],
+      );
+      expect(asDoctor?.patient_name).toBeNull();
+
+      const asLab = await asUser(
+        h.app,
+        { userId: libyaDoctor, role: 'libya_doctor' },
+        async (c) => (await c.query<{ patient_name: string | null }>(sql, [kase])).rows[0],
+      );
+      expect(asLab?.patient_name).not.toBeNull();
+    });
+
+    it('cases_patient_brief gives the doctor age and sex, and nobody else anything', async () => {
+      const libyaDoctor = await createUser(h.owner, 'libya_doctor');
+      const tunisDoctor = await createUser(h.owner, 'tunisia_doctor');
+      const stranger = await createUser(h.owner, 'tunisia_doctor');
+      const patient = await createPatient(h.owner, libyaDoctor, {
+        dateOfBirth: '1990-01-01',
+        sex: 'F',
+      });
+      const kase = await createCase(h.owner, patient, tunisDoctor, 'accepted');
+      await grantConsent(h.owner, patient, tunisDoctor, libyaDoctor);
+
+      const mine = await asUser(h.app, { userId: tunisDoctor, role: 'tunisia_doctor' }, async (c) =>
+        (
+          await c.query<{ age_years: number; sex: string }>(
+            'SELECT age_years, sex FROM cases_patient_brief($1)',
+            [kase],
+          )
+        ).rows,
+      );
+      expect(mine).toHaveLength(1);
+      expect(mine[0]?.sex).toBe('F');
+      expect(mine[0]?.age_years).toBeGreaterThan(30);
+
+      const theirs = await asUser(h.app, { userId: stranger, role: 'tunisia_doctor' }, async (c) =>
+        (await c.query('SELECT age_years FROM cases_patient_brief($1)', [kase])).rowCount,
+      );
+      expect(theirs).toBe(0);
+    });
+
+    it('cases_patient_brief returns nothing without consent, and nothing once revoked', async () => {
+      const libyaDoctor = await createUser(h.owner, 'libya_doctor');
+      const tunisDoctor = await createUser(h.owner, 'tunisia_doctor');
+      const patient = await createPatient(h.owner, libyaDoctor);
+      const kase = await createCase(h.owner, patient, tunisDoctor, 'accepted');
+
+      const before = await asUser(
+        h.app,
+        { userId: tunisDoctor, role: 'tunisia_doctor' },
+        async (c) =>
+          (await c.query('SELECT age_years FROM cases_patient_brief($1)', [kase])).rowCount,
+      );
+      expect(before).toBe(0);
+
+      const consent = await grantConsent(h.owner, patient, tunisDoctor, libyaDoctor);
+      const during = await asUser(
+        h.app,
+        { userId: tunisDoctor, role: 'tunisia_doctor' },
+        async (c) =>
+          (await c.query('SELECT age_years FROM cases_patient_brief($1)', [kase])).rowCount,
+      );
+      expect(during).toBe(1);
+
+      await revokeConsent(h.owner, consent);
+      const after = await asUser(
+        h.app,
+        { userId: tunisDoctor, role: 'tunisia_doctor' },
+        async (c) =>
+          (await c.query('SELECT age_years FROM cases_patient_brief($1)', [kase])).rowCount,
+      );
+      expect(after).toBe(0);
+    });
+
+    it('age is capped at 90 for a patient older than that', async () => {
+      const libyaDoctor = await createUser(h.owner, 'libya_doctor');
+      const tunisDoctor = await createUser(h.owner, 'tunisia_doctor');
+      const patient = await createPatient(h.owner, libyaDoctor, { dateOfBirth: '1920-03-02' });
+      const kase = await createCase(h.owner, patient, tunisDoctor, 'accepted');
+      await grantConsent(h.owner, patient, tunisDoctor, libyaDoctor);
+
+      const rows = await asUser(h.app, { userId: tunisDoctor, role: 'tunisia_doctor' }, async (c) =>
+        (
+          await c.query<{ age_years: number }>('SELECT age_years FROM cases_patient_brief($1)', [
+            kase,
+          ])
+        ).rows,
+      );
+      // Not 105. Safe Harbor treats ages over 89 as identifying.
+      expect(rows[0]?.age_years).toBe(90);
+    });
+  });
 });

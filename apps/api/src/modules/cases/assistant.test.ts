@@ -6,7 +6,8 @@ import { runWithContext } from '../../shared/context/request-context';
 import { DatabaseService } from '../../shared/db/database.service';
 import { EventBus } from '../../shared/events/event-bus';
 import { LedgerService } from '../ledger';
-import { SchedulingService } from './internal/scheduling.service';
+import { PricingService } from '../pricing';
+import { CasesService } from './internal/cases.service';
 import {
   appUrl,
   createCase,
@@ -364,11 +365,12 @@ describe('a refused write is a 404, never a 500', () => {
       DATABASE_URL: appUrl(),
       DATABASE_POOL_MAX: 4,
     } as AppConfig);
-    const scheduling = new SchedulingService(
+    const cases = new CasesService(
       db,
       new EventBus(),
       { CASES_ANSWER_WINDOW_HOURS: 72 } as AppConfig,
       new LedgerService(db),
+      new PricingService(db),
     );
 
     try {
@@ -382,7 +384,7 @@ describe('a refused write is a 404, never a 500', () => {
             requestId: 'assistant-rls',
           },
           () =>
-            scheduling.updateCase(theirCase, { notes: 'should not land' }),
+            cases.updateCase(theirCase, { notes: 'should not land' }),
         ),
       ).rejects.toThrow(NotFoundException);
     } finally {

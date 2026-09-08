@@ -23,10 +23,15 @@ This document is the complete build instruction set. It is written to be execute
 
 | Actor | Capability |
 |---|---|
-| Libyan doctor | Register/log in, create or find a patient, upload DICOM studies for that patient, add clinical notes, see transfer status |
-| Patient / client | Log in, see their own studies, give explicit consent to transfer, view Tunisian doctor availability, book an appointment, pay |
-| Tunisian doctor | Log in, manage calendar availability, see booked appointments, view the linked studies for those patients only |
+| Libyan lab / clinic | Register/log in, create or find a patient, upload DICOM studies, submit a case, browse the doctors accepting work, choose one and pay the price the platform quotes |
+| Tunisian doctor | Register/log in, switch availability on or off, read the summary of a case sent to them, accept or decline it, and view the linked studies for the ones they accepted |
 | Platform admin | Manage doctor verification, view audit logs, handle support — **no routine access to patient images** |
+
+**There is no patient account.** Migration 0021 removed it: the Libyan clinic
+attests the patient's consent and holds the identity, and the patient never
+logs in. **There is no calendar.** Migration 0025 removed slots, availability
+windows and booking — a lab does not reserve a time, it sends a case to a
+doctor who is taking work.
 
 ### 1.2 Explicitly out of scope (v1)
 
@@ -37,7 +42,7 @@ This document is the complete build instruction set. It is written to be execute
 
 ### 1.3 Non-negotiable product positioning
 
-The platform is a **transfer and scheduling service**, not a diagnostic tool. The receiving doctor performs the diagnostic read on their own validated equipment. This must appear in:
+The platform is a **transfer and coordination service**, not a diagnostic tool. The receiving doctor performs the diagnostic read on their own validated equipment. This must appear in:
 - Terms of service
 - A persistent banner in the viewer UI: *"Reference viewing only — not for diagnostic use"*
 - Marketing material

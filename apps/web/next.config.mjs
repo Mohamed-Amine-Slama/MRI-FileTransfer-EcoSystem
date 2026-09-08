@@ -88,16 +88,13 @@ const nextConfig = {
    * rebuild, not a restart.
    */
   async redirects() {
-    // /doctor/availability was the receiving doctor's whole scheduling screen
-    // before /schedule absorbed it. Anything already linking to it — a
-    // bookmark, an onboarding email — should land on the tab that replaced it
-    // rather than a page with no way back into the workspace.
-    //
-    // Permanent: the old route is not coming back, and a 308 lets browsers and
-    // proxies stop asking.
-    return [
-      { source: '/doctor/availability', destination: '/schedule/availability', permanent: true },
-    ];
+    // Empty, and deliberately so. This held one 308 from /doctor/availability
+    // to /schedule/availability, back when the calendar absorbed the receiving
+    // doctor's screen. Both ends of that redirect have since changed sides:
+    // /schedule is gone, and /doctor/availability is a real page again — the
+    // one switch that replaced the calendar. A redirect pointing at a deleted
+    // route sends a bookmark to a 404 by a longer path than no redirect does.
+    return [];
   },
 
   async rewrites() {

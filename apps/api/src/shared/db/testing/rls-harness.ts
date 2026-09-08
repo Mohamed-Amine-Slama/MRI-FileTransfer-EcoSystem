@@ -330,13 +330,23 @@ export async function createUser(
   return row.id;
 }
 
-export async function createPatient(owner: Pool, createdByDoctor: string): Promise<string> {
+export async function createPatient(
+  owner: Pool,
+  createdByDoctor: string,
+  overrides: { dateOfBirth?: string; sex?: 'M' | 'F' | 'O' } = {},
+): Promise<string> {
   const n = uniq();
   const res = await owner.query<{ id: string }>(
     `INSERT INTO patients_patients
        (phone_e164, full_name, date_of_birth, sex, created_by_doctor)
      VALUES ($1, $2, $3, $4, $5) RETURNING id`,
-    [`+2189${n.replace(/\D/g, '').slice(-9)}`, `Patient ${n}`, '1985-06-15', 'M', createdByDoctor],
+    [
+      `+2189${n.replace(/\D/g, '').slice(-9)}`,
+      `Patient ${n}`,
+      overrides.dateOfBirth ?? '1985-06-15',
+      overrides.sex ?? 'M',
+      createdByDoctor,
+    ],
   );
   const row = res.rows[0];
   if (row === undefined) throw new Error('createPatient returned no row');
@@ -347,13 +357,24 @@ export async function createStudy(
   owner: Pool,
   patientId: string,
   uploadedBy: string,
+  overrides: { status?: string; modality?: string; twinStudyUid?: string } = {},
 ): Promise<string> {
   const n = uniq();
+  const digits = n.replace(/\D/g, '');
   const res = await owner.query<{ id: string }>(
     `INSERT INTO imaging_studies
-       (patient_id, uploaded_by, study_instance_uid, modality, status)
-     VALUES ($1, $2, $3, 'CT', 'ready') RETURNING id`,
-    [patientId, uploadedBy, `1.3.6.1.4.1.99999.1.${n.replace(/\D/g, '')}`],
+       (patient_id, uploaded_by, study_instance_uid, modality, status, twin_study_uid)
+     VALUES ($1, $2, $3, $4, $5, $6) RETURNING id`,
+    [
+      patientId,
+      uploadedBy,
+      `1.3.6.1.4.1.99999.1.${digits}`,
+      overrides.modality ?? 'CT',
+      overrides.status ?? 'ready',
+      // Default fixture is a RELEASED study, so every pre-existing test keeps
+      // its meaning. A twin UID is part of being released.
+      overrides.twinStudyUid ?? `1.3.6.1.4.1.99999.2.${digits}`,
+    ],
   );
   const row = res.rows[0];
   if (row === undefined) throw new Error('createStudy returned no row');
@@ -508,4 +529,82 @@ export async function seatMember(
     `INSERT INTO identity_memberships (organisation_id, user_id, seat_role) VALUES ($1, $2, $3)`,
     [orgId, userId, seatRole],
   );
+}
+
+/**
+ * A destination doctor with a specialty, a tier and an availability switch.
+ *
+ * Everything `pricing_accepting_count` filters on has to be here or the doctor
+ * is invisible to the count for a reason unrelated to what the test is about:
+ * an APPROVED organisation, on the corridor, on the DESTINATION side, and a
+ * membership joining the two. Seeding only the profile row produces a doctor
+ * who is accepting work and counts for nothing, which reads as a broken
+ * formula.
+ */
+export async function seedDoctor(
+  owner: Pool,
+  options: {
+    specialty: string;
+    tier?: 'standard' | 'senior' | 'expert';
+    accepting?: boolean;
+    corridorId?: string;
+    /**
+     * Verified by default. Set false to seed a doctor the directory and the
+     * surge count must both refuse to see — an unverified doctor may not
+     * receive imaging, so quoting against one would price an unusable pick.
+     */
+    verified?: boolean;
+  },
+): Promise<string> {
+  const n = uniq();
+  const doctorId = await createUser(owner, 'tunisia_doctor');
+
+  const org = await owner.query<{ id: string }>(
+    `INSERT INTO identity_organisations
+       (kind, legal_name, corridor_id, side, verification_status, decided_at)
+     VALUES ('clinic', $1, $2, 'destination', 'approved', now()) RETURNING id`,
+    [`Practice ${n}`, options.corridorId ?? 'ly-tn'],
+  );
+  const orgId = org.rows[0]?.id;
+  if (orgId === undefined) throw new Error('seedDoctor returned no organisation');
+
+  await owner.query(
+    `INSERT INTO identity_memberships (organisation_id, user_id, seat_role)
+     VALUES ($1, $2, 'owner')`,
+    [orgId, doctorId],
+  );
+
+  await owner.query(
+    `INSERT INTO identity_doctor_profiles
+       (user_id, country, license_number, specialty, accepting_cases, tier_code, verified_at)
+     VALUES ($1, 'TN', $2, $3, $4, $5, CASE WHEN $6::boolean THEN now() END)`,
+    [
+      doctorId,
+      `TN-${n}`,
+      options.specialty,
+      options.accepting ?? false,
+      options.tier ?? 'standard',
+      options.verified ?? true,
+    ],
+  );
+
+  return doctorId;
+}
+
+/** `count` doctors of one specialty, all accepting, all on the base tier. */
+export async function seedAcceptingDoctors(
+  owner: Pool,
+  options: { specialty: string; count: number; corridorId?: string },
+): Promise<string[]> {
+  const ids: string[] = [];
+  for (let i = 0; i < options.count; i += 1) {
+    ids.push(
+      await seedDoctor(owner, {
+        specialty: options.specialty,
+        accepting: true,
+        ...(options.corridorId === undefined ? {} : { corridorId: options.corridorId }),
+      }),
+    );
+  }
+  return ids;
 }

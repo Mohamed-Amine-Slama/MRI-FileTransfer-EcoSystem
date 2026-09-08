@@ -135,9 +135,14 @@ export const caseEventSchema = z.object({
 export type CaseEvent = z.infer<typeof caseEventSchema>;
 
 /**
- * A case owns the V0 records rather than replacing them: the patient, the
- * uploaded studies, and the booked appointment all hang off the case, so the
- * existing imaging and scheduling work becomes what happens *inside* a case.
+ * A case owns the V0 records rather than replacing them: the patient and the
+ * uploaded studies hang off the case, so the existing imaging work becomes
+ * what happens *inside* a case.
+ *
+ * There is no `appointmentId`. It pointed at a row in a separate scheduling
+ * table back when a case was a request and an appointment was the booking that
+ * fulfilled it; migration 0025 made them the same record, and a field linking
+ * a case to itself would be a second identity for one thing.
  *
  * `intake` is an open map because its shape is the corridor's `intakeFields`
  * (§4.3) — pinning it to a fixed schema here would hardcode one corridor's
@@ -150,8 +155,20 @@ export const caseSchema = z.object({
   submittedByProviderId: z.string().min(1),
   matchedProviderId: z.string().min(1).optional(),
   patientId: z.string().min(1),
+  /**
+   * The receiving doctor's view of the patient — sub-project 2.
+   *
+   * Age rather than date of birth, capped at 90 (migration 0028): a birth date
+   * is an identifier, an age is a clinical fact, and above 89 an age starts
+   * identifying individuals on its own.
+   *
+   * Null for the source side, which holds the identity and reads the patient
+   * record directly. Optional because the ops and lab projections do not carry
+   * it at all.
+   */
+  patientAgeYears: z.number().int().min(0).max(90).nullable().optional(),
+  patientSex: z.enum(['M', 'F', 'O']).nullable().optional(),
   studyIds: z.array(z.string().min(1)),
-  appointmentId: z.string().min(1).optional(),
   createdAt: z.string().datetime(),
   updatedAt: z.string().datetime(),
   intake: z.record(z.string(), z.unknown()),

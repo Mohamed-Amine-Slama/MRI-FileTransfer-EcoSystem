@@ -309,3 +309,30 @@ export function fileRejectionLabel(t: Dictionary, key: FileRejectionKey): string
   };
   return labels[key];
 }
+
+/**
+ * The patient line a receiving doctor sees — sub-project 2.
+ *
+ * Assembled here rather than in JSX for the same reason the access line is:
+ * the ORDER of age and sex is a translation concern, not a layout one, and a
+ * template built from JSX fragments cannot be reordered by a translator.
+ *
+ * Returns the em dash rather than an empty string when either half is missing.
+ * A blank cell reads as a rendering bug; a dash reads as "not applicable",
+ * which is what it is for the lab side — the lab holds the identity and reads
+ * the patient record directly, so the projection returns it nothing.
+ */
+export function patientBriefLabel(
+  t: Dictionary,
+  brief: { patientAgeYears?: number | null; patientSex?: string | null },
+): string {
+  const { patientAgeYears: age, patientSex: sex } = brief;
+  if (age === null || age === undefined || sex === null || sex === undefined) return '\u2014';
+
+  const years = t.casePatientAgeYears.replace('{age}', String(age));
+  const sexes: Record<string, string> = { M: t.sexMale, F: t.sexFemale, O: t.sexOther };
+  const sexLabel = sexes[sex];
+  // An unrecognised code renders the age alone rather than the raw letter: a
+  // bare "O" in an Arabic interface is not a word in any of the three locales.
+  return sexLabel === undefined ? years : `${years} \u00b7 ${sexLabel}`;
+}

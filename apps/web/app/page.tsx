@@ -7,22 +7,19 @@ import {
   Briefcase,
   Building2,
   CalendarClock,
-  CalendarDays,
   FolderKanban,
   Inbox,
   ScrollText,
   Upload,
-  UserRoundPlus,
   Users,
 } from 'lucide-react';
 import type { Role } from '@mir/contracts';
-import { api, type Appointment, type AuditEvent } from '../lib/api/endpoints';
-import { useDateFormat, useT } from '../lib/i18n/provider';
+import { api, type CaseRecord, type AuditEvent } from '../lib/api/endpoints';
+import { useT } from '../lib/i18n/provider';
 import type { Dictionary } from '../lib/i18n/dictionary';
-import { PROVIDER_ROLES, sideForRole } from '../lib/corridor/registry';
+import { sideForRole } from '../lib/corridor/registry';
 import { useSession } from '../lib/session/session';
-import { AppointmentStatusBadge } from '../components/AppointmentStatusBadge';
-import { isLiveAppointment } from '../lib/scheduling/status';
+import { CaseStatusBadge } from '../components/case/CaseStatusBadge';
 import { Landing } from '../components/marketing/Landing';
 import {
   Card,
@@ -30,7 +27,6 @@ import {
   PageHeader,
   Main,
   SectionHeading,
-  Skeleton,
   StatGrid,
   StatTile,
   Table,
@@ -74,7 +70,6 @@ export default function Home(): React.JSX.Element {
 
       {status === 'authenticated' && role !== null && (
         <>
-          {runsACalendar(role) && <TodayPanel />}
           {role === 'libya_doctor' && <LibyaDoctorDashboard />}
           {role === 'tunisia_doctor' && <TunisiaDoctorDashboard />}
           {role === 'admin' && <AdminDashboard />}
@@ -90,55 +85,54 @@ export default function Home(): React.JSX.Element {
 // Building blocks
 // ---------------------------------------------------------------------------
 
-function AppointmentsMiniTable({
-  appointments,
+function CasesMiniTable({
+  cases,
   title,
   nameOf,
 }: {
-  appointments: Appointment[];
+  cases: CaseRecord[];
   title: string;
-  nameOf?: (a: Appointment) => string;
+  nameOf?: (c: CaseRecord) => string;
 }): React.JSX.Element {
   const t = useT();
-  const formatDate = useDateFormat();
-  const recent = appointments.slice(0, 5);
+  const recent = cases.slice(0, 5);
 
   return (
     <Card
       title={title}
       actions={
-        <Link href="/appointments" className="text-sm font-medium text-primary hover:underline">
+        <Link href="/cases" className="text-sm font-medium text-primary hover:underline">
           {t.dashboardViewAll}
         </Link>
       }
     >
       {recent.length === 0 ? (
-        <EmptyState>{t.appointmentsEmpty}</EmptyState>
+        <EmptyState>{t.casesEmpty}</EmptyState>
       ) : (
         <Table>
           <TableHeader>
             <TableRow>
-              <TableHead>{t.colDate}</TableHead>
+              <TableHead>{t.colSpecialty}</TableHead>
               {nameOf !== undefined && <TableHead>{t.colPatient}</TableHead>}
-              <TableHead>{t.appointmentStatus}</TableHead>
+              <TableHead>{t.colStatus}</TableHead>
             </TableRow>
           </TableHeader>
           <TableBody>
-            {recent.map((a) => (
-              <TableRow key={a.id}>
+            {recent.map((c) => (
+              <TableRow key={c.id}>
                 <TableCell className="font-medium">
                   <Link
-                    href={`/appointments/${a.id}`}
+                    href={`/cases/${c.id}`}
                     className="rounded-sm hover:text-primary hover:underline"
                   >
-                    {formatDate(a.startsAt)}
+                    {c.specialty}
                   </Link>
                 </TableCell>
                 {nameOf !== undefined && (
-                  <TableCell className="text-muted-foreground">{nameOf(a)}</TableCell>
+                  <TableCell className="text-muted-foreground">{nameOf(c)}</TableCell>
                 )}
                 <TableCell>
-                  <AppointmentStatusBadge status={a.status} />
+                  <CaseStatusBadge status={c.status} />
                 </TableCell>
               </TableRow>
             ))}
@@ -153,24 +147,24 @@ function AppointmentsMiniTable({
 // Role dashboards
 // ---------------------------------------------------------------------------
 
-function useAppointments(): Appointment[] | null {
-  const [appointments, setAppointments] = useState<Appointment[] | null>(null);
+function useCases(): CaseRecord[] | null {
+  const [cases, setCases] = useState<CaseRecord[] | null>(null);
   useEffect(() => {
     void (async () => {
       try {
-        const { appointments: rows } = await api.scheduling.listAppointments();
-        setAppointments(rows);
+        const { cases: rows } = await api.cases.list();
+        setCases(rows);
       } catch {
-        setAppointments([]); // Fail soft: tiles show 0, links still work.
+        setCases([]); // Fail soft: tiles show 0, links still work.
       }
     })();
   }, []);
-  return appointments;
+  return cases;
 }
 
 function LibyaDoctorDashboard(): React.JSX.Element {
   const t = useT();
-  const appointments = useAppointments();
+  const cases = useCases();
   const [patientCount, setPatientCount] = useState<number | null>(null);
 
   useEffect(() => {
@@ -184,8 +178,8 @@ function LibyaDoctorDashboard(): React.JSX.Element {
     })();
   }, []);
 
-  const count = (s: Appointment['status']): number | null =>
-    appointments === null ? null : appointments.filter((a) => a.status === s).length;
+  const count = (s: CaseRecord['status']): number | null =>
+    cases === null ? null : cases.filter((c) => c.status === s).length;
 
   return (
     <>
@@ -194,132 +188,54 @@ function LibyaDoctorDashboard(): React.JSX.Element {
             way through to the rows behind it is a fact nobody can act on. */}
         <StatTile label={t.statPatients} value={patientCount} href="/patients" />
         <StatTile
-          label={t.statAppointmentsTotal}
-          value={appointments === null ? null : appointments.length}
-          href="/appointments"
+          label={t.statCasesTotal}
+          value={cases === null ? null : cases.length}
+          href="/cases"
         />
-        <StatTile label={t.statusPending} value={count('pending')} href="/appointments" />
-        <StatTile label={t.statusConfirmed} value={count('confirmed')} href="/appointments" />
+        {/* The two states where the ball is in the LAB's court: a case with no
+            doctor yet, and a locked quote nobody has paid. */}
+        <StatTile label={t.caseStatusSubmitted} value={count('submitted')} href="/cases" />
+        <StatTile label={t.caseStatusQuoted} value={count('quoted')} href="/cases" />
       </StatGrid>
-      {appointments !== null && (
-        <AppointmentsMiniTable appointments={appointments} title={t.dashboardRecent} />
-      )}
+      {cases !== null && <CasesMiniTable cases={cases} title={t.dashboardRecent} />}
     </>
   );
 }
 
 function TunisiaDoctorDashboard(): React.JSX.Element {
   const t = useT();
-  const appointments = useAppointments();
+  const cases = useCases();
 
-  const count = (s: Appointment['status']): number | null =>
-    appointments === null ? null : appointments.filter((a) => a.status === s).length;
+  const count = (s: CaseRecord['status']): number | null =>
+    cases === null ? null : cases.filter((c) => c.status === s).length;
 
-  // Awaiting THIS doctor's answer. `pending` is the only state that means it,
-  // now that there is no card to be authorised first.
-  const awaiting =
-    appointments === null ? [] : appointments.filter((a) => a.status === 'pending');
+  // Awaiting THIS doctor's decision. `paid` is the state that means it: the
+  // lab has settled and the case is sitting in front of them unanswered.
+  const awaiting = cases === null ? [] : cases.filter((c) => c.status === 'paid');
 
   return (
     <>
       <StatGrid>
-        <StatTile label={t.dashboardAwaitingDecision} value={count('pending')} href="/doctor" />
-        <StatTile label={t.statusConfirmed} value={count('confirmed')} href="/appointments" />
+        <StatTile label={t.dashboardAwaitingDecision} value={count('paid')} href="/doctor" />
+        {/* Accepted-but-unanswered is the number that costs a doctor money:
+            these are the cases with a clock running against them. */}
+        <StatTile label={t.caseStatusAccepted} value={count('accepted')} href="/doctor" />
         <StatTile
-          label={t.statAppointmentsTotal}
-          value={appointments === null ? null : appointments.length}
-          href="/appointments"
+          label={t.statCasesTotal}
+          value={cases === null ? null : cases.length}
+          href="/cases"
         />
       </StatGrid>
-      {appointments !== null && awaiting.length > 0 && (
-        <AppointmentsMiniTable
-          appointments={awaiting}
+      {cases !== null && awaiting.length > 0 && (
+        <CasesMiniTable
+          cases={awaiting}
           title={t.dashboardAwaitingDecision}
-          nameOf={(a) => a.patientName ?? a.patientId}
+          /* The case reference, never the patient — the identity stays on the
+             lab's side of the corridor. */
+          nameOf={(c) => c.reason ?? c.specialty}
         />
       )}
     </>
-  );
-}
-
-/**
- * Who sees a "today" panel: both corridor endpoints and a seated assistant.
- *
- * Not a corridor question — an assistant plays no side — so it is spelled out
- * rather than asked of `rolesForSides`.
- */
-function runsACalendar(role: Role | null): boolean {
-  return role !== null && (PROVIDER_ROLES.includes(role) || role === 'assistant');
-}
-
-/**
- * Today, at the top of the dashboard.
- *
- * The first thing a practice wants on opening the app is who is coming in the
- * next few hours — a question the stat tiles below cannot answer, because a
- * count of confirmed appointments says nothing about when they are. It stays
- * deliberately short and hands off to /schedule for the rest: two views of the
- * same list competing to be the real one is how they drift apart.
- */
-function TodayPanel(): React.JSX.Element {
-  const t = useT();
-  const formatDate = useDateFormat();
-  const [rows, setRows] = useState<Appointment[] | null>(null);
-
-  useEffect(() => {
-    void (async () => {
-      const start = new Date();
-      start.setHours(0, 0, 0, 0);
-      const end = new Date(start);
-      end.setDate(end.getDate() + 1);
-      try {
-        const { appointments } = await api.scheduling.listAppointments({
-          from: start.toISOString(),
-          to: end.toISOString(),
-        });
-        setRows(
-          appointments
-            .filter((a) => isLiveAppointment(a.status))
-            .sort((a, b) => a.startsAt.localeCompare(b.startsAt)),
-        );
-      } catch {
-        setRows([]);
-      }
-    })();
-  }, []);
-
-  return (
-    <Card
-      title={t.scheduleAgendaTitle}
-      actions={
-        <Link href="/schedule" className="text-sm font-medium text-primary hover:underline">
-          {t.dashboardViewAll}
-        </Link>
-      }
-    >
-      {rows === null ? (
-        <Skeleton className="h-12 w-full max-w-sm" />
-      ) : rows.length === 0 ? (
-        <EmptyState testId="today-empty">{t.scheduleAgendaEmpty}</EmptyState>
-      ) : (
-        <ul className="divide-y" data-testid="today-panel">
-          {rows.slice(0, 5).map((a) => (
-            <li key={a.id} className="flex flex-wrap items-center gap-3 py-2">
-              <Link
-                href={`/appointments/${a.id}`}
-                className="font-medium tabular-nums hover:text-primary hover:underline"
-              >
-                {formatDate(a.startsAt)}
-              </Link>
-              <span className="text-sm text-muted-foreground">
-                {a.patientName ?? a.patientId}
-              </span>
-              <AppointmentStatusBadge status={a.status} />
-            </li>
-          ))}
-        </ul>
-      )}
-    </Card>
   );
 }
 
@@ -357,10 +273,8 @@ function AdminDashboard(): React.JSX.Element {
 type DestinationKey =
   | 'patients'
   | 'upload'
-  | 'appointments'
   | 'inbox'
   | 'availability'
-  | 'schedule'
   | 'audit'
   | 'workspace'
   | 'cases'
@@ -372,10 +286,8 @@ type DestinationKey =
 const DESTINATION_ICONS: Record<DestinationKey, typeof Users> = {
   patients: Users,
   upload: Upload,
-  appointments: CalendarDays,
   inbox: Inbox,
-  availability: UserRoundPlus,
-  schedule: CalendarClock,
+  availability: CalendarClock,
   audit: ScrollText,
   workspace: Briefcase,
   cases: FolderKanban,
@@ -418,7 +330,6 @@ function destinationsFor(role: Role): { key: DestinationKey; href: string }[] {
       return [
         { key: 'patients', href: '/patients' },
         { key: 'upload', href: '/upload' },
-        { key: 'appointments', href: '/appointments' },
       ];
     case 'tunisia_doctor':
       return [
@@ -428,11 +339,12 @@ function destinationsFor(role: Role): { key: DestinationKey; href: string }[] {
     case 'admin':
       return [{ key: 'audit', href: '/admin/audit' }];
     case 'assistant':
-      // The assistant's whole job is the calendar, so it is their whole
-      // dashboard. Nothing else here is reachable for them: /patients and
-      // /upload are the referring side's, and the imaging screens are gated on
-      // a consent they do not hold.
-      return [{ key: 'schedule', href: '/schedule' }];
+      // The calendar this used to point at is gone, and an assistant reaches
+      // their work through the case list like everyone else — which
+      // `corridorDestinationsFor` already gives them. Nothing else here is
+      // theirs: /patients and /upload are the referring side's, and the
+      // imaging screens are gated on a consent they do not hold.
+      return [];
     case 'applicant':
       // An applicant has no destinations. Their whole screen is the
       // verification status, which the dashboard surfaces directly rather than
@@ -445,10 +357,8 @@ function label(key: DestinationKey, t: Dictionary): string {
   const map: Record<DestinationKey, string> = {
     patients: t.navPatients,
     upload: t.navUpload,
-    appointments: t.navAppointments,
     inbox: t.navInbox,
     availability: t.navAvailability,
-    schedule: t.navSchedule,
     workspace: t.navWorkspace,
     cases: t.navCases,
     ledger: t.navLedger,
@@ -464,10 +374,8 @@ function description(key: DestinationKey, t: Dictionary): string {
   const map: Record<DestinationKey, string> = {
     patients: t.patientsDescription,
     upload: t.uploadHint,
-    appointments: t.bookingTitle,
-    inbox: t.inboxTitle,
+    inbox: t.inboxDescription,
     availability: t.availabilityDescription,
-    schedule: t.scheduleDescription,
     audit: t.auditDescription,
     workspace: t.workspaceDescription,
     cases: t.casesDescription,

@@ -4,7 +4,7 @@ import type { Locale } from '@mir/contracts';
  * Notification templates — BUILD_SPEC PHASE 12.
  *
  * THE RULE: "notification content must NEVER include clinical details or
- * images. 'Your appointment is confirmed' — not the diagnosis, modality, or
+ * images. 'Your case was accepted' — not the diagnosis, modality, or
  * body part."
  *
  * Why this matters more than it looks: an SMS is delivered to a lock screen,
@@ -47,6 +47,10 @@ export interface TemplateVariables {
   link?: string;
   /** Whole number of files, for upload progress. Not a study description. */
   fileCount?: string;
+  // There is deliberately no amount, price or currency field. A quote is shown
+  // on the platform beside its expiry; an SMS carrying a figure is a
+  // disclosure of what was ordered and a ready-made phishing template. The
+  // test suite asserts no template declares one.
 }
 
 export type TemplateId =
@@ -192,16 +196,23 @@ export const TEMPLATES: Record<TemplateId, TemplateDefinition> = {
     },
   },
 
+  /**
+   * The payment did not go through, so the case was not sent.
+   *
+   * It names no amount. A lab learns what it owes on the platform, where the
+   * quote and its expiry are shown together — an SMS carrying a figure is both
+   * a disclosure and a phishing template.
+   */
   payment_failed: {
-    allowed: ['link'],
+    allowed: ['caseRef', 'link'],
     sms: {
-      ar: 'تعذّر إتمام الدفع ولم يتم حجز الموعد. حاول مرة أخرى: {{link}}',
-      fr: 'Le paiement a échoué, le rendez-vous n’a pas été réservé : {{link}}',
+      ar: 'تعذّر إتمام الدفع ولم تُرسل الحالة {{caseRef}}. حاول مرة أخرى: {{link}}',
+      fr: "Le paiement a échoué, le dossier {{caseRef}} n'a pas été envoyé : {{link}}",
     },
     emailSubject: { ar: 'فشل الدفع', fr: 'Échec du paiement' },
     emailBody: {
-      ar: 'تعذّر إتمام الدفع ولم يتم حجز الموعد. حاول مرة أخرى: {{link}}',
-      fr: 'Le paiement a échoué, le rendez-vous n’a pas été réservé : {{link}}',
+      ar: 'تعذّر إتمام الدفع ولم تُرسل الحالة {{caseRef}}. حاول مرة أخرى: {{link}}',
+      fr: "Le paiement a échoué, le dossier {{caseRef}} n'a pas été envoyé : {{link}}",
     },
   },
 };

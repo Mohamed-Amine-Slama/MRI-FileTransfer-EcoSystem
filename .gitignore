@@ -47,4 +47,10 @@ Thumbs.db
 *.log
 npm-debug.log*
 pnpm-debug.log*
+
+#Build Files
 Landing-Page-Specs.md
+frontend-technical-brief.md
+BUILD_SPEC.md
+frontend-technical-brief.md
+platform-requirements.md

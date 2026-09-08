@@ -58,7 +58,7 @@ export class StudyAccessService {
   ) {}
 
   /**
-   * List studies for the worklist, scoped by patient or by appointment.
+   * List studies for the worklist, scoped by patient or by case.
    *
    * No audit event is written here, and that is deliberate: this returns
    * headers — description, date, counts — and never pixel data or metadata for
@@ -67,13 +67,13 @@ export class StudyAccessService {
    * useless for spotting a doctor working through studies they shouldn't.
    *
    * Visibility is still RLS's decision, including the D3 payment gate: a
-   * Tunisian doctor listing by appointment sees nothing until the appointment
+   * Tunisian doctor listing by case sees nothing until the case
    * is confirmed.
    */
-  async listStudies(filter: { patientId?: string; appointmentId?: string }): Promise<StudySummary[]> {
+  async listStudies(filter: { patientId?: string; caseId?: string }): Promise<StudySummary[]> {
     return this.db.tx(async (tx) => {
       const rows =
-        filter.appointmentId !== undefined
+        filter.caseId !== undefined
           ? await tx.query<StudyRow>(
               `SELECT s.id, s.study_instance_uid, s.description, s.study_date,
                       s.modality, s.file_count
@@ -81,7 +81,7 @@ export class StudyAccessService {
                JOIN cases_case_studies l ON l.study_id = s.id
                WHERE l.case_id = $1
                ORDER BY s.study_date DESC NULLS LAST`,
-              [filter.appointmentId],
+              [filter.caseId],
             )
           : await tx.query<StudyRow>(
               `SELECT s.id, s.study_instance_uid, s.description, s.study_date,
@@ -110,7 +110,7 @@ export class StudyAccessService {
    *
    * Authorization is NOT re-implemented here. The query runs under row-level
    * security, so the row simply is not visible unless the policies allow it —
-   * consent, appointment linkage and the D3 payment gate all included. A
+   * consent, case linkage and the payment gate all included. A
    * TypeScript-side permission check would be a second, weaker copy of that
    * logic which could drift (ADR-6).
    */

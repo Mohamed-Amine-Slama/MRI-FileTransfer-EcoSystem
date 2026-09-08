@@ -16,8 +16,9 @@ import {
   type Harness,
 } from '../../shared/db/testing/rls-harness';
 import { EventBus } from '../../shared/events/event-bus';
-import { SchedulingService } from './internal/scheduling.service';
+import { CasesService } from './internal/cases.service';
 import { LedgerService } from '../ledger';
+import { PricingService } from '../pricing';
 
 /**
  * Closing out a case: complete, cancel-with-reason, correct the detail, and the
@@ -34,9 +35,12 @@ import { LedgerService } from '../ledger';
 let h: Harness;
 let db: DatabaseService;
 let bus: EventBus;
-let scheduling: SchedulingService;
+let cases: CasesService;
 
-const config = { CASES_ANSWER_WINDOW_HOURS: 72 } as AppConfig;
+const config = {
+  CASES_ANSWER_WINDOW_HOURS: 72,
+  CASES_QUOTE_TTL_MINUTES: 30,
+} as AppConfig;
 
 const ctx = (userId: string, role: RequestContext['role']): RequestContext => ({
   userId,
@@ -50,7 +54,7 @@ beforeAll(async () => {
   h = await setupTestDatabase();
   db = new DatabaseService({ DATABASE_URL: appUrl(), DATABASE_POOL_MAX: 8 } as AppConfig);
   bus = new EventBus();
-  scheduling = new SchedulingService(db, bus, config, new LedgerService(db));
+  cases = new CasesService(db, bus, config, new LedgerService(db), new PricingService(db));
 }, 120_000);
 
 afterAll(async () => {
@@ -76,7 +80,7 @@ async function withCase(
 describe('closing out a case', () => {
   it('marks an accepted case answered', async () => {
     const { doctor, caseId } = await withCase('accepted');
-    await runWithContext(ctx(doctor, 'tunisia_doctor'), () => scheduling.markCompleted(caseId));
+    await runWithContext(ctx(doctor, 'tunisia_doctor'), () => cases.markAnswered(caseId));
 
     const { rows } = await h.owner.query<{ status: string }>(
       'SELECT status FROM cases_cases WHERE id = $1',
@@ -90,14 +94,14 @@ describe('closing out a case', () => {
     // without accepting would skip the moment imaging unlocks.
     const { doctor, caseId } = await withCase('paid');
     await expect(
-      runWithContext(ctx(doctor, 'tunisia_doctor'), () => scheduling.markCompleted(caseId)),
+      runWithContext(ctx(doctor, 'tunisia_doctor'), () => cases.markAnswered(caseId)),
     ).rejects.toThrow();
   });
 
   it('cancels with a reason the other side can act on', async () => {
     const { doctor, caseId } = await withCase('accepted');
     await runWithContext(ctx(doctor, 'tunisia_doctor'), () =>
-      scheduling.cancelAsDoctor(caseId, 'Equipment failure'),
+      cases.cancelAsDoctor(caseId, 'Equipment failure'),
     );
 
     const { rows } = await h.owner.query<{ status: string; cancel_reason: string | null }>(
@@ -111,7 +115,7 @@ describe('closing out a case', () => {
   it('corrects the referral detail without touching the status', async () => {
     const { doctor, caseId } = await withCase('accepted');
     await runWithContext(ctx(doctor, 'tunisia_doctor'), () =>
-      scheduling.updateCase(caseId, { notes: 'Prior imaging attached' }),
+      cases.updateCase(caseId, { notes: 'Prior imaging attached' }),
     );
 
     const { rows } = await h.owner.query<{ status: string; notes: string | null }>(
@@ -133,8 +137,8 @@ describe('the expiry sweep', () => {
 
     // The UPDATE is the guard, not a select-then-update: two sweeps running
     // together must not both refund the same case.
-    expect(await runWithContext(systemContext('cases-sweep'), () => scheduling.expireOverdue())).toBe(1);
-    expect(await runWithContext(systemContext('cases-sweep'), () => scheduling.expireOverdue())).toBe(0);
+    expect(await runWithContext(systemContext('cases-sweep'), () => cases.expireOverdue())).toBe(1);
+    expect(await runWithContext(systemContext('cases-sweep'), () => cases.expireOverdue())).toBe(0);
 
     const { rows } = await h.owner.query<{ status: string }>(
       'SELECT status FROM cases_cases WHERE id = $1',
@@ -149,7 +153,7 @@ describe('the expiry sweep', () => {
       `UPDATE cases_cases SET answer_due_at = now() + interval '1 hour' WHERE id = $1`,
       [caseId],
     );
-    expect(await runWithContext(systemContext('cases-sweep'), () => scheduling.expireOverdue())).toBe(0);
+    expect(await runWithContext(systemContext('cases-sweep'), () => cases.expireOverdue())).toBe(0);
   });
 
   it('never expires a case the doctor has not accepted', async () => {
@@ -160,6 +164,6 @@ describe('the expiry sweep', () => {
       `UPDATE cases_cases SET answer_due_at = now() - interval '1 hour' WHERE id = $1`,
       [caseId],
     );
-    expect(await runWithContext(systemContext('cases-sweep'), () => scheduling.expireOverdue())).toBe(0);
+    expect(await runWithContext(systemContext('cases-sweep'), () => cases.expireOverdue())).toBe(0);
   });
 });

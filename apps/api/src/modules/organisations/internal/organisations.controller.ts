@@ -67,7 +67,7 @@ export class OrganisationsController {
    * "You have not applied yet" is a normal state for an applicant, not an
    * error, and the sign-up flow branches on it.
    */
-  // `assistant` included: the booking screen resolves the organisation here
+  // `assistant` included: the case screens resolve the organisation here
   // before asking for its clinicians, so without it an assistant cannot see
   // which doctors they may book for.
   @RequiresRole('applicant', 'libya_doctor', 'tunisia_doctor', 'assistant')
@@ -86,8 +86,8 @@ export class OrganisationsController {
    * The organisation's clinicians and their specialties, for assigning work.
    *
    * Distinct from `members`, which lists seats. This lists the people an
-   * appointment can be given TO, and carries the specialty the booking screen
-   * filters on. An assistant may read it: routing an appointment to the right
+   * case can be given TO, and carries the specialty the directory filters on.
+   * An assistant may read it: routing a case to the right
    * doctor is exactly a receptionist's job.
    */
   @RequiresRole('libya_doctor', 'tunisia_doctor', 'assistant')

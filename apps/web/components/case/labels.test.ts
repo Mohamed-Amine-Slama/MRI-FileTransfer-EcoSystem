@@ -9,6 +9,7 @@ import {
 } from '@mir/contracts';
 import { DICTIONARIES } from '../../lib/i18n/dictionary';
 import {
+  patientBriefLabel,
   REJECTION_REASON_KEYS,
   caseStatusLabel,
   formatMoney,
@@ -134,6 +135,35 @@ describe('the §5.5 task rule is decided on the enum, not on copy', () => {
           expect(isAwaitingSide(status, side)).toBe(labelled && !isTerminalStatus(status));
         }
       }
+    }
+  });
+});
+
+describe('patientBriefLabel', () => {
+  const t = DICTIONARIES.en;
+
+  it('renders the age and the sex, and never a name', () => {
+    const label = patientBriefLabel(t, { patientAgeYears: 62, patientSex: 'F' });
+    expect(label).toContain('62');
+    expect(label).toContain(t.sexFemale);
+  });
+
+  it('renders a dash for the lab, which gets no projection', () => {
+    expect(patientBriefLabel(t, { patientAgeYears: null, patientSex: null })).toBe('\u2014');
+    expect(patientBriefLabel(t, {})).toBe('\u2014');
+  });
+
+  it('renders the age alone rather than a bare letter for an unknown sex code', () => {
+    const label = patientBriefLabel(t, { patientAgeYears: 40, patientSex: 'Z' });
+    expect(label).toContain('40');
+    expect(label).not.toContain('Z');
+  });
+
+  it('is translated in every locale — no English leaks into an Arabic screen', () => {
+    for (const [locale, dict] of Object.entries(DICTIONARIES)) {
+      const label = patientBriefLabel(dict, { patientAgeYears: 55, patientSex: 'M' });
+      expect(label, locale).toContain('55');
+      expect(label, locale).not.toBe('\u2014');
     }
   });
 });

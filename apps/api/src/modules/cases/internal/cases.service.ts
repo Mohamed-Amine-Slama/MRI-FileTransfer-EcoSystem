@@ -6,24 +6,24 @@ import { DatabaseService } from '../../../shared/db/database.service';
 import type { DomainEventBase } from '../../../shared/events/domain-events';
 import { EventBus } from '../../../shared/events/event-bus';
 import { LedgerService } from '../../ledger';
+import { PricingService } from '../../pricing';
 
 /**
- * Availability and booking — BUILD_SPEC P10.
+ * The consult lifecycle — consult-model spec Part 1.
  *
- * DOUBLE-BOOKING IS PREVENTED BY THE DATABASE, NOT BY THIS CODE.
+ * A lab submits a case, picks a doctor who is accepting, pays the price this
+ * module locked, and the doctor accepts and answers it. There are no slots and
+ * no calendar: the gist exclusion constraint that made two overlapping
+ * appointments impossible went with them in migration 0025, because with
+ * nothing to double-book there is no contended resource left to guard.
  *
- * `cases_cases` carries a gist exclusion constraint (P3.1) that
- * makes two overlapping non-cancelled appointments for one doctor impossible.
- * There is deliberately no "check whether the slot is free, then insert" here:
- * that pattern loses to concurrency every time, and the losing case is two
- * patients told they have the same appointment (§17).
+ * WHAT REPLACED IT IS THE STATUS GUARD. Every verb here is a conditional
+ * UPDATE naming the state it is legal from, so a repeated call matches no row
+ * rather than repeating an effect, and two callers racing the same transition
+ * cannot both win. A rowCount of zero answers "no such case", "not yours" and
+ * "not in that state" identically, which is what §6 requires of the first two.
  *
- * What this code does instead is TRANSLATE the constraint violation into a
- * clean 409. The database decides; the application reports.
- *
- * All times are timestamptz in UTC (§6). Display-side conversion happens in
- * the browser — Libya is UTC+2 year-round, Tunisia UTC+1 with no DST, and the
- * offset between them changes nothing here because nothing here is local time.
+ * All times are timestamptz in UTC (§6).
  */
 
 const UNIQUE_VIOLATION = '23505';
@@ -60,18 +60,17 @@ export interface CaseSummary extends Case {
   patientName: string | null;
   doctorName: string | null;
   /**
+   * What the receiving doctor gets instead of an identity — sub-project 2.
+   * Null for the lab, which holds the identity and reads the record directly.
+   */
+  patientAgeYears: number | null;
+  patientSex: string | null;
+  /**
    * Present only on the assistant's agenda. A receptionist rings the patient;
    * a doctor opens the record, so nothing else needs it here.
    */
   patientPhone?: string;
   studyIds?: string[];
-}
-
-export interface DoctorSummary {
-  id: string;
-  displayName: string;
-  specialty: string | null;
-  city: string | null;
 }
 
 interface CaseRow {
@@ -91,6 +90,8 @@ interface CaseRow {
   answer_due_at: Date | null;
   patient_name: string | null;
   doctor_name: string | null;
+  patient_age_years?: number | null;
+  patient_sex?: string | null;
   patient_phone?: string;
 }
 
@@ -114,6 +115,8 @@ function toSummary(row: CaseRow): CaseSummary {
     answeredAt: row.answered_at,
     answerDueAt: row.answer_due_at,
     patientName: row.patient_name,
+    patientAgeYears: row.patient_age_years ?? null,
+    patientSex: row.patient_sex ?? null,
     doctorName: row.doctor_name,
     ...(row.patient_phone === undefined ? {} : { patientPhone: row.patient_phone }),
   };
@@ -129,17 +132,7 @@ const CASE_COLUMNS = `a.id, a.patient_id, a.doctor_id, a.organisation_id, a.spec
 /**
  * Translate a failed write on `cases_cases` into an HTTP answer.
  *
- * Shared by book and reschedule because they fail in exactly the same ways and
- * must answer identically. The version of this that lived inline in
- * `attemptBooking` was the only correct handling in the module, so a second
- * writer would otherwise have grown its own — and the one that matters,
- * 23P01 -> a clean 409 rather than a 500, is the P10.2 gate.
- *
- * 42501 is RLS refusing the row. It becomes 404, never 403: §6 requires that
- * "does not exist" and "not yours" be indistinguishable.
- */
-/**
- * PostgreSQL's "insufficient privilege" — RLS refusing the row.
+ * 42501 is PostgreSQL's "insufficient privilege" — RLS refusing the row.
  *
  * It becomes 404 and never 403, because §6 requires that "does not exist" and
  * "not yours" be indistinguishable: a 403 confirms the row is real, which is an
@@ -165,14 +158,15 @@ function translateCaseWriteError(err: unknown, notFound: string): never {
 }
 
 @Injectable()
-export class SchedulingService {
-  private readonly logger = new Logger(SchedulingService.name);
+export class CasesService {
+  private readonly logger = new Logger(CasesService.name);
 
   constructor(
     private readonly db: DatabaseService,
     private readonly bus: EventBus,
     @Inject(APP_CONFIG) private readonly config: AppConfig,
     private readonly ledger: LedgerService,
+    private readonly pricing: PricingService,
   ) {}
 
   // -------------------------------------------------------------------------
@@ -182,18 +176,11 @@ export class SchedulingService {
 
 
   // -------------------------------------------------------------------------
-  // P10.2 — booking
-  // -------------------------------------------------------------------------
-
-
-
-
-  // -------------------------------------------------------------------------
   // Reads for the UI
   //
   // NONE of these filter by caller. Every one is scoped by row-level security:
-  // a patient sees their own appointments, a Tunisian doctor sees the ones
-  // referred to them, and neither can widen that by changing a parameter,
+  // a referring clinic sees its own cases, a receiving doctor sees the ones
+  // sent to them, and neither can widen that by changing a parameter,
   // because there is no parameter to change. Adding `WHERE patient_id =
   // $currentUser` here would look safer and would in fact be WEAKER — it would
   // move the decision out of the database and into a line of code that a later
@@ -267,6 +254,106 @@ export class SchedulingService {
   }
 
   /**
+   * Lock a price against one doctor.
+   *
+   * QUOTING AND CHOOSING ARE ONE ACT. The doctor's earned tier is a term in the
+   * price, so there is no price to quote before a doctor is picked — and the
+   * pick is therefore what this verb records.
+   *
+   * WHY `accepting_cases` IS CHECKED HERE AND NOT ONLY IN THE UI. It is the
+   * doctor's consent to receive work. A lab holding a stale directory page, or
+   * calling the API directly, must not be able to push a case at a doctor who
+   * has switched off.
+   */
+  async quote(caseId: string, doctorId: string): Promise<CaseSummary> {
+    const current = await this.getCase(caseId);
+    // 'quoted' is legal from 'submitted' and from 'declined' — a refusal sends
+    // the case back to the lab to be re-quoted against someone else, and the
+    // new doctor's tier may differ from the one the hold was taken against.
+    if (current.status !== 'submitted' && current.status !== 'declined') {
+      throw new ConflictException(`A case in '${current.status}' cannot be quoted`);
+    }
+
+    const org = await this.db.tx(async (tx) => {
+      const res = await tx.query<{ corridor_id: string }>(
+        `SELECT corridor_id FROM identity_organisations WHERE id = $1`,
+        [current.organisationId],
+      );
+      return res.rows[0]?.corridor_id;
+    });
+    if (org === undefined) throw new NotFoundException('Case not found');
+
+    // Throws SpecialtyClosedError (409) when nobody is accepting, which is the
+    // same answer the directory would have given — the lab's page was stale.
+    const quote = await this.pricing.quoteFor({
+      corridorId: org,
+      specialty: current.specialty,
+      doctorId,
+    });
+
+    const changed = await this.db.tx(async (tx) => {
+      // Checked twice, deliberately, and for two different reasons. Here, so
+      // the lab is told WHICH thing went wrong; and again in the UPDATE's WHERE
+      // clause, so a doctor who switches off between the two cannot be handed
+      // the case regardless.
+      const accepting = await tx.query<{ ok: boolean }>(`SELECT cases_doctor_accepting($1) AS ok`, [
+        doctorId,
+      ]);
+      if (accepting.rows[0]?.ok !== true) {
+        throw new ConflictException('That doctor is not accepting cases');
+      }
+
+      const res = await tx.query(
+        `UPDATE cases_cases
+            SET doctor_id = $2,
+                quoted_amount_minor = $3,
+                quoted_currency = $4,
+                quoted_at = now(),
+                quote_expires_at = now() + ($5 || ' minutes')::interval,
+                status = 'quoted'
+          WHERE id = $1
+            AND status IN ('submitted', 'declined')
+            AND cases_doctor_accepting($2)`,
+        [caseId, doctorId, quote.amountMinor, quote.currency, this.config.CASES_QUOTE_TTL_MINUTES],
+      );
+      return res.rowCount ?? 0;
+    });
+    if (changed === 0) throw new NotFoundException('Case not found');
+
+    return this.getCase(caseId);
+  }
+
+  /**
+   * The payment gate. It reads the STORED price and never recomputes one.
+   *
+   * A price that moves between the screen and the charge is a dispute the
+   * platform loses, and re-deriving the number here is exactly how that
+   * happens: the doctor's tier or the surge rung can both change in the
+   * seconds between a quote and a card being confirmed.
+   *
+   * The expiry is in the WHERE clause rather than in a branch above it, so a
+   * quote cannot lapse between the check and the write.
+   */
+  async markPaid(caseId: string): Promise<void> {
+    const changed = await this.db.tx(async (tx) => {
+      const res = await tx.query(
+        `UPDATE cases_cases
+            SET status = 'paid'
+          WHERE id = $1 AND status = 'quoted' AND quote_expires_at > now()`,
+        [caseId],
+      );
+      return res.rowCount ?? 0;
+    });
+    if (changed === 0) {
+      throw new ConflictException('This quote has lapsed; request a new one');
+    }
+
+    // The referring side's fee. Accrued on payment rather than on submission:
+    // a case the lab abandons before paying costs it nothing.
+    await this.ledger.accrueCoordinationFee(caseId, 'source');
+  }
+
+  /**
    * Cases visible to the caller, newest first.
    *
    * THE ASSISTANT TAKES A DIFFERENT ROUTE, and has to. This query joins
@@ -307,9 +394,9 @@ export class SchedulingService {
          FROM cases_cases a
          LEFT JOIN patients_patients p ON p.id = a.patient_id
          LEFT JOIN identity_users d ON d.id = a.doctor_id
-         WHERE ($1::timestamptz IS NULL OR a.ends_at > $1)
-           AND ($2::timestamptz IS NULL OR a.starts_at < $2)
-         ORDER BY a.starts_at DESC`,
+         WHERE ($1::timestamptz IS NULL OR a.created_at >= $1)
+           AND ($2::timestamptz IS NULL OR a.created_at < $2)
+         ORDER BY a.created_at DESC`,
         [from, to],
       );
       return res.rows.map(toSummary);
@@ -317,10 +404,10 @@ export class SchedulingService {
   }
 
   /**
-   * One appointment, with its linked studies. 404 when not visible.
+   * One case, with its linked studies. 404 when not visible.
    *
    * An assistant gets the agenda projection and NO study ids: the linkage
-   * table would return nothing for them anyway (`app_can_see_appointment`), and
+   * table would return nothing for them anyway (`app_can_see_case`), and
    * asking would imply they were meant to have some.
    */
   async getCase(caseId: string): Promise<CaseSummary> {
@@ -349,10 +436,15 @@ export class SchedulingService {
 
     return this.db.tx(async (tx) => {
       const res = await tx.query<CaseRow>(
-        `SELECT ${CASE_COLUMNS}
+        `SELECT ${CASE_COLUMNS},
+                b.age_years AS patient_age_years, b.sex AS patient_sex
          FROM cases_cases a
          LEFT JOIN patients_patients p ON p.id = a.patient_id
          LEFT JOIN identity_users d ON d.id = a.doctor_id
+         -- ON true, and LEFT: cases_patient_brief returns no row for the lab
+         -- side, and an inner join would drop the whole case rather than the
+         -- projection. The lab reads the patient record directly anyway.
+         LEFT JOIN LATERAL cases_patient_brief(a.id) b ON true
          WHERE a.id = $1`,
         [caseId],
       );
@@ -369,39 +461,6 @@ export class SchedulingService {
     });
   }
 
-  /**
-   * Verified Tunisian doctors, for the patient's choice of referral.
-   *
-   * `verified_at IS NOT NULL` is not cosmetic. The decisions file records that
-   * a Tunisian doctor's access is a restricted transfer under Chapter V, and
-   * that verified_at must not be set without the transfer safeguards in place.
-   * Filtering on it here means an unverified doctor cannot be selected, so no
-   * imaging can be routed to one.
-   */
-  async listDoctors(): Promise<DoctorSummary[]> {
-    return this.db.tx(async (tx) => {
-      const res = await tx.query<{
-        id: string;
-        full_name: string;
-        specialty: string | null;
-        clinic_name: string | null;
-      }>(
-        `SELECT u.id, u.full_name, p.specialty, p.clinic_name
-         FROM identity_users u
-         JOIN identity_doctor_profiles p ON p.user_id = u.id
-         WHERE u.role = 'tunisia_doctor'
-           AND u.status = 'active'
-           AND p.verified_at IS NOT NULL
-         ORDER BY u.full_name`,
-      );
-      return res.rows.map((r) => ({
-        id: r.id,
-        displayName: r.full_name,
-        specialty: r.specialty,
-        city: r.clinic_name,
-      }));
-    });
-  }
 
 
 
@@ -423,20 +482,19 @@ export class SchedulingService {
    * is a signal to send the case elsewhere, a cancellation is their own
    * withdrawal — and because they accrue differently.
    *
-   * The exclusion constraint ignores `declined` as well as `cancelled`, so a
-   * refusal puts the slot back in circulation rather than holding it forever.
+   * A declined case can be quoted again, which is what makes a refusal cheap:
+   * the lab picks another doctor and is re-quoted at that doctor's tier.
    */
   /**
-   * The receiving doctor accepts the referral.
+   * The receiving doctor accepts the case.
    *
    * This lived in the billing module until migration 0021, because accepting
    * used to CAPTURE the patient's card and the code that moved money owned the
    * transition. There is no card and no patient, so acceptance is what it
-   * always actually was: a scheduling decision by the doctor who will do the
-   * read.
+   * always actually was: a decision by the doctor who will do the read.
    *
    * The status guard is what makes it idempotent — a second accept matches no
-   * row, and an accept on a cancelled appointment does not resurrect it.
+   * row, and an accept on a cancelled case does not resurrect it.
    */
   async accept(caseId: string): Promise<void> {
     const accepted = await this.db.tx(async (tx) => {
@@ -516,27 +574,18 @@ export class SchedulingService {
   }
 
   // -------------------------------------------------------------------------
-  // Running the diary — the verbs a practice needs and the referral flow never
-  // did. Every one of these leans on RLS for "may this caller touch this row":
-  // there is no ownership check here, and `rowCount === 0` is the answer to
-  // both "no such appointment" and "not yours", which §6 requires be
+  // Closing a case out. Every verb below leans on RLS for "may this caller
+  // touch this row": there is no ownership check here, and `rowCount === 0` is
+  // the answer to both "no such case" and "not yours", which §6 requires be
   // indistinguishable.
   // -------------------------------------------------------------------------
 
-
-  /**
-   * The visit happened.
-   *
-   * Only from `confirmed`, and only once the appointment has actually started —
-   * marking tomorrow's consultation complete is a data-entry slip, not a
-   * workflow, and allowing it makes the no-show statistics meaningless.
-   */
   /**
    * The doctor's answer exists. Only from `accepted`: answering a case nobody
    * accepted would skip the moment imaging unlocks, so the guard is the state
-   * rather than a clock — there is no appointment time left to have passed.
+   * and not a clock.
    */
-  async markCompleted(caseId: string): Promise<void> {
+  async markAnswered(caseId: string): Promise<void> {
     await this.transition(caseId, 'answered', "status = 'accepted'");
     await this.db.tx(async (tx) => {
       await tx.query(`UPDATE cases_cases SET answered_at = now() WHERE id = $1`, [caseId]);
@@ -545,12 +594,12 @@ export class SchedulingService {
 
 
   /**
-   * The practice cancels, with a reason.
+   * The receiving side withdraws, with a reason.
    *
-   * Separate from `cancel()` (the patient changing their mind) and from
-   * `decline()` (refusing a referral) because the reason is the point: a
-   * patient told only "cancelled" cannot tell a clinic closure from their own
-   * booking having lapsed.
+   * Separate from `cancel()` (the lab withdrawing its own case) and from
+   * `decline()` (refusing one before accepting it) because the reason is the
+   * point: a lab told only "cancelled" cannot tell a clinic closure from its
+   * own request having lapsed.
    */
   async cancelAsDoctor(caseId: string, reason?: string): Promise<void> {
     // Read BEFORE the write. Cancelling ends this doctor's access to the case,

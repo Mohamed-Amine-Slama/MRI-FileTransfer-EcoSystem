@@ -51,7 +51,7 @@ export class LedgerService {
    * reading first: a read-then-write would still race, and billing a clinic
    * twice for one referral has to be impossible rather than unlikely.
    */
-  async accrueCoordinationFee(appointmentId: string, side: EndpointSide): Promise<string | null> {
+  async accrueCoordinationFee(caseId: string, side: EndpointSide): Promise<string | null> {
     return this.db.tx(async (tx) => {
       // Which organisation owes: the referring doctor's on the source side, the
       // receiving doctor's on the destination side.
@@ -63,7 +63,7 @@ export class LedgerService {
       // rows and made every referral free, silently.
       const org = await tx.query<{ organisation_id: string; corridor_id: string }>(
         'SELECT organisation_id, corridor_id FROM billing_owing_organisation($1, $2)',
-        [appointmentId, side],
+        [caseId, side],
       );
       const organisation = org.rows[0];
       if (organisation === undefined) return null;
@@ -82,7 +82,7 @@ export class LedgerService {
          VALUES ($1, 'coordination_fee', $2, $3, $4)
          ON CONFLICT DO NOTHING
          RETURNING id`,
-        [organisation.organisation_id, appointmentId, row.amount_minor, row.currency],
+        [organisation.organisation_id, caseId, row.amount_minor, row.currency],
       );
       return inserted.rows[0]?.id ?? null;
     });

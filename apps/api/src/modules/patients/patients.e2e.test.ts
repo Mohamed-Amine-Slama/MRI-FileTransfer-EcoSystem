@@ -246,7 +246,7 @@ describe('P5.1 patients over HTTP', () => {
  * service directly, below the controller entirely. A route can therefore be
  * declared for the wrong roles and every test still passes. That is exactly how
  * `POST /appointments` came to advertise the referring side while
- * `scheduling_appointments` had no INSERT policy for it (migration 0014), and
+ * `cases_cases` (then `scheduling_appointments`) had no INSERT policy for it (migration 0014), and
  * how `POST /patients` kept refusing the receiving side after 0014 gave them
  * one.
  *

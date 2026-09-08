@@ -260,7 +260,7 @@ describe('recording a specialty', () => {
   it('leaves the licensure record completely alone', async () => {
     // THE POINT OF PUTTING IT ON THE MEMBERSHIP. `identity_doctor_profiles`
     // requires a licence number and carries `verified_at`, which is the ops
-    // decision `SchedulingService.listDoctors` filters on. If a hospital naming
+    // decision `DirectoryService.listAcceptingDoctors` filters on. If a hospital naming
     // a department could write there, a hospital could manufacture a clinician
     // who looks verified.
     const { orgId, clinician } = await hospital();

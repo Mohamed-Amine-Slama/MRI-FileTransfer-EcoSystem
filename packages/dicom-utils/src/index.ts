@@ -141,6 +141,14 @@ export interface DicomHeader {
    * against the chosen record can be surfaced for human review.
    */
   patientIdInFile: string | undefined;
+  /**
+   * BurnedInAnnotation (0028,0301) — 'YES', 'NO', or absent.
+   *
+   * Whether the patient's identity is drawn into the PIXELS, where no amount
+   * of tag stripping reaches it. Absent is common and is NOT the same as 'NO':
+   * see the burned-in gate in the imaging module for how the two differ.
+   */
+  burnedInAnnotation: string | undefined;
   transferSyntaxUID: string | undefined;
   isLossy: boolean;
 }
@@ -152,6 +160,7 @@ const TAG = {
   studyDate: 'x00080020',
   modality: 'x00080060',
   patientId: 'x00100020',
+  burnedInAnnotation: 'x00280301',
   studyInstanceUID: 'x0020000d',
   seriesInstanceUID: 'x0020000e',
 } as const;
@@ -224,6 +233,7 @@ export function readHeader(buffer: Uint8Array): DicomHeader {
     modality: (modality as string).trim(),
     studyDate: emptyToUndefined(dataSet.string(TAG.studyDate)),
     patientIdInFile: emptyToUndefined(dataSet.string(TAG.patientId)),
+    burnedInAnnotation: emptyToUndefined(dataSet.string(TAG.burnedInAnnotation)),
     transferSyntaxUID,
     isLossy: isLossyTransferSyntax(transferSyntaxUID),
   };
