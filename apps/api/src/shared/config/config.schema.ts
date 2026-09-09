@@ -152,6 +152,19 @@ export const configSchema = z.object({
    * requires anything a legal answer might later move to be configuration
    * rather than a constant, and the refund window is exactly that.
    */
+  /**
+   * How long a de-identified twin outlives the case that needed it.
+   *
+   * The ORIGINAL is the record and the twin is reproducible from it, so this
+   * bounds duplicate storage to the working set rather than the archive.
+   *
+   * ⚠ PLACEHOLDER. Blocking item L5 — medical records retention in both
+   * jurisdictions — is unanswered, so this is a number chosen to be safe, not
+   * one anybody has agreed to. It is config precisely so the legal answer can
+   * be applied without a migration.
+   */
+  IMAGING_TWIN_RETENTION_DAYS: intFromEnv('IMAGING_TWIN_RETENTION_DAYS', 1, 3650).prefault('90'),
+
   CASES_ANSWER_WINDOW_HOURS: intFromEnv('CASES_ANSWER_WINDOW_HOURS', 1, 720).prefault('72'),
   // Dedicated key for URL signing. Separate from any session secret so the two
   // can be rotated independently — rotating session keys must not silently

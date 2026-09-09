@@ -109,7 +109,14 @@ export type CreatePatientResult =
 
 export interface Study {
   id: string;
+  /**
+   * The uid THIS caller may address — the twin's for a receiving doctor, the
+   * original's for the lab. The viewer link is built from it, so it is not
+   * interchangeable between roles.
+   */
   studyInstanceUid: string;
+  /** 'uploading' | 'processing' | 'ready' | 'quarantined' | 'failed'. */
+  status: string;
   description: string | null;
   studyDate: string | null;
   modality: string;

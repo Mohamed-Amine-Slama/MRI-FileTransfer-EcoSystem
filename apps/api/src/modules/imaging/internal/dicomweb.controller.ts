@@ -95,6 +95,31 @@ export class DicomWebController {
     @Res() res: Response,
   ): Promise<void> {
     const study = await this.access.authoriseStudyAccess(studyUid, 'thumbnail');
+    const ctx = requireContext();
+
+    // WHY THE DOCTOR'S PREVIEW IS RENDERED RATHER THAN FETCHED.
+    //
+    // Ingest writes thumbnails keyed by the ORIGINAL SOP UID. A doctor
+    // addresses the twin's, which is a different value, so the stored blob is
+    // unreachable to them — by design, not by accident. Mapping the two UIDs
+    // would mean matching instance order across two Orthanc resources, which
+    // is exactly the kind of assumption that silently pairs the wrong slice
+    // with the wrong preview.
+    //
+    // So the twin renders its own. It is the copy the doctor is entitled to,
+    // and the only one whose pixels are guaranteed to sit behind a
+    // de-identified header. Burned-in pixel text is handled upstream: a study
+    // that might carry it never reaches 'ready' at all.
+    if (ctx.role === 'tunisia_doctor') {
+      const preview = await this.orthanc.instancePreview(sopUid);
+      if (preview === null) throw new NotFoundException('Thumbnail not available');
+
+      res.status(200);
+      res.setHeader('content-type', preview.contentType);
+      res.setHeader('cache-control', 'private, max-age=300, no-transform');
+      res.end(Buffer.from(preview.bytes));
+      return;
+    }
 
     const key = derivedThumbnailKey({
       patientId: study.patientId,

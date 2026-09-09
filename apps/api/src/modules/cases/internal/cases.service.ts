@@ -1,4 +1,5 @@
 import { ConflictException, Inject, Injectable, Logger, NotFoundException } from '@nestjs/common';
+import { caseStatusSchema, isTerminalStatus } from '@mir/contracts';
 import { APP_CONFIG } from '../../../shared/config/config.module';
 import type { AppConfig } from '../../../shared/config/config.schema';
 import { requireContext } from '../../../shared/context/request-context';
@@ -537,7 +538,7 @@ export class CasesService {
     const changed = await this.db.tx(async (tx) => {
       const res = await tx.query<{ patient_id: string; doctor_id: string }>(
         `UPDATE cases_cases
-         SET status = 'declined'
+         SET status = 'declined', terminal_at = now()
          WHERE id = $1 AND status = 'paid'
          RETURNING patient_id, doctor_id`,
         [caseId],
@@ -563,7 +564,7 @@ export class CasesService {
     const changed = await this.db.tx(async (tx) => {
       const res = await tx.query(
         `UPDATE cases_cases
-         SET status = 'cancelled'
+         SET status = 'cancelled', terminal_at = now()
          WHERE id = $1 AND status <> 'cancelled'`,
         [caseId],
       );
@@ -609,7 +610,7 @@ export class CasesService {
     const changed = await this.db.tx(async (tx) => {
       const res = await tx.query(
         `UPDATE cases_cases
-         SET status = 'cancelled', cancel_reason = $2
+         SET status = 'cancelled', cancel_reason = $2, terminal_at = now()
          WHERE id = $1 AND status <> 'cancelled'`,
         [caseId, reason ?? null],
       );
@@ -658,9 +659,28 @@ export class CasesService {
     to: string,
     fromCondition: string,
   ): Promise<void> {
+    // `terminal_at` is stamped for any state the contract calls terminal.
+    //
+    // This helper covers the generic moves, including the ops override. The
+    // four verbs that write their own UPDATE — decline, both cancels, expire —
+    // stamp it inline, because they set other columns in the same statement.
+    // That split is a standing hazard: a fifth such verb would forget. The
+    // lifecycle test asserting the stamp is what keeps them honest, which is
+    // why it is written against the observable column rather than against this
+    // code path.
+    //
+    // A missed stamp fails SAFE. The twin reap treats NULL as "never reap", so
+    // the cost is wasted storage, never a twin deleted while a case needs it.
+    //
+    // `answered` is deliberately not terminal: it still moves to `closed`.
+    const parsed = caseStatusSchema.safeParse(to);
+    const terminal = parsed.success && isTerminalStatus(parsed.data);
+
     const changed = await this.db.tx(async (tx) => {
       const res = await tx.query(
-        `UPDATE cases_cases SET status = $2 WHERE id = $1 AND ${fromCondition}`,
+        `UPDATE cases_cases
+         SET status = $2${terminal ? ', terminal_at = now()' : ''}
+         WHERE id = $1 AND ${fromCondition}`,
         [caseId, to],
       );
       return res.rowCount ?? 0;
@@ -718,7 +738,7 @@ export class CasesService {
     return this.db.tx(async (tx) => {
       const res = await tx.query(
         `UPDATE cases_cases
-         SET status = 'expired'
+         SET status = 'expired', terminal_at = now()
          WHERE status = 'accepted' AND answer_due_at < now()`,
       );
       return res.rowCount ?? 0;

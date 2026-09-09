@@ -249,3 +249,118 @@ whichever regulator L2 identifies.
 is a question for counsel, not for this file. The technical mitigation is that
 the ladder is bounded and published rather than continuous and opaque; that is
 not the same as an answer.
+
+---
+
+# Revision — 2026-09-09: identifier suppression
+
+Sub-project 2. Recorded as a revision per this file's own rule. D1 and D5 are
+untouched.
+
+The platform's stated first rule — a Tunisian doctor never sees a patient
+identifier — was not enforced. It was broken in five places, three of them in
+imaging and none of them previously examined. These are the decisions taken
+while closing them.
+
+## S1 — What the doctor sees instead of an identity
+
+**Decision: the case reference, the patient's exact age capped at 90, and sex.**
+
+Rationale: age and sex change how imaging is read, so stripping them degrades
+the clinical product rather than protecting anyone. A birth date is an
+identifier; an age is a clinical fact. The cap is the Safe Harbor convention —
+above 89, an age begins to identify individuals in a small population.
+
+Consequences:
+- `cases_patient_brief()` (migration 0028) is the only route to it.
+- `PatientAge` is SET in the twin's header rather than stripped, so the doctor
+  sees the age at the time of the scan, which is what the DICOM tag means.
+
+## S2 — A de-identified twin, not a read-time filter
+
+**Decision: build a second, anonymised copy of every study at ingest. The
+receiving doctor reads only the twin.**
+
+A read-time filter in the proxy was cheaper — no duplicate storage, no UID
+remapping, and a policy change applies instantly. It was rejected: it leaves the
+identifiers one proxy bug away from a doctor, and §8 of the requirements calls
+this a zero-tolerance surface. With a twin, the bytes reachable from a doctor's
+routes do not contain a name, so a mistake in the proxy is a broken image rather
+than a disclosure.
+
+Consequences:
+- Imaging storage roughly doubles. S4 bounds it.
+- The twin gets fresh UIDs. Not stylistic: reusing the originals would make
+  Orthanc dedupe the twin into the original.
+- A doctor addresses the twin's UIDs end to end and never learns the original's,
+  which is itself a linkable identifier.
+- Orthanc performs the anonymisation (ADR-3: do not hand-roll DICOM
+  manipulation). Verified against Orthanc 24.10.1.
+
+**Known deviation from PS3.15 Annex E:** `StudyDate` is retained. How recent a
+scan is changes how it is read, and the patient is already pseudonymous behind a
+fresh UID. **This is for counsel, alongside L9.**
+
+`StudyDescription` and `SeriesDescription` are NOT retained — they are
+operator-typed free text and routinely carry the patient's name. Clinical
+context reaches the doctor as the case's `reason`, authored in the platform.
+
+## S3 — Burned-in text: trust the tag, quarantine on doubt
+
+**Decision: read `BurnedInAnnotation` (0028,0301). `YES` quarantines. Absent, or
+any value outside the DICOM vocabulary, quarantines on US, XC, OT and SC.**
+
+Identifiers are not only in the header — a scanned film or an ultrasound capture
+can carry the name in the PIXELS, where the twin's tag stripping does nothing.
+
+OCR at ingest was considered and rejected: cost and latency on studies already
+measured in hundreds of megabytes over a constrained link, an ML dependency on a
+zero-tolerance path, and false positives on anatomical labels that would refuse
+real clinical work. Lab attestation was rejected as a contractual control rather
+than a technical one.
+
+**Accepted cost:** a mislabelled CT slips through. This is small — CT and MR off
+a scanner effectively never burn text in — and it is the reason the gate fails
+closed on the modalities where it actually happens.
+
+## S4 — Twins are reaped after their case ends
+
+**Decision: delete a twin `IMAGING_TWIN_RETENTION_DAYS` after every case linked
+to its study has reached a terminal state. Default 90.**
+
+The original is the record and the twin is reproducible from it, so this bounds
+duplicate storage to the working set rather than the archive.
+
+**The number is a placeholder pending L5** and is config, not a constant, so
+counsel's answer applies without a migration.
+
+Consequences:
+- `cases_cases.terminal_at` (migration 0030) — nothing previously recorded when
+  a case ended. `answered` is not terminal; it still moves to `closed`.
+- A missing stamp fails safe: NULL means never reap.
+- A study never referred to anyone keeps its twin. No case ended, so the window
+  never started.
+
+## S5 — The queue the stack always specified
+
+**Decision: BullMQ, introduced here.**
+
+BUILD_SPEC §4 has listed "Redis + BullMQ" since P0 and nothing used it.
+Anonymisation is slow, fails against a service outside the process, and — unlike
+the thumbnail work ingest already does best-effort — cannot fail quietly: under
+S2 a twin that never built is a case no doctor can open.
+
+The build job runs under the **uploading doctor's** identity, not a privileged
+connection. `studies_uploader_insert` already requires the uploader to be the
+patient's creator, so no policy is bypassed. A background job that cannot run
+under a real identity usually means the model is wrong; this one can.
+
+## What this does NOT do
+
+- It does not change what a doctor may *do* with a study, only what they can see
+  about whose it is.
+- It does not touch consent. A doctor with no consent record naming them still
+  sees nothing, at both layers.
+- It does not de-identify for research or model training. That is a separate
+  consent basis, which BUILD_SPEC already notes under future work, and no
+  such pipeline exists.

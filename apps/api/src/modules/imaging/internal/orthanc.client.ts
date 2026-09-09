@@ -63,6 +63,34 @@ export interface OrthancClient {
    * 404. The twin is the only thing that knows its own instance UIDs.
    */
   listInstances(studyInstanceUid: string): Promise<StudyInstanceRef[]>;
+  /**
+   * A small rendered preview of one instance, by SOP UID.
+   *
+   * Used only for the destination side. Thumbnails generated at ingest are
+   * stored under the ORIGINAL SOP UID, and a doctor addresses the twin's — a
+   * different value — so the stored blob is unreachable to them by design.
+   * Rather than map the two, the preview is rendered from the twin, which is
+   * the copy the doctor is entitled to and the only one whose pixels are
+   * guaranteed to sit behind a de-identified header.
+   *
+   * Null when Orthanc has no such instance, or cannot render it (a compressed
+   * transfer syntax it has no codec for). The caller must be able to tell
+   * "no preview" from "a preview of nothing".
+   */
+  instancePreview(sopInstanceUid: string): Promise<InstancePreview | null>;
+  /**
+   * Delete a study from Orthanc by its resource id.
+   *
+   * Only ever called with a TWIN's id. The original is immutable and is the
+   * source of record (ADR-4); deleting one through this path would be a data
+   * loss, not a cleanup.
+   */
+  deleteStudy(orthancStudyId: string): Promise<void>;
+}
+
+export interface InstancePreview {
+  bytes: Uint8Array;
+  contentType: string;
 }
 
 export interface StudyInstanceRef {
@@ -108,6 +136,19 @@ export class InMemoryOrthancClient implements OrthancClient {
 
   async listInstances(studyInstanceUid: string): Promise<StudyInstanceRef[]> {
     return this.instancesByStudy.get(studyInstanceUid) ?? [];
+  }
+
+  /** Previews keyed by SOP uid, for tests that exercise the viewer. */
+  readonly previewsBySop = new Map<string, InstancePreview>();
+
+  async instancePreview(sopInstanceUid: string): Promise<InstancePreview | null> {
+    return this.previewsBySop.get(sopInstanceUid) ?? null;
+  }
+
+  readonly deleted: string[] = [];
+
+  async deleteStudy(orthancStudyId: string): Promise<void> {
+    this.deleted.push(orthancStudyId);
   }
 
   /** Answers with a deterministic id so tests need no Orthanc container. */

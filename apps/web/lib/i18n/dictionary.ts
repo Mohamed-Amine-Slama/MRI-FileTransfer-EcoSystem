@@ -215,6 +215,8 @@ const ar = {
   caseStatusQuoted: 'تم التسعير',
   caseStatusPaid: 'مدفوعة',
   casePatientAgeYears: '{age} سنة',
+  studyHeldLabel: 'قيد المراجعة',
+  studyQuarantinedBody: 'قد تحتوي إحدى الصور على اسم المريض داخل الصورة نفسها. أعد تصديرها من الجهاز بدون تعليقات مكتوبة ثم ارفعها من جديد.',
   sexMale: 'ذكر',
   sexFemale: 'أنثى',
   sexOther: 'آخر',
@@ -791,6 +793,8 @@ const fr: Dictionary = {
   caseStatusQuoted: 'Devis émis',
   caseStatusPaid: 'Payé',
   casePatientAgeYears: '{age} ans',
+  studyHeldLabel: 'En vérification',
+  studyQuarantinedBody: "Un examen peut contenir le nom du patient incrusté dans l'image. Réexportez-le depuis la console sans annotations, puis téléversez-le à nouveau.",
   sexMale: 'Homme',
   sexFemale: 'Femme',
   sexOther: 'Autre',
@@ -1392,6 +1396,10 @@ const en: Dictionary = {
   caseStatusQuoted: 'Quoted',
   caseStatusPaid: 'Paid',
   casePatientAgeYears: '{age} years',
+  studyHeldLabel: 'Held for review',
+  studyQuarantinedBody:
+    "A study may carry the patient's name burned into the image itself. " +
+    'Re-export it from the console without annotations, then upload it again.',
   sexMale: 'Male',
   sexFemale: 'Female',
   sexOther: 'Other',

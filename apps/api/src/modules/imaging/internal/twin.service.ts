@@ -2,6 +2,7 @@ import { Inject, Injectable, Logger } from '@nestjs/common';
 import type { BuildTwinJob } from '../../../shared/jobs/queue.tokens';
 import { DatabaseService } from '../../../shared/db/database.service';
 import { ORTHANC_CLIENT, type OrthancClient } from './orthanc.client';
+import { runWithContext, systemContext } from '../../../shared/context/request-context';
 
 /**
  * The de-identified twin — spec 2026-09-08, decision S2.
@@ -179,4 +180,49 @@ export class TwinService {
       );
     });
   }
+}
+
+/**
+ * Delete twins whose every case has been finished for longer than the window.
+ *
+ * WHY THIS IS SAFE TO DO AT ALL. The twin is DERIVED. The original bytes are
+ * immutable and untouched (ADR-4), so a reaped twin is rebuildable by
+ * re-running the builder. Nothing clinical is lost; only the duplicate goes.
+ *
+ * WHY IT RUNS AS `admin` AND STILL READS NOTHING. The sweep spans every
+ * organisation, so it cannot run as any one doctor. `admin` deliberately has no
+ * read on patient imaging, so the two definer functions from migration 0030 are
+ * the whole of its reach: they return a study id and an Orthanc handle for rows
+ * that are already finished, and nothing about a patient.
+ */
+export async function reapTwins(
+  db: DatabaseService,
+  orthanc: OrthancClient,
+  retentionDays: number,
+  now: Date = new Date(),
+): Promise<number> {
+  const cutoff = new Date(now.getTime() - retentionDays * 24 * 60 * 60 * 1000);
+
+  return runWithContext(systemContext('twin-reaper'), async () => {
+    const due = await db.tx(async (tx) => {
+      const res = await tx.query<{ study_id: string; twin_orthanc_id: string }>(
+        'SELECT study_id, twin_orthanc_id FROM imaging_reapable_twins($1)',
+        [cutoff],
+      );
+      return res.rows;
+    });
+
+    let reaped = 0;
+    for (const row of due) {
+      // Orthanc first, then the row. The reverse would forget the handle and
+      // leave the copy in Orthanc with nothing pointing at it — storage that
+      // nobody can find to delete.
+      await orthanc.deleteStudy(row.twin_orthanc_id);
+      await db.tx(async (tx) => {
+        await tx.query('SELECT imaging_clear_twin($1)', [row.study_id]);
+      });
+      reaped += 1;
+    }
+    return reaped;
+  });
 }
