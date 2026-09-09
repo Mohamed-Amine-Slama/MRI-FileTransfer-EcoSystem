@@ -38,11 +38,17 @@
  * Scripts whose letters change shape according to their neighbours. Splitting
  * inside a run of any of these breaks the word.
  *
- * Arabic is the one this page ships. The others are here because the failure
- * is identical and silent, and someone adding a locale should not have to
- * rediscover it.
+ * Arabic is the one this page ships. The ranges cover the Arabic blocks and
+ * their presentation forms, plus Syriac, N'Ko and Mongolian — the other
+ * cursive-joining scripts — because the failure is identical and silent, and
+ * someone adding a locale should not have to rediscover it.
+ *
+ * Written as code points rather than as literal characters. Several of these
+ * blocks contain invisible formatting marks, and a literal class is a line
+ * nobody can review, diff, or safely retype.
  */
-const JOINING_SCRIPTS = /[؀-ۿ܀-ݏݐ-ݿހ-޿ࢠ-ࣿﭐ-﷿ﹰ-﻿᠀-᢯]/;
+const JOINING_SCRIPTS =
+  /[\u0600-\u06FF\u0700-\u074F\u0750-\u077F\u07C0-\u07FF\u0870-\u089F\u08A0-\u08FF\u1800-\u18AF\uFB50-\uFDFF\uFE70-\uFEFF]/;
 
 export type SplitGranularity = 'grapheme' | 'word';
 

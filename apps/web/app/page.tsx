@@ -15,12 +15,12 @@ import {
 } from 'lucide-react';
 import type { Role } from '@mir/contracts';
 import { api, type CaseRecord, type AuditEvent } from '../lib/api/endpoints';
-import { useT } from '../lib/i18n/provider';
+import { useLocale, useT } from '../lib/i18n/provider';
 import type { Dictionary } from '../lib/i18n/dictionary';
 import { sideForRole } from '../lib/corridor/registry';
 import { useSession } from '../lib/session/session';
 import { CaseStatusBadge } from '../components/case/CaseStatusBadge';
-import { Landing } from '../components/marketing/Landing';
+import { Corridor } from '../components/corridor/Corridor';
 import {
   Card,
   EmptyState,
@@ -50,6 +50,7 @@ import {
  */
 export default function Home(): React.JSX.Element {
   const t = useT();
+  const { locale } = useLocale();
   const { status, role } = useSession();
 
   /*
@@ -62,7 +63,15 @@ export default function Home(): React.JSX.Element {
    * URL are, and a spinner on the front door is a worse first impression than a
    * page that is briefly replaced.
    */
-  if (status !== 'authenticated') return <Landing />;
+  if (status !== 'authenticated') {
+    /*
+     * The landing page renders in the locale THIS BROWSER has chosen, and
+     * links out to the canonical per-locale routes. `/ar`, `/fr` and `/en` are
+     * the shareable, prerendered, hreflang-carrying versions (§10); `/` is the
+     * front door, and which page it is depends on who is standing at it.
+     */
+    return <Corridor locale={locale} hrefFor={(code) => `/${code}`} />;
+  }
 
   return (
     <Main wide>

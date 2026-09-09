@@ -3,7 +3,7 @@
 import { usePathname } from 'next/navigation';
 import type { ReactNode } from 'react';
 import { DirectionProvider } from '@radix-ui/react-direction';
-import { UI_LOCALE_DIRECTION } from '@mir/contracts';
+import { UI_LOCALES, UI_LOCALE_DIRECTION } from '@mir/contracts';
 import { useLocale } from '../lib/i18n/provider';
 import { useSession } from '../lib/session/session';
 import { AppChrome } from './shell/AppChrome';
@@ -49,6 +49,30 @@ export function isPublicPath(pathname: string): boolean {
   return PUBLIC_PREFIXES.some((p) => pathname === p || pathname.startsWith(`${p}/`));
 }
 
+/**
+ * The landing page, which supplies ITS OWN chrome.
+ *
+ * A third case, and it needs to be one. PublicChrome is a sticky card-coloured
+ * header with a skip link, a footer, and the marketing scope — correct for
+ * /pricing and /login, and wrong for a page whose header is a radiology
+ * workstation's corner overlay and whose footer carries a language switcher, a
+ * reduce-motion switch and a legal entity. Wrapping the landing page in it
+ * would put two headers, two footers and two skip links on the document.
+ *
+ * So this route renders bare and `components/corridor/Corridor.tsx` owns the
+ * whole surface: one `.marketing` element, one `main` landmark, one skip link
+ * — the invariants `e2e/public-surface.spec.ts` asserts, met by a different
+ * component.
+ *
+ * The locale routes are matched against the shared locale table rather than a
+ * literal list, so adding a UI locale cannot leave `/xx` rendering the landing
+ * page inside the application's chrome.
+ */
+export function isCorridorPath(pathname: string, authenticated: boolean): boolean {
+  if (UI_LOCALES.some((locale) => pathname === `/${locale}`)) return true;
+  return pathname === '/' && !authenticated;
+}
+
 export function AppShell({ children }: { children: ReactNode }): React.JSX.Element {
   const { locale } = useLocale();
   const { status, role } = useSession();
@@ -57,11 +81,15 @@ export function AppShell({ children }: { children: ReactNode }): React.JSX.Eleme
   // While the session is still resolving, the landing page is the safe guess
   // for `/`: it renders for everyone, whereas the dashboard would flash a
   // signed-out state at a signed-in user before correcting itself.
-  const publicSurface = isPublicPath(pathname) || (pathname === '/' && status !== 'authenticated');
+  const authenticated = status === 'authenticated';
+  const corridor = isCorridorPath(pathname, authenticated);
+  const publicSurface = isPublicPath(pathname);
 
   return (
     <DirectionProvider dir={UI_LOCALE_DIRECTION[locale]}>
-      {publicSurface ? (
+      {corridor ? (
+        children
+      ) : publicSurface ? (
         <PublicChrome>{children}</PublicChrome>
       ) : (
         <AppChrome role={role}>{children}</AppChrome>
