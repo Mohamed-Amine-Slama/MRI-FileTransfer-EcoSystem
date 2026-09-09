@@ -175,44 +175,98 @@ test.describe('tiering (§6.3, §12 L3)', () => {
 // ---------------------------------------------------------------------------
 
 test.describe('focal reveals (§3.5, §6.6, §12 L5)', () => {
-  test('every scene resolves to full opacity and zero blur once reached', async ({ page }) => {
+  test('every reveal on the page resolves to full opacity and zero blur', async ({ page }) => {
     /*
      * The guard this page needed and did not have.
      *
      * `FocalReveal` animates FROM `autoAlpha: 0` and a blur, so a trigger that
-     * never fires leaves its scene permanently invisible — and nothing else
+     * never fires leaves its content permanently invisible — and nothing else
      * catches it. Tier C runs no timelines, so the no-JS and Tier C tests pass
      * while the page is broken; the scene ids are all present, so the
      * structural tests pass too. Scene 09 shipped as an empty black band
      * exactly once, because `content-visibility: auto` had collapsed the
      * sections above it and every trigger below the fold was positioned
-     * against the wrong page height.
+     * against a page height that was never real.
      *
-     * This asserts the thing that actually matters: after you have scrolled to
-     * a scene, you can see it.
+     * Each PLANE is scrolled to, not each scene. A scene can be taller than
+     * the viewport — the corridor's map plate alone is most of one — so
+     * bringing a section into view says nothing about the planes still below
+     * its fold, whose reveals are correctly still waiting.
+     */
+    await page.goto('/ar?tier=A');
+    await page.waitForTimeout(800);
+
+    const planes = page.locator('[data-plane]');
+    const total = await planes.count();
+    // If this ever finds nothing, the selector changed and the test is vacuous.
+    expect(total).toBeGreaterThan(15);
+
+    for (let i = 0; i < total; i++) {
+      const plane = planes.nth(i);
+      await plane.scrollIntoViewIfNeeded();
+
+      /*
+       * Polled, not slept on. The reveal is 620 ms, but this suite runs many
+       * pages at once and a fixed wait measures the machine rather than the
+       * page — the difference between "the trigger never fired" and "the
+       * trigger fired late" is the whole point of the test, and a sleep
+       * conflates them.
+       */
+      await expect
+        .poll(
+          () =>
+            plane.evaluate((el) => {
+              const cs = getComputedStyle(el);
+              return {
+                opacity: Number(cs.opacity),
+                blurred: /blur\((?!0px)/.test(cs.filter),
+                hidden: cs.visibility === 'hidden',
+              };
+            }),
+          { message: `plane ${i} never resolved`, timeout: 10_000 },
+        )
+        .toEqual({ opacity: 1, blurred: false, hidden: false });
+    }
+  });
+
+  test('an in-page anchor arrives at its scene and takes focus with it', async ({ page }) => {
+    /*
+     * The chrome nav and the hero's second CTA are in-page anchors, and a
+     * native jump would move the document without telling Lenis, which then
+     * animates back to the position it still believes is current. The click
+     * handler in lib/site/scroll.ts routes them through Lenis instead, and
+     * moves focus so the next Tab does not start again from the top.
      */
     await page.goto('/ar?tier=A');
 
-    for (const id of SCENES) {
-      const scene = page.locator(`#${id}`);
-      await scene.scrollIntoViewIfNeeded();
-      // The reveal is 620 ms; give it room on a loaded machine.
-      await page.waitForTimeout(1200);
+    /*
+     * Wait for the scroll system rather than for a stopwatch. It is started
+     * from an idle callback so the animation runtime is fetched after LCP
+     * (§8.2), and under load "idle" can be a second or more away — a fixed
+     * delay here measures the machine, not the page.
+     */
+    await expect(page.locator('h1 [data-unit]').first()).toBeVisible({ timeout: 15_000 });
 
-      const state = await scene.evaluate((el) => {
-        const planes = [...el.querySelectorAll<HTMLElement>('[data-plane]')];
-        return planes.map((p) => {
-          const cs = getComputedStyle(p);
-          return { opacity: Number(cs.opacity), filter: cs.filter, visibility: cs.visibility };
-        });
-      });
+    await page.locator('.chrome-link[href="#security"]').first().click();
 
-      for (const [index, plane] of state.entries()) {
-        expect(plane.opacity, `#${id} plane ${index} opacity`).toBeGreaterThan(0.95);
-        expect(plane.visibility, `#${id} plane ${index} visibility`).not.toBe('hidden');
-        expect(plane.filter, `#${id} plane ${index} still blurred`).not.toMatch(/blur\((?!0px)/);
-      }
-    }
+    const security = page.locator('#security');
+    // Lenis animates over ~1.1 s; the assertion polls rather than guessing.
+    await expect(security).toBeInViewport({ ratio: 0.1, timeout: 10_000 });
+    await expect(security).toBeFocused();
+
+    /*
+     * And it stays there. A Lenis snap-back — the failure this handler exists
+     * to prevent — would drag the section out and never bring it back.
+     *
+     * Polled rather than asserted once, because there is one legitimate shift
+     * to tolerate: `ScrollTrigger.refresh()` runs when `document.fonts.ready`
+     * settles (§6.4 requires it, since Arabic and Latin have different content
+     * heights), and refreshing recomputes the pinned Scene 02 spacer, which
+     * moves everything below it by a few pixels. That is a one-time settle and
+     * it resolves; a snap-back does not.
+     */
+    await page.waitForTimeout(1500);
+    await expect(security).toBeInViewport({ ratio: 0.1, timeout: 8000 });
   });
 });
 
@@ -276,12 +330,35 @@ test.describe('consent (§Scene 05)', () => {
     const revoke = page.getByTestId('consent-revoke');
     await revoke.scrollIntoViewIfNeeded();
 
+    /*
+     * Wait for hydration before pressing anything. The toggle is a CONTROLLED
+     * checkbox, so until React has attached its handler the browser's own
+     * toggle is immediately reverted by the next render and the keystroke
+     * appears to do nothing. The thumbnails are resolved in an effect, so
+     * their presence is proof the component has mounted and its effects ran.
+     */
+    await expect(page.locator('.consent-thumb-row img').first()).toBeAttached({
+      timeout: 15_000,
+    });
+
+    /*
+     * And wait for the focal reveal to have run, which matters more than it
+     * looks. `FocalReveal` animates from `autoAlpha: 0`, and GSAP's autoAlpha
+     * sets `visibility: hidden` — an element inside a hidden subtree cannot
+     * hold focus, so `focus()` before the reveal silently does nothing and the
+     * Space keystroke goes to the document and scrolls the page instead of
+     * toggling anything. The input itself is 1px and transparent by design, so
+     * the switch's track is what "revealed" is asserted on.
+     */
+    await expect(page.locator('.consent-switch-track')).toBeVisible({ timeout: 15_000 });
+
     const thumbs = page.locator('.consent-thumbs');
     await expect(thumbs).toHaveAttribute('data-revoked', 'false');
     await expect(page.locator('.evidence')).not.toContainText('revoked_at');
 
     // Keyboard, again: this is a real checkbox and has to behave like one.
     await revoke.focus();
+    await expect(revoke).toBeFocused();
     await page.keyboard.press('Space');
 
     /*
