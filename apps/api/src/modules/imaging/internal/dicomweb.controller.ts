@@ -6,6 +6,7 @@ import { BLOB_STORE } from '../../../shared/storage/storage.module';
 import { derivedThumbnailKey, type BlobStore } from '../../../shared/storage/blob-store';
 import { OrthancHttpClient } from './orthanc.http-client';
 import { StudyAccessService } from './study-access.service';
+import { requireContext } from '../../../shared/context/request-context';
 
 /**
  * DICOMweb proxy — BUILD_SPEC P8.2.
@@ -46,6 +47,21 @@ export class DicomWebController {
     @Param('studyUid') studyUid: string,
   ): Promise<{ instances: { sopInstanceUid: string; seriesInstanceUid: string }[] }> {
     const study = await this.access.authoriseStudyAccess(studyUid, 'metadata');
+    const ctx = requireContext();
+
+    // WHY THE DOCTOR'S LIST COMES FROM ORTHANC AND THE LAB'S FROM THE DATABASE.
+    //
+    // Anonymisation reallocates every UID, so the twin's instances do not carry
+    // the SOP UIDs recorded in `imaging_instances` — those belong to the
+    // original. Serving the stored list to a doctor would hand them identifiers
+    // that resolve against nothing in the copy they are allowed to read, and
+    // every frame request would 404 for a reason that looks like an outage.
+    //
+    // The lab keeps the database list: it reads the original, the rows describe
+    // exactly that, and it stays readable when Orthanc is unavailable.
+    if (ctx.role === 'tunisia_doctor') {
+      return { instances: await this.orthanc.listInstances(study.orthancStudyUid) };
+    }
 
     const rows = await this.db.tx(async (tx) => {
       const res = await tx.query<{ sop_uid: string; series_uid: string }>(
@@ -109,8 +125,11 @@ export class DicomWebController {
   @Header('cache-control', 'no-store')
   async studyMetadata(@Param('studyUid') studyUid: string): Promise<unknown> {
     // Throws 404 (and audits the refusal) if the caller may not see it.
-    await this.access.authoriseStudyAccess(studyUid, 'metadata');
-    return this.orthanc.findStudy(studyUid);
+    // The RESOLVED uid, never the path parameter. For a doctor these differ:
+    // the parameter names the twin, and asking Orthanc for the original would
+    // return metadata carrying the patient's name.
+    const study = await this.access.authoriseStudyAccess(studyUid, 'metadata');
+    return this.orthanc.findStudy(study.orthancStudyUid);
   }
 
   /**
@@ -128,10 +147,10 @@ export class DicomWebController {
     @Param('sopUid') sopUid: string,
     @Res() res: Response,
   ): Promise<void> {
-    await this.access.authoriseStudyAccess(studyUid, 'pixel_data');
+    const study = await this.access.authoriseStudyAccess(studyUid, 'pixel_data');
 
     const upstream = await this.orthanc.retrieve(
-      `/dicom-web/studies/${encodeURIComponent(studyUid)}` +
+      `/dicom-web/studies/${encodeURIComponent(study.orthancStudyUid)}` +
         `/series/${encodeURIComponent(seriesUid)}` +
         `/instances/${encodeURIComponent(sopUid)}`,
       'multipart/related; type="application/dicom"',
@@ -180,10 +199,10 @@ export class DicomWebController {
     @Param('studyUid') studyUid: string,
     @Param('sopUid') sopUid: string,
   ): Promise<unknown> {
-    await this.access.authoriseStudyAccess(studyUid, 'metadata');
+    const study = await this.access.authoriseStudyAccess(studyUid, 'metadata');
 
     const upstream = await this.orthanc.retrieve(
-      `/dicom-web/studies/${encodeURIComponent(studyUid)}` +
+      `/dicom-web/studies/${encodeURIComponent(study.orthancStudyUid)}` +
         `/instances/${encodeURIComponent(sopUid)}/metadata`,
       'application/dicom+json',
     );
@@ -209,7 +228,7 @@ export class DicomWebController {
     @Param('frame') frame: string,
     @Res() res: Response,
   ): Promise<void> {
-    await this.access.authoriseStudyAccess(studyUid, 'pixel_data');
+    const study = await this.access.authoriseStudyAccess(studyUid, 'pixel_data');
 
     // Frame numbers are 1-based in DICOMweb. Reject anything else rather than
     // passing a caller-controlled string into the upstream URL.
@@ -218,7 +237,7 @@ export class DicomWebController {
     }
 
     const upstream = await this.orthanc.retrieve(
-      `/dicom-web/studies/${encodeURIComponent(studyUid)}` +
+      `/dicom-web/studies/${encodeURIComponent(study.orthancStudyUid)}` +
         `/instances/${encodeURIComponent(sopUid)}` +
         `/frames/${encodeURIComponent(frame)}`,
       'multipart/related; type="application/octet-stream"',

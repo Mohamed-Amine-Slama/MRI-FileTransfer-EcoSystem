@@ -58,6 +58,20 @@ let blobs: LocalBlobStore;
 let storageRoot: string;
 let uploads: UploadService;
 let ingestion: IngestionService;
+
+/**
+ * Records what ingest hands to the twin builder.
+ *
+ * Only `add` is exercised, so the cast is honest about the rest: a full BullMQ
+ * Queue in a database test would need Redis for no assertion's benefit.
+ */
+const enqueued: { name: string; data: { studyId: string; actorId: string } }[] = [];
+const queue = {
+  add: (name: string, data: { studyId: string; actorId: string }) => {
+    enqueued.push({ name, data });
+    return Promise.resolve({ id: String(enqueued.length) });
+  },
+} as unknown as import('bullmq').Queue;
 let orthanc: InMemoryOrthancClient;
 let bus: EventBus;
 
@@ -84,7 +98,7 @@ beforeAll(async () => {
   orthanc = new InMemoryOrthancClient();
   bus = new EventBus();
   uploads = new UploadService(db, blobs, config);
-  ingestion = new IngestionService(db, bus, blobs, orthanc, new ThumbnailService());
+  ingestion = new IngestionService(db, bus, blobs, orthanc, new ThumbnailService(), queue);
 }, 120_000);
 
 afterAll(async () => {
@@ -94,6 +108,7 @@ afterAll(async () => {
 });
 
 beforeEach(async () => {
+  enqueued.length = 0;
   await truncateAll(h.owner);
 });
 
@@ -494,7 +509,13 @@ describe('P7.4 server-side ingestion', () => {
     expect(studies.rowCount).toBe(1);
     const study = studies.rows[0];
     expect(study?.file_count).toBe(120);
-    expect(study?.status).toBe('ready');
+    // 'processing', not 'ready'. Sub-project 2: a study is not readable by its
+    // doctor until a de-identified twin exists, and TwinService is what
+    // releases it. Ingest's job now ends by handing it over.
+    expect(study?.status).toBe('processing');
+    expect(enqueued).toHaveLength(1);
+    expect(enqueued[0]?.name).toBe('imaging.buildTwin');
+    expect(enqueued[0]?.data.studyId).toBe(study?.id);
     expect(Number(study?.total_bytes)).toBe(
       files.reduce((sum, f) => sum + f.bytes.byteLength, 0),
     );
@@ -586,8 +607,13 @@ describe('P7.4 server-side ingestion', () => {
     if (last !== undefined) {
       await runWithContext(ctx(doctor), () => ingestion.ingestFile(last));
     }
+    // Completing the upload no longer releases the study — it hands it to the
+    // twin builder. The §17 intent is unchanged and slightly stronger: an
+    // incomplete study was never readable, and now neither is a complete one
+    // that has not been de-identified yet.
     const done = await h.owner.query<{ status: string }>('SELECT status FROM imaging_studies');
-    expect(done.rows[0]?.status).toBe('ready');
+    expect(done.rows[0]?.status).toBe('processing');
+    expect(enqueued).toHaveLength(1);
   });
 
   it('re-validates DICOM server-side and rejects a renamed non-DICOM file', async () => {

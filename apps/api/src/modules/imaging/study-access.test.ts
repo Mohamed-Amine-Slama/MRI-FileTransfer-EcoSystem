@@ -20,6 +20,10 @@ import { EventBus } from '../../shared/events/event-bus';
 import { AuditService, AuditSubscriber } from '../audit';
 import { SignedUrlService } from '../../shared/storage/signed-url.service';
 import { StudyAccessService } from './internal/study-access.service';
+import { DicomWebController } from './internal/dicomweb.controller';
+import { InMemoryOrthancClient } from './internal/orthanc.client';
+import type { OrthancHttpClient } from './internal/orthanc.http-client';
+import type { BlobStore } from '../../shared/storage/blob-store';
 
 /**
  * BUILD_SPEC P8.2 — DICOMweb access through the API.
@@ -88,8 +92,8 @@ async function scenario(opts: { withConsent: boolean; status?: 'accepted' | 'pai
   await linkStudy(h.owner, appt, studyId);
   if (opts.withConsent) await grantConsent(h.owner, patient, tunisDoctor, libyaDoctor);
 
-  const uid = await h.owner.query<{ study_instance_uid: string }>(
-    'SELECT study_instance_uid FROM imaging_studies WHERE id = $1',
+  const uid = await h.owner.query<{ study_instance_uid: string; twin_study_uid: string }>(
+    'SELECT study_instance_uid, twin_study_uid FROM imaging_studies WHERE id = $1',
     [studyId],
   );
   return {
@@ -97,7 +101,10 @@ async function scenario(opts: { withConsent: boolean; status?: 'accepted' | 'pai
     tunisDoctor,
     patient,
     studyId,
+    /** The original. The lab addresses this; the doctor never sees it. */
     studyUid: uid.rows[0]?.study_instance_uid as string,
+    /** The de-identified copy. This is what a doctor's URLs carry. */
+    twinUid: uid.rows[0]?.twin_study_uid as string,
   };
 }
 
@@ -106,7 +113,7 @@ describe('P8.2 study access authorization', () => {
     const s = await scenario({ withConsent: true });
 
     const result = await runWithContext(ctx(s.tunisDoctor, 'tunisia_doctor'), () =>
-      access.authoriseStudyAccess(s.studyUid, 'metadata'),
+      access.authoriseStudyAccess(s.twinUid, 'metadata'),
     );
 
     expect(result.studyId).toBe(s.studyId);
@@ -131,7 +138,7 @@ describe('P8.2 study access authorization', () => {
 
     await expect(
       runWithContext(ctx(s.tunisDoctor, 'tunisia_doctor'), () =>
-        access.authoriseStudyAccess(s.studyUid, 'pixel_data'),
+        access.authoriseStudyAccess(s.twinUid, 'pixel_data'),
       ),
     ).rejects.toThrow(/not found/i);
 
@@ -155,7 +162,7 @@ describe('P8.2 study access authorization', () => {
 
     await expect(
       runWithContext(ctx(stranger, 'tunisia_doctor'), () =>
-        access.authoriseStudyAccess(s.studyUid, 'metadata'),
+        access.authoriseStudyAccess(s.twinUid, 'metadata'),
       ),
     ).rejects.toThrow(/not found/i);
   });
@@ -165,7 +172,7 @@ describe('P8.2 study access authorization', () => {
 
     await expect(
       runWithContext(ctx(s.tunisDoctor, 'tunisia_doctor'), () =>
-        access.authoriseStudyAccess(s.studyUid, 'pixel_data'),
+        access.authoriseStudyAccess(s.twinUid, 'pixel_data'),
       ),
     ).rejects.toThrow(/not found/i);
   });
@@ -175,9 +182,9 @@ describe('P8.2 study access authorization', () => {
     const s = await scenario({ withConsent: true });
 
     await runWithContext(ctx(s.tunisDoctor, 'tunisia_doctor'), async () => {
-      await access.authoriseStudyAccess(s.studyUid, 'metadata');
-      await access.authoriseStudyAccess(s.studyUid, 'pixel_data');
-      await access.authoriseStudyAccess(s.studyUid, 'thumbnail');
+      await access.authoriseStudyAccess(s.twinUid, 'metadata');
+      await access.authoriseStudyAccess(s.twinUid, 'pixel_data');
+      await access.authoriseStudyAccess(s.twinUid, 'thumbnail');
     });
 
     const audit = await h.owner.query<{ metadata: { accessKind: string } }>(
@@ -192,13 +199,58 @@ describe('P8.2 study access authorization', () => {
   });
 });
 
+describe('sub-project 2: the doctor addresses the twin, never the original', () => {
+  it('resolves a doctor to the twin and reports the twin uid to Orthanc', async () => {
+    const s = await scenario({ withConsent: true });
+
+    const result = await runWithContext(ctx(s.tunisDoctor, 'tunisia_doctor'), () =>
+      access.authoriseStudyAccess(s.twinUid, 'metadata'),
+    );
+
+    expect(result.studyId).toBe(s.studyId);
+    // What the proxy will actually ask Orthanc for. Asking for the original
+    // would serve the doctor a study with the patient's name in its header.
+    expect(result.orthancStudyUid).toBe(s.twinUid);
+  });
+
+  it('gives a doctor 404 for the ORIGINAL uid — a uid is itself an identifier', async () => {
+    const s = await scenario({ withConsent: true });
+
+    await expect(
+      runWithContext(ctx(s.tunisDoctor, 'tunisia_doctor'), () =>
+        access.authoriseStudyAccess(s.studyUid, 'metadata'),
+      ),
+    ).rejects.toThrow(/not found/i);
+  });
+
+  it('resolves the lab to the original, which is the copy it owns', async () => {
+    const s = await scenario({ withConsent: true });
+
+    const result = await runWithContext(ctx(s.libyaDoctor, 'libya_doctor'), () =>
+      access.authoriseStudyAccess(s.studyUid, 'metadata'),
+    );
+
+    expect(result.orthancStudyUid).toBe(s.studyUid);
+  });
+
+  it('gives the lab 404 for the twin uid — it has no business addressing it', async () => {
+    const s = await scenario({ withConsent: true });
+
+    await expect(
+      runWithContext(ctx(s.libyaDoctor, 'libya_doctor'), () =>
+        access.authoriseStudyAccess(s.twinUid, 'metadata'),
+      ),
+    ).rejects.toThrow(/not found/i);
+  });
+});
+
 describe('P8.2 signed URLs', () => {
   it('works at 4 minutes and is rejected at 20 (the spec gate, verbatim)', async () => {
     const s = await scenario({ withConsent: true });
     const svc = signedUrls();
 
     const { token } = await runWithContext(ctx(s.tunisDoctor, 'tunisia_doctor'), async () => {
-      const issued = svc.sign(`/dicom-web/studies/${s.studyUid}`, s.tunisDoctor);
+      const issued = svc.sign(`/dicom-web/studies/${s.twinUid}`, s.tunisDoctor);
       return issued;
     });
 
@@ -269,7 +321,7 @@ describe('P8.2 signed URLs', () => {
 
     await expect(
       runWithContext(ctx(s.tunisDoctor, 'tunisia_doctor'), () =>
-        access.issueInstanceUrl(s.studyUid, '1.2.3.4'),
+        access.issueInstanceUrl(s.twinUid, '1.2.3.4'),
       ),
     ).rejects.toThrow(/not found/i);
 
@@ -284,12 +336,71 @@ describe('P8.2 signed URLs', () => {
     const s = await scenario({ withConsent: true });
 
     const { url, expiresAt } = await runWithContext(ctx(s.tunisDoctor, 'tunisia_doctor'), () =>
-      access.issueInstanceUrl(s.studyUid, '1.2.3.4'),
+      access.issueInstanceUrl(s.twinUid, '1.2.3.4'),
     );
 
-    expect(url).toContain(`/dicom-web/studies/${s.studyUid}/instances/1.2.3.4`);
+    expect(url).toContain(`/dicom-web/studies/${s.twinUid}/instances/1.2.3.4`);
     expect(url).toContain('token=');
     // 10-minute TTL, inside the required 5-15 minute band.
     expect(expiresAt - Math.floor(now / 1000)).toBe(600);
+  });
+});
+
+describe('the doctor\'s instance list comes from the twin', () => {
+  /**
+   * Anonymisation reallocates every UID, so the twin's instances do not carry
+   * the SOP UIDs stored in `imaging_instances` — those describe the original.
+   * Handing the stored list to a doctor would give them identifiers that
+   * resolve against nothing in the copy they may read, and every frame request
+   * would 404 in a way that looks like an Orthanc outage rather than a bug.
+   */
+  function controller(orthanc: InMemoryOrthancClient): DicomWebController {
+    return new DicomWebController(
+      access,
+      orthanc as unknown as OrthancHttpClient,
+      db,
+      { getDerived: () => Promise.reject(new Error('unused')) } as unknown as BlobStore,
+    );
+  }
+
+  it('serves a doctor the twin uids, not the originals recorded at ingest', async () => {
+    const s = await scenario({ withConsent: true });
+    await h.owner.query(
+      `INSERT INTO imaging_instances (study_id, sop_uid, series_uid, storage_key, sha256, size_bytes)
+       VALUES ($1, 'original-sop', 'original-series', 'k', $2, 1)`,
+      [s.studyId, 'a'.repeat(64)],
+    );
+
+    const orthanc = new InMemoryOrthancClient();
+    orthanc.instancesByStudy.set(s.twinUid, [
+      { sopInstanceUid: 'twin-sop', seriesInstanceUid: 'twin-series' },
+    ]);
+
+    const result = await runWithContext(ctx(s.tunisDoctor, 'tunisia_doctor'), () =>
+      controller(orthanc).instances(s.twinUid),
+    );
+
+    expect(result.instances).toEqual([
+      { sopInstanceUid: 'twin-sop', seriesInstanceUid: 'twin-series' },
+    ]);
+    // The original SOP uid is itself an identifier and must not travel.
+    expect(JSON.stringify(result)).not.toContain('original-sop');
+  });
+
+  it('serves the lab the stored originals, which is the copy it owns', async () => {
+    const s = await scenario({ withConsent: true });
+    await h.owner.query(
+      `INSERT INTO imaging_instances (study_id, sop_uid, series_uid, storage_key, sha256, size_bytes)
+       VALUES ($1, 'original-sop', 'original-series', 'k', $2, 1)`,
+      [s.studyId, 'a'.repeat(64)],
+    );
+
+    const result = await runWithContext(ctx(s.libyaDoctor, 'libya_doctor'), () =>
+      controller(new InMemoryOrthancClient()).instances(s.studyUid),
+    );
+
+    expect(result.instances).toEqual([
+      { sopInstanceUid: 'original-sop', seriesInstanceUid: 'original-series' },
+    ]);
   });
 });

@@ -14,6 +14,8 @@ import { stagingKey } from './upload.service';
 import { ORTHANC_CLIENT, type OrthancClient } from './orthanc.client';
 import { ThumbnailService } from './thumbnail.service';
 import { decideRelease } from './burned-in';
+import { IMAGING_QUEUE, buildTwinJobName, type BuildTwinJob } from '../../../shared/jobs/queue.tokens';
+import type { Queue } from 'bullmq';
 
 /**
  * Server-side ingestion — BUILD_SPEC P7.4.
@@ -55,6 +57,7 @@ export class IngestionService {
     @Inject(BLOB_STORE) private readonly blobs: BlobStore,
     @Inject(ORTHANC_CLIENT) private readonly orthanc: OrthancClient,
     private readonly thumbnails: ThumbnailService,
+    @Inject(IMAGING_QUEUE) private readonly queue: Queue,
   ) {}
 
   /**
@@ -99,7 +102,9 @@ export class IngestionService {
     // bytes it actually wrote.
     const digest = sha256(bytes);
 
-    return this.db.tx(async (tx) => {
+    let completed: BuildTwinJob | null = null;
+
+    const result = await this.db.tx(async (tx) => {
       const session = await this.loadSession(tx, file.session_id);
 
       // --- 3. study consistency --------------------------------------------
@@ -209,23 +214,67 @@ export class IngestionService {
       }
 
       // --- 8. completion -----------------------------------------------------
-      await this.maybeCompleteStudy(tx, file.session_id, studyId);
+      completed = await this.maybeCompleteStudy(tx, file.session_id, studyId);
 
       return {
         status: isNew ? ('ingested' as const) : ('already_present' as const),
         ...(instanceId !== undefined ? { instanceId } : {}),
       };
     });
+
+    // AFTER the commit, never inside it. A job enqueued in the transaction
+    // that then rolls back is a worker asking Redis to anonymise a study the
+    // database never kept — and BullMQ would retry it five times before giving
+    // up on a row that does not exist.
+    if (completed !== null) {
+      await this.enqueueTwin(completed);
+    }
+
+    return result;
   }
 
   /**
-   * Mark the study ready only when every expected file is in.
+   * Hand the study to the twin builder.
+   *
+   * Failing to enqueue must not fail the ingest: the bytes are durable and the
+   * study is recoverable. It DOES mean the study stays 'processing' and never
+   * reaches its doctor, so it is logged as an error rather than a warning —
+   * unlike the thumbnail, which only costs a slow first paint.
+   */
+  private async enqueueTwin(job: BuildTwinJob): Promise<void> {
+    try {
+      await this.queue.add(buildTwinJobName, job);
+    } catch (err) {
+      this.logger.error(
+        `twin not enqueued for study ${job.studyId}; it will stay unreleased: ${errMessage(err)}`,
+      );
+    }
+  }
+
+  /**
+   * Close the session once every expected file is in, and say whether a twin
+   * should now be built.
    *
    * `expected_file_count` comes from the client at session creation, so it is
    * compared against files actually INGESTED, not merely received. A study
    * whose files are still being verified stays `processing`.
+   *
+   * WHAT CHANGED WITH SUB-PROJECT 2. This used to flip the study to 'ready'.
+   * It no longer does: under approach A a study is not readable by its doctor
+   * until a de-identified twin exists, so releasing it here would publish a
+   * study with no twin behind it — visible in a list and impossible to open.
+   * `TwinService.build` is what sets 'ready' now, after Orthanc confirms the
+   * copy is complete.
+   *
+   * The idempotency guard moved with it, onto the SESSION's own transition to
+   * 'completed'. That is the thing that actually completes here, and it must
+   * fire the domain event exactly once however many files race to be last.
    */
-  private async maybeCompleteStudy(tx: Tx, sessionId: string, studyId: string): Promise<void> {
+  private async maybeCompleteStudy(
+    tx: Tx,
+    sessionId: string,
+    studyId: string,
+  ): Promise<BuildTwinJob | null> {
     const counts = await tx.query<{
       expected: number;
       ingested: string;
@@ -242,7 +291,7 @@ export class IngestionService {
     );
 
     const row = counts.rows[0];
-    if (row === undefined) return;
+    if (row === undefined) return null;
 
     const ingested = Number(row.ingested);
     const outstanding = Number(row.outstanding);
@@ -250,29 +299,34 @@ export class IngestionService {
     if (ingested < row.expected || outstanding > 0) {
       // Not finished. Deliberately leaves the study in 'processing' — a
       // partial study must never be readable as though complete (§17).
-      return;
+      return null;
     }
 
-    const updated = await tx.query<{ id: string; patient_id: string; file_count: number; total_bytes: string }>(
-      // A quarantined study is excluded, not just left alone: completing the
-      // upload is not what clears a burned-in suspicion. It stays quarantined
-      // until someone looks at it, and the doctor's policy (migration 0029)
-      // refuses it in the meantime.
-      `UPDATE imaging_studies
-       SET status = 'ready'
-       WHERE id = $1 AND status NOT IN ('ready','quarantined')
-       RETURNING id, patient_id, file_count, total_bytes`,
+    // The single-winner guard. Whichever file is last flips the session, and
+    // only that caller gets a row back — so the event below is published once.
+    const closed = await tx.query<{ id: string }>(
+      `UPDATE imaging_upload_sessions SET status = 'completed', updated_at = now()
+       WHERE id = $1 AND status <> 'completed'
+       RETURNING id`,
+      [sessionId],
+    );
+    if (closed.rows[0] === undefined) return null; // already completed by a concurrent job
+
+    const updated = await tx.query<{
+      id: string;
+      patient_id: string;
+      uploaded_by: string;
+      status: string;
+      file_count: number;
+      total_bytes: string;
+    }>(
+      `SELECT id, patient_id, uploaded_by, status, file_count, total_bytes
+       FROM imaging_studies WHERE id = $1`,
       [studyId],
     );
 
-    await tx.query(
-      `UPDATE imaging_upload_sessions SET status = 'completed', updated_at = now()
-       WHERE id = $1`,
-      [sessionId],
-    );
-
     const study = updated.rows[0];
-    if (study === undefined) return; // already completed by a concurrent job
+    if (study === undefined) return null;
 
     const ctx = requireContext();
     await this.bus.publish({
@@ -289,6 +343,12 @@ export class IngestionService {
       ipAddress: ctx.ipAddress,
       userAgent: ctx.userAgent,
     });
+
+    // A quarantined study builds no twin. Enqueueing one would ask the builder
+    // to launder a burned-in suspicion into something that looks clean.
+    if (study.status === 'quarantined') return null;
+
+    return { studyId: study.id, actorId: study.uploaded_by };
   }
 
   private async ensureStudy(

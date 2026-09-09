@@ -10,6 +10,7 @@ import { ORTHANC_CLIENT } from './internal/orthanc.client';
 import { StudiesController } from './internal/studies.controller';
 import { StudyAccessService } from './internal/study-access.service';
 import { ThumbnailService } from './internal/thumbnail.service';
+import { TwinService } from './internal/twin.service';
 import { UploadService } from './internal/upload.service';
 import { UploadsController } from './internal/uploads.controller';
 
@@ -21,6 +22,7 @@ import { UploadsController } from './internal/uploads.controller';
     IngestionService,
     StudyAccessService,
     ThumbnailService,
+    TwinService,
     SignedUrlService,
     OrthancHttpClient,
     // The ingestion pipeline depends on the interface, not the HTTP class, so
@@ -28,6 +30,6 @@ import { UploadsController } from './internal/uploads.controller';
     // wiring (ADR-3: Orthanc is an index, and ingest must survive its outage).
     { provide: ORTHANC_CLIENT, useExisting: OrthancHttpClient },
   ],
-  exports: [UploadService, IngestionService, StudyAccessService],
+  exports: [UploadService, IngestionService, StudyAccessService, TwinService],
 })
 export class ImagingModule {}

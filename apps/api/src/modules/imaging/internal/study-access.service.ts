@@ -29,6 +29,14 @@ export interface AuthorisedStudy {
   studyId: string;
   studyInstanceUid: string;
   patientId: string;
+  /**
+   * The UID to ask Orthanc for — sub-project 2.
+   *
+   * The de-identified twin's for a receiving doctor, the original's for the
+   * lab that owns it. Never derive this from the caller's path parameter: that
+   * is the value that would let a doctor request the original by guessing it.
+   */
+  orthancStudyUid: string;
 }
 
 export interface StudySummary {
@@ -120,11 +128,35 @@ export class StudyAccessService {
   ): Promise<AuthorisedStudy> {
     const ctx = requireContext();
 
+    // WHICH COLUMN THE UID IS MATCHED AGAINST IS THE WHOLE CONTROL.
+    //
+    // A receiving doctor addresses the TWIN's uid and is resolved through
+    // `twin_study_uid`; the lab addresses the original. Neither can reach the
+    // other's copy by presenting its uid, because the uid they present is only
+    // ever compared against the column their own role is allowed to use. A
+    // doctor who somehow learned an original uid gets the same 404 as for a
+    // study that does not exist — which matters, because a StudyInstanceUID is
+    // itself a linkable identifier.
+    //
+    // RLS is still the outer gate: the policy from migration 0029 additionally
+    // requires status = 'ready', a linked case and a live consent. This is the
+    // application half of ADR-6's two layers, not a replacement for it.
+    const byTwin = ctx.role === 'tunisia_doctor';
+
     const found = await this.db.tx(async (tx) => {
-      const res = await tx.query<{ id: string; patient_id: string; study_instance_uid: string }>(
-        `SELECT id, patient_id, study_instance_uid
-         FROM imaging_studies
-         WHERE study_instance_uid = $1 AND status IN ('ready', 'processing')`,
+      const res = await tx.query<{
+        id: string;
+        patient_id: string;
+        study_instance_uid: string;
+        twin_study_uid: string | null;
+      }>(
+        byTwin
+          ? `SELECT id, patient_id, study_instance_uid, twin_study_uid
+             FROM imaging_studies
+             WHERE twin_study_uid = $1 AND status = 'ready'`
+          : `SELECT id, patient_id, study_instance_uid, twin_study_uid
+             FROM imaging_studies
+             WHERE study_instance_uid = $1 AND status IN ('ready', 'processing')`,
         [studyInstanceUid],
       );
       return res.rows[0];
@@ -170,6 +202,10 @@ export class StudyAccessService {
       studyId: found.id,
       studyInstanceUid: found.study_instance_uid,
       patientId: found.patient_id,
+      // The doctor's twin uid is the one they presented; the lab's is the
+      // original. Read back from the row rather than echoed from the argument,
+      // so a caller cannot influence what the proxy fetches.
+      orthancStudyUid: byTwin ? (found.twin_study_uid ?? '') : found.study_instance_uid,
     };
   }
 
