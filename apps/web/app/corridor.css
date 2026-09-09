@@ -222,22 +222,45 @@
 }
 
 /*
- * §8.2 technique 3: everything below the fold is skipped at layout and paint
- * time until it approaches the viewport. `contain-intrinsic-size` carries a
- * measured height so the scrollbar does not jump as sections are realised —
- * an unset value here is a CLS bug, not an optimisation.
+ * ---------------------------------------------------------------------------
+ * WHY THERE IS NO `content-visibility: auto` HERE
+ *
+ * §8.2 technique 3 asks for it, and it was built that way first. It is
+ * incompatible with the scroll choreography this page is made of, and the
+ * failure is silent.
+ *
+ * `content-visibility: auto` collapses an off-screen section to its
+ * `contain-intrinsic-size` placeholder — 100vh here, because the real height
+ * varies by locale and cannot be known in advance. Every ScrollTrigger below
+ * the fold is therefore created against a page whose geometry is wrong: the
+ * corridor scene is ~1350 px and the doors scene ~600 px, but on the first
+ * pass down the document both are 100vh. The triggers' start positions are
+ * computed from those placeholder offsets, so reveals fire at the wrong scroll
+ * position — late, or in the worst case never.
+ *
+ * "Never" is what it did. Scene 09 rendered as an empty black band on Tier A,
+ * because `FocalReveal`'s `fromTo` had applied its `autoAlpha: 0` start state
+ * and the trigger that would clear it sat at a scroll offset the page never
+ * reached. Scene 10 was caught permanently mid-blur for the same reason.
+ * Tier C was unaffected — it runs no timelines — which is exactly why the
+ * no-JS and Tier C tests all passed while two scenes were invisible.
+ *
+ * Refreshing on `contentvisibilityautostatechange` was considered and is not
+ * worth it: `ScrollTrigger.refresh()` recomputes every trigger on the page,
+ * and doing that repeatedly while someone scrolls costs more than skipped
+ * painting saves.
+ *
+ * So the optimisation goes and the choreography stays. §3.5 and §6.6 are the
+ * page's identity; technique 3 is one of eight, and the budgets it was there
+ * to serve are measured in docs/landing-page-status.md without it.
+ * ---------------------------------------------------------------------------
  */
 .corridor .scene {
   position: relative;
-  content-visibility: auto;
-  contain-intrinsic-size: auto 100vh;
   padding-block: clamp(5rem, 12vh, 10rem);
 }
 
-/* The hero is above the fold by definition and must never be skipped. */
 .corridor .scene--hero {
-  content-visibility: visible;
-  contain-intrinsic-size: none;
   padding-block: 0;
 }
 
