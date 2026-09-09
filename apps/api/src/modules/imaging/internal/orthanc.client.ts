@@ -73,6 +73,8 @@ export class InMemoryOrthancClient implements OrthancClient {
   failedInstances = 0;
   /** UIDs that lookupStudy should report as absent from Orthanc. */
   readonly missingStudies = new Set<string>();
+  /** The last anonymisation request, so tests can assert the tag policy. */
+  lastRequest: unknown = null;
 
   async storeInstance(dicomBytes: Uint8Array): Promise<void> {
     if (this.failNext) {
@@ -91,7 +93,8 @@ export class InMemoryOrthancClient implements OrthancClient {
     return this.missingStudies.has(studyInstanceUid) ? null : `orthanc-${studyInstanceUid}`;
   }
 
-  async anonymiseStudy(orthancStudyId: string): Promise<AnonymisedStudy> {
+  async anonymiseStudy(orthancStudyId: string, request?: unknown): Promise<AnonymisedStudy> {
+    this.lastRequest = request ?? null;
     if (this.failAnonymise) {
       this.failAnonymise = false;
       throw new Error('simulated anonymisation failure');

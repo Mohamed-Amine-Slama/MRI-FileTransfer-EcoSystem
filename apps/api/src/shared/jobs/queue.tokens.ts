@@ -20,4 +20,11 @@ export const reapTwinsJobName = 'imaging.reapTwins';
 /** Enqueued when a study's last file lands. */
 export interface BuildTwinJob {
   studyId: string;
+  /**
+   * The uploading doctor, carried rather than looked up.
+   *
+   * The twin is built under a real identity, not a privileged connection — and
+   * resolving that identity from the study would itself require a session.
+   */
+  actorId: string;
 }

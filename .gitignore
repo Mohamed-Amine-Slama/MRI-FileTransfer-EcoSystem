@@ -49,8 +49,9 @@ npm-debug.log*
 pnpm-debug.log*
 
 #Build Files
-Landing-Page-Specs.md
+landing-page-spec.md
 frontend-technical-brief.md
 BUILD_SPEC.md
-frontend-technical-brief.md
 platform-requirements.md
+landing-page-spec.md
+Landing-Page-Specs.md
