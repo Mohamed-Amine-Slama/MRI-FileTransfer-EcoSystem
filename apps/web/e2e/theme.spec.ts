@@ -45,7 +45,20 @@ test.describe('theme (§4.1)', () => {
   });
 
   test('the toggle changes the theme and survives a reload', async ({ page }) => {
-    await page.goto('/');
+    /*
+     * `/pricing`, not `/`.
+     *
+     * The landing page is a darkened reading room in BOTH themes — that
+     * contrast is a deliberate design device (Landing-Page-Specs §3.1: the
+     * product is a bright clinical tool, the marketing site is the dark room
+     * around it), so it supplies its own chrome and carries no theme control.
+     * Putting one there would be a switch that visibly does nothing.
+     *
+     * The three tests above still load `/`, because what they assert is that
+     * `theme-init.js` stamps <html> before paint — which happens on every
+     * route, landing page included.
+     */
+    await page.goto('/pricing');
 
     await page.getByTestId('theme-toggle').click();
     await page.getByTestId('theme-option-dark').click();

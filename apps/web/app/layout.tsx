@@ -27,27 +27,34 @@ export const metadata = {
 // the viewer's 5-second budget (P9.1) out of the font's hands.
 //
 // ---------------------------------------------------------------------------
-// `preload: false` — Landing-Page-Specs §8.2 technique 6.
+// THESE FOUR FILES ARE PRELOADED, AND THAT WAS MEASURED, NOT ASSUMED.
 //
-// These four files are 72–76 KB each because one family carries both scripts
-// (D4). Preloading them puts ~296 KB in front of everything else on the first
-// paint of EVERY route, and the landing page's whole Tier C budget is 450 KB
-// with an LCP target of 2.0 s measured on a 2 Mbit connection. On that link
-// the preloads alone are over a second before the hero image is even
-// requested.
+// One family carrying both scripts (D4) means four weights at 72–76 KB each,
+// so preloading them puts ~296 KB in front of the first paint of every route.
+// Landing-Page-Specs §8.2 technique 6 says to preload "the two critical font
+// files and nothing else", and §8.1 puts the landing page's LCP budget at
+// 2.0 s on a 2 Mbit connection — on that link these preloads alone are over a
+// second. Dropping them looked like the obvious win.
 //
-// `preload` is per-DECLARATION in next/font, not per-file, so "preload the two
-// critical files and nothing else" is not expressible while all four weights
-// share one family — and they must, or a `font-weight: 500` heading falls back
-// to a synthesised bold. Nothing is the honest half of that choice: with
-// `display: swap` the page paints immediately on the system stack and swaps
-// when the real face arrives, which is the behaviour the comment above already
-// relies on.
+// It is not. `preload: false` was tried and it moved the VIEWER's
+// time-to-first-image from ~3.1 s to ~7.1 s under the P9.1 throttle (2 Mbit,
+// 200 ms RTT), measured three times, isolated to this one line. Without the
+// preload the font request is only discovered once the CSS has been parsed,
+// which on a 200 ms RTT is an extra serialised round trip in front of the
+// render — and P9.1's five-second gate is a HARD one on the screen where a
+// doctor is waiting for an image.
 //
-// The real fix is §7.2's: per-script subsets with `unicode-range`, so an
-// Arabic reader never downloads the Latin glyphs and vice versa. That needs
-// hand-written @font-face rules rather than next/font, so it is recorded as an
-// open item in docs/landing-page-status.md rather than done halfway here.
+// So the marketing page does not get to buy its budget with the viewer's.
+// `preload` is per-DECLARATION in next/font, not per-file, so "two files and
+// no more" is not expressible while all four weights share one family — and
+// they must, or a `font-weight: 500` heading falls back to a synthesised bold.
+//
+// The fix that serves both is §7.2's: per-script subsets with `unicode-range`,
+// so an Arabic reader never downloads the Latin glyphs and a French reader
+// never downloads the Arabic ones — roughly a third of the bytes, preloaded,
+// with no round trip added anywhere. That needs hand-written @font-face rules
+// rather than next/font, so it is recorded as an open item in
+// docs/landing-page-status.md rather than done halfway here.
 // ---------------------------------------------------------------------------
 const plex = localFont({
   src: [
@@ -57,7 +64,6 @@ const plex = localFont({
     { path: './fonts/IBMPlexSansArabic-Bold.woff2', weight: '700', style: 'normal' },
   ],
   display: 'swap',
-  preload: false,
   variable: '--font-plex',
 });
 
