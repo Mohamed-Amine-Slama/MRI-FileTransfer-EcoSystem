@@ -24,7 +24,7 @@ This document is the complete build instruction set. It is written to be execute
 | Actor | Capability |
 |---|---|
 | Libyan lab / clinic | Register/log in, create or find a patient, upload DICOM studies, submit a case, browse the doctors accepting work, choose one and pay the price the platform quotes |
-| Tunisian doctor | Register/log in, switch availability on or off, read the summary of a case sent to them, accept or decline it, and view the linked studies for the ones they accepted |
+| Tunisian doctor | Register/log in, switch availability on or off, read the summary of a case sent to them, accept or decline it, and view the **de-identified** linked studies for the ones they accepted — never the patient's identity (sub-project 2, decisions S1–S5) |
 | Platform admin | Manage doctor verification, view audit logs, handle support — **no routine access to patient images** |
 
 **There is no patient account.** Migration 0021 removed it: the Libyan clinic
