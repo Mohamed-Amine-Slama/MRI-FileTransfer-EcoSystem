@@ -156,12 +156,18 @@ export function S05Consent(): React.JSX.Element {
  * boolean cannot print this block, which is the entire point of showing it.
  */
 function EvidenceBlock({ revoked }: { revoked: boolean }): React.JSX.Element {
-  const { t, locale, budget } = useSite();
+  const { locale, budget } = useSite();
   const ref = useRef<HTMLDListElement>(null);
   const corridor = corridorLabels(locale);
 
   const rows: [string, string][] = [
-    ['granted_to', `${t.consentGrantedTo} · ${corridor.destinationCountry}`],
+    /*
+     * Redacted, not blank and not invented. §1.4 forbids naming a doctor
+     * without written permission and forbids inventing one, so the record
+     * shows the shape of the value and the country it resolves to — which is
+     * what a real evidence block would show to anyone but the patient.
+     */
+    ['granted_to', `——————— · ${corridor.destinationCountry}`],
     ['terms_version', `v1.2 · ${locale}`],
     ['granted_at', '2026-03-14T09:22:41Z'],
     ['evidence_hash', '9f2c…a41e'],

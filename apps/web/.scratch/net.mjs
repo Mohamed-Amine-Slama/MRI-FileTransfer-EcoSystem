@@ -1,0 +1,14 @@
+import { chromium } from '@playwright/test';
+const b = await chromium.launch();
+const p = await b.newPage({ viewport: { width: 1440, height: 900 } });
+const bad = []; const all = [];
+p.on('response', r => { all.push([r.status(), r.url()]); if (r.status() >= 400) bad.push([r.status(), r.url()]); });
+await p.goto('http://localhost:3101/ar?tier=A', { waitUntil: 'networkidle' });
+await p.evaluate(() => window.scrollTo(0, document.body.scrollHeight));
+await p.waitForTimeout(3000);
+console.log('404s:', bad);
+let bytes = 0;
+console.log('requests:', all.length);
+for (const [s,u] of all) if (u.includes('/seq/') || u.includes('/map/') || u.includes('grain')) bytes++;
+console.log('asset requests (seq/map/grain):', bytes);
+await b.close();

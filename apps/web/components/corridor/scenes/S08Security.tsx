@@ -24,8 +24,13 @@ import { Plate } from '../primitives/Plate';
  * EVERY LINE IS A REAL THING FROM BUILD_SPEC. That is why it is credible, and
  * why a ninth line that is not true yet would poison the other eight. The
  * rows live in `lib/site/copy.ts` where `copy.test.ts` guards them against
- * §1.4's banned claims — "military grade", any certification not held, any
- * absolute.
+ * §1.4's banned claims: the armed-forces adjective, any certification not
+ * held, any absolute.
+ *
+ * (That test is a literal text scan over this directory, so naming the banned
+ * phrase here — even inside a comment — trips it. Hence the circumlocution,
+ * which is the same one `lib/security/xss-surface.test.ts` forced on
+ * `app/layout.tsx` for the same reason.)
  *
  * And underneath, the honest sentence about status. Saying the true thing —
  * registration and cross-border authorisation are IN PROGRESS — is more

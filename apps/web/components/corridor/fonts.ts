@@ -36,14 +36,28 @@ export const reemKufi = localFont({
   variable: '--font-reem',
 });
 
-/** Latin display, paired with Reem Kufi at the same optical weight. */
+/**
+ * Latin display, paired with Reem Kufi at the same optical weight.
+ *
+ * `adjustFontFallback: false` on both this and the mono face below, for a
+ * reason that only shows up in the Arabic locale. Next injects a synthetic
+ * "<name> Fallback" family, derived from Arial, at the FRONT of the stack —
+ * ahead of `--font-plex`. Both of these faces are Latin-only subsets, so every
+ * Arabic glyph fell through to that Arial-derived family instead of to Plex
+ * Sans Arabic, and the mono readouts rendered in whatever the system produced:
+ * airy, loosely fitted, and visibly not the page's typeface.
+ *
+ * The fallback exists to reduce swap CLS. These two faces set metadata and one
+ * headline, so the layout cost of losing it is a few pixels; the cost of
+ * keeping it was every mono line in the primary locale.
+ */
 export const spaceGrotesk = localFont({
   src: '../../app/fonts/SpaceGrotesk-Medium-latin.woff2',
   weight: '300 700',
   style: 'normal',
   display: 'swap',
   preload: false,
-  adjustFontFallback: 'Arial',
+  adjustFontFallback: false,
   variable: '--font-grotesk',
 });
 
@@ -58,7 +72,7 @@ export const plexMono = localFont({
   style: 'normal',
   display: 'swap',
   preload: false,
-  adjustFontFallback: 'Arial',
+  adjustFontFallback: false,
   variable: '--font-plex-mono',
 });
 
