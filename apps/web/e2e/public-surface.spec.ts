@@ -20,8 +20,8 @@ test.describe('public surface (§4.1)', () => {
   test('carries the pricing route through to the closing plate', async ({ page }) => {
     /*
      * Pricing moved off the hero and onto Scene 11, where the page makes its
-     * one remaining ask. It is below the fold inside a `content-visibility:
-     * auto` section, so it has to be scrolled to before it has a box at all —
+     * one remaining ask. Below the fold every scene starts at `autoAlpha: 0`
+     * until its focal reveal fires, so it has to be scrolled to first —
      * asserting visibility without the scroll would fail for a reason that has
      * nothing to do with the link being there.
      */
@@ -37,8 +37,8 @@ test.describe('public surface (§4.1)', () => {
     // diagnostic one is what keeps this product outside medical-device
     // regulation, and a prospective customer has to understand it up front.
     await page.goto('/');
-    // Scene 06 is below the fold and skipped by `content-visibility` until it
-    // is approached, so the text has to be reached before it can be read.
+    // Scene 06 is below the fold, so its reveal has not run yet and the plate
+    // is still transparent. Reach it before reading it.
     await page.getByTestId('viewer-banner').scrollIntoViewIfNeeded();
     await expect(page.locator('main')).toContainText(
       /diagnostic|تشخيص|diagnostique/i,

@@ -171,6 +171,52 @@ test.describe('tiering (§6.3, §12 L3)', () => {
 });
 
 // ---------------------------------------------------------------------------
+// §12 L5 — the choreography must actually finish
+// ---------------------------------------------------------------------------
+
+test.describe('focal reveals (§3.5, §6.6, §12 L5)', () => {
+  test('every scene resolves to full opacity and zero blur once reached', async ({ page }) => {
+    /*
+     * The guard this page needed and did not have.
+     *
+     * `FocalReveal` animates FROM `autoAlpha: 0` and a blur, so a trigger that
+     * never fires leaves its scene permanently invisible — and nothing else
+     * catches it. Tier C runs no timelines, so the no-JS and Tier C tests pass
+     * while the page is broken; the scene ids are all present, so the
+     * structural tests pass too. Scene 09 shipped as an empty black band
+     * exactly once, because `content-visibility: auto` had collapsed the
+     * sections above it and every trigger below the fold was positioned
+     * against the wrong page height.
+     *
+     * This asserts the thing that actually matters: after you have scrolled to
+     * a scene, you can see it.
+     */
+    await page.goto('/ar?tier=A');
+
+    for (const id of SCENES) {
+      const scene = page.locator(`#${id}`);
+      await scene.scrollIntoViewIfNeeded();
+      // The reveal is 620 ms; give it room on a loaded machine.
+      await page.waitForTimeout(1200);
+
+      const state = await scene.evaluate((el) => {
+        const planes = [...el.querySelectorAll<HTMLElement>('[data-plane]')];
+        return planes.map((p) => {
+          const cs = getComputedStyle(p);
+          return { opacity: Number(cs.opacity), filter: cs.filter, visibility: cs.visibility };
+        });
+      });
+
+      for (const [index, plane] of state.entries()) {
+        expect(plane.opacity, `#${id} plane ${index} opacity`).toBeGreaterThan(0.95);
+        expect(plane.visibility, `#${id} plane ${index} visibility`).not.toBe('hidden');
+        expect(plane.filter, `#${id} plane ${index} still blurred`).not.toMatch(/blur\((?!0px)/);
+      }
+    }
+  });
+});
+
+// ---------------------------------------------------------------------------
 // §12 L6 — the upload demo
 // ---------------------------------------------------------------------------
 
