@@ -1,0 +1,586 @@
+/*
+ * "The Corridor" — the public landing page's design system.
+ * Landing-Page-Specs §3, in full.
+ *
+ * ---------------------------------------------------------------------------
+ * WHY THIS IS A SEPARATE FILE AND EVERYTHING IS SCOPED TO `.corridor`
+ *
+ * Two independent reasons, and both are load-bearing:
+ *
+ * 1. §4.1 of the platform brief requires the signed-in product to read as
+ *    calm, dense and precise, because clinic staff use it to move real patient
+ *    data. This page has the opposite job. `.marketing` already draws that
+ *    line for the rest of the public surface; `.corridor` is the same line
+ *    drawn tighter, because the landing page is dark in BOTH themes while
+ *    /pricing and /login follow the user's choice.
+ *
+ * 2. `lib/theme/tokens.test.ts` asserts that every custom property declared on
+ *    `:root` is overridden in both dark blocks, and that no dark-only token
+ *    exists. That is exactly right for the application palette and exactly
+ *    wrong for this one: the reading room does not have a light mode. Keeping
+ *    these tokens out of `:root` keeps that test meaningful instead of forcing
+ *    an exception into it.
+ * ---------------------------------------------------------------------------
+ *
+ * §3.1's spending rule, restated because it is the thing most likely to be
+ * broken by a well-meant edit: PHOSPHOR IS A SIGNAL, NOT A DECORATION. It
+ * marks the active slice, focus rings, one CTA, and the live status dot. If
+ * more than ~3% of the viewport is phosphor, it has been overspent. Sand
+ * appears exactly three times on the page.
+ */
+
+/* ==========================================================================
+   §3.1 Colour · §3.2 Type · §3.5 Motion — the tokens
+   ========================================================================== */
+
+.corridor {
+  /* Base — the reading room */
+  --c-void: #06080b; /* page background, the darkened room */
+  --c-surface: #0c1116; /* panels, cards, the lightbox frame */
+  --c-raised: #141b23; /* elevated surface, hover state */
+  --c-line: #1e272f; /* hairlines, dividers, panel borders */
+
+  /* Content */
+  --c-bone: #e9e5dc; /* primary text — film ivory, never pure white */
+  --c-ash: #93a0ac; /* secondary text, metadata */
+  --c-dim: #5b6874; /* disabled, tertiary, watermark — decorative only */
+
+  /* Signal */
+  --c-phosphor: #3fe0c5;
+  --c-phosphor-d: #1b8f7c;
+
+  /* Warmth — and the caution state */
+  --c-sand: #e0a05c;
+  --c-clay: #8a5233;
+
+  /* States */
+  --c-alert: #ff6b6b;
+
+  /* §3.3 Radius — three values, each meaning one thing: plates are clinical,
+     controls are touchable, pills are status. */
+  --r-plate: 2px;
+  --r-control: 6px;
+  --r-pill: 999px;
+
+  /* §3.5 Easing */
+  --e-out: cubic-bezier(0.16, 1, 0.3, 1); /* expo out — entrances */
+  --e-in-out: cubic-bezier(0.65, 0, 0.35, 1); /* scene handoffs */
+  --e-snap: cubic-bezier(0.34, 1.56, 0.64, 1); /* controls, one overshoot */
+
+  /* §3.5 Duration */
+  --d-micro: 140ms;
+  --d-enter: 620ms;
+  --d-scene: 900ms;
+  --d-hero: 1400ms;
+  --stagger: 60ms;
+
+  /* §3.6 Direction multiplier — set once, read by every horizontal motion.
+     There is no `left` or `right` anywhere below; this is the only way a
+     horizontal value is allowed to know which way it is going. */
+  --dir: 1;
+
+  /* §3.2 Per-script scale. Arabic runs 8–15% larger than Latin at the same
+     optical size, so the whole scale is multiplied rather than each heading
+     being nudged by hand. */
+  --script-scale: 1;
+  --leading-body: 1.55;
+
+  /* §3.3 Layout */
+  --margin: clamp(20px, 5vw, 120px);
+  --content-max: 1440px;
+  --measure: 68ch;
+
+  /* §3.2 Type scale — major third at desktop, compressing at mobile, fluid
+     via clamp() so there are no breakpoint jumps in the headline. */
+  --t-hero: calc(clamp(2.75rem, 1.6rem + 5.6vw, 7rem) * var(--script-scale));
+  --t-h1: calc(clamp(2.25rem, 1.5rem + 3.4vw, 4.25rem) * var(--script-scale));
+  --t-h2: calc(clamp(1.75rem, 1.35rem + 1.9vw, 2.75rem) * var(--script-scale));
+  --t-h3: calc(clamp(1.375rem, 1.2rem + 0.8vw, 1.75rem) * var(--script-scale));
+  --t-body-l: calc(clamp(1.0625rem, 1rem + 0.3vw, 1.25rem) * var(--script-scale));
+  --t-body: calc(1rem * var(--script-scale));
+  --t-meta: calc(0.8125rem * var(--script-scale));
+
+  /* Families. The variables are set by next/font in components/corridor/fonts.ts;
+     the fallbacks are what paints during the swap. */
+  --f-display-latin: var(--font-grotesk), 'Segoe UI', system-ui, sans-serif;
+  --f-display-arabic: var(--font-reem), var(--font-plex), 'Noto Kufi Arabic', sans-serif;
+  --f-body: var(--font-plex), system-ui, -apple-system, 'Segoe UI', Tahoma, 'Noto Sans Arabic', sans-serif;
+  --f-mono: var(--font-plex-mono), ui-monospace, 'SFMono-Regular', 'Cascadia Mono', monospace;
+
+  /* The scene the page is currently at, written by the scroll orchestrator and
+     read by the chrome. Declared here so it always resolves, even with no JS. */
+  --scene-progress: 0;
+
+  color-scheme: dark;
+  background-color: var(--c-void);
+  color: var(--c-bone);
+  font-family: var(--f-body);
+  font-size: var(--t-body);
+  line-height: var(--leading-body);
+  /* §4.5 (platform) and §13: the body must never scroll horizontally. Scenes
+     that move sideways do it inside their own overflow container. */
+  overflow-x: clip;
+}
+
+/* §3.6 · §3.2. Both of these are direction- and script-driven, and both are
+   set from the SAME attribute so they cannot disagree: a page cannot be RTL
+   with Latin metrics. */
+.corridor[dir='rtl'] {
+  --dir: -1;
+  --script-scale: 1.08;
+  --leading-body: 1.85; /* descenders and diacritics need the room */
+  --measure: 60ch;
+}
+
+/* ==========================================================================
+   §3.2 Typography
+   ========================================================================== */
+
+.corridor :where(h1, h2, h3, h4) {
+  font-weight: 500;
+  line-height: 1.06;
+  text-wrap: balance;
+  margin: 0;
+}
+
+/* Display type is script-dependent: Reem Kufi is a genuine display Arabic — a
+   modern Kufic, architectural rather than a bolded text face — and Space
+   Grotesk is its Latin counterpart. This is the pairing that gives the Arabic
+   version a STRONGER hero than the English one, which is the correct
+   priority for this audience (§3.2). */
+.corridor .display {
+  font-family: var(--f-display-latin);
+  font-weight: 500;
+}
+
+.corridor[dir='rtl'] .display,
+.corridor :lang(ar) .display {
+  font-family: var(--f-display-arabic);
+  line-height: 1.24; /* Kufic ascenders sit high; 1.06 clips them */
+}
+
+.corridor .mono {
+  font-family: var(--f-mono);
+  font-size: var(--t-meta);
+  font-variant-numeric: tabular-nums;
+  letter-spacing: 0.04em;
+  text-transform: uppercase;
+}
+
+/*
+ * §3.2 rules 3 and 4, as CSS rather than as a code-review note.
+ *
+ * Letter-spacing breaks Arabic glyph joining outright — the word comes apart
+ * into unconnected letters — and `text-transform: uppercase` is meaningless in
+ * a script with no case, so both are scoped to the Latin locales. Under Arabic
+ * the mono readouts keep their tabular figures and lose the tracking, which is
+ * the correct result rather than a compromise.
+ */
+.corridor[dir='rtl'] .mono {
+  letter-spacing: normal;
+  text-transform: none;
+}
+
+.corridor .t-hero { font-size: var(--t-hero); }
+.corridor .t-h1 { font-size: var(--t-h1); }
+.corridor .t-h2 { font-size: var(--t-h2); }
+.corridor .t-h3 { font-size: var(--t-h3); }
+.corridor .t-body-l { font-size: var(--t-body-l); }
+.corridor .t-meta { font-size: var(--t-meta); }
+
+.corridor .ash { color: var(--c-ash); }
+.corridor .dim { color: var(--c-dim); }
+.corridor .phosphor { color: var(--c-phosphor); }
+.corridor .sand { color: var(--c-sand); }
+
+/* §3.2 rule 7 — 68ch Latin, 60ch Arabic, set from one token so a locale
+   switch cannot leave the measure behind. */
+.corridor .measure {
+  max-width: var(--measure);
+}
+
+/* ==========================================================================
+   §3.3 Layout
+   ========================================================================== */
+
+.corridor .shell {
+  inline-size: 100%;
+  max-inline-size: var(--content-max);
+  margin-inline: auto;
+  padding-inline: var(--margin);
+}
+
+/*
+ * §8.2 technique 3: everything below the fold is skipped at layout and paint
+ * time until it approaches the viewport. `contain-intrinsic-size` carries a
+ * measured height so the scrollbar does not jump as sections are realised —
+ * an unset value here is a CLS bug, not an optimisation.
+ */
+.corridor .scene {
+  position: relative;
+  content-visibility: auto;
+  contain-intrinsic-size: auto 100vh;
+  padding-block: clamp(5rem, 12vh, 10rem);
+}
+
+/* The hero is above the fold by definition and must never be skipped. */
+.corridor .scene--hero {
+  content-visibility: visible;
+  contain-intrinsic-size: none;
+  padding-block: 0;
+}
+
+.corridor .eyebrow {
+  font-family: var(--f-mono);
+  font-size: var(--t-meta);
+  letter-spacing: 0.12em;
+  text-transform: uppercase;
+  color: var(--c-phosphor);
+  margin-block-end: 1.25rem;
+}
+
+.corridor[dir='rtl'] .eyebrow {
+  letter-spacing: normal;
+  text-transform: none;
+}
+
+/* ==========================================================================
+   §3.3 The plate — the one structural device
+   ========================================================================== */
+
+/*
+ * Not a card. A plate: a hairline frame with corner ticks, a mono label in the
+ * top-inline-start corner, and near-zero radius. It is a lightbox frame and a
+ * DICOM viewport at once, and everything that would otherwise have become a
+ * rounded card becomes one of these.
+ *
+ *   ┌─ MR · T2 · AX ────────────────────┐
+ *   │                                   │
+ *   │         [ content ]               │
+ *   │                                   │
+ *   └──────────────────────── 24 / 180 ─┘
+ */
+.corridor .plate {
+  position: relative;
+  border: 1px solid var(--c-line);
+  border-radius: var(--r-plate);
+  background-color: var(--c-surface);
+}
+
+.corridor .plate--flush {
+  background-color: transparent;
+}
+
+/* Corner ticks. Two pseudo-elements carry all four by mirroring, and they are
+   inset-inline so they land correctly under both directions. */
+.corridor .plate::before,
+.corridor .plate::after {
+  content: '';
+  position: absolute;
+  inline-size: 9px;
+  block-size: 9px;
+  border-color: var(--c-phosphor);
+  opacity: 0.55;
+  pointer-events: none;
+}
+
+.corridor .plate::before {
+  inset-block-start: -1px;
+  inset-inline-start: -1px;
+  border-block-start: 1px solid;
+  border-inline-start: 1px solid;
+}
+
+.corridor .plate::after {
+  inset-block-end: -1px;
+  inset-inline-end: -1px;
+  border-block-end: 1px solid;
+  border-inline-end: 1px solid;
+}
+
+.corridor .plate-label {
+  position: absolute;
+  inset-block-start: -0.62em;
+  inset-inline-start: 1.25rem;
+  padding-inline: 0.5rem;
+  background-color: var(--c-void);
+  color: var(--c-dim);
+  font-family: var(--f-mono);
+  font-size: 0.6875rem;
+  letter-spacing: 0.08em;
+  white-space: nowrap;
+  pointer-events: none;
+}
+
+.corridor .plate-counter {
+  position: absolute;
+  inset-block-end: -0.62em;
+  inset-inline-end: 1.25rem;
+  padding-inline: 0.5rem;
+  background-color: var(--c-void);
+  color: var(--c-dim);
+  font-family: var(--f-mono);
+  font-size: 0.6875rem;
+  font-variant-numeric: tabular-nums;
+  pointer-events: none;
+}
+
+.corridor .plate-body {
+  padding: clamp(1.25rem, 3vw, 2.5rem);
+}
+
+/* ==========================================================================
+   §3.4 Materials
+   ========================================================================== */
+
+/*
+ * 1 · Grain. A 128×128 tiled noise at 3.5%, fixed to the viewport. ~1 KB, and
+ * it does more to kill the flat-CSS-gradient look than anything else here.
+ * `mix-blend-mode: overlay` on a fixed layer is one compositor layer for the
+ * whole page, which is the cheapest form this effect has.
+ */
+.corridor .grain {
+  position: fixed;
+  inset: 0;
+  z-index: 1;
+  pointer-events: none;
+  background-image: url('/grain.png');
+  background-repeat: repeat;
+  opacity: 0.035;
+  mix-blend-mode: overlay;
+}
+
+/* 2 · Scanline. Hero plate only, never the whole page. */
+.corridor .scanline::after {
+  content: '';
+  position: absolute;
+  inset: 0;
+  pointer-events: none;
+  background-image: repeating-linear-gradient(
+    to bottom,
+    rgb(233 229 220 / 0.015) 0 1px,
+    transparent 1px 2px
+  );
+}
+
+/* 4 · Phosphor bloom. One per viewport, maximum. */
+.corridor .bloom {
+  position: absolute;
+  inset-block-start: 50%;
+  inset-inline-start: 50%;
+  inline-size: 800px;
+  block-size: 800px;
+  translate: -50% -50%;
+  pointer-events: none;
+  background: radial-gradient(
+    circle closest-side,
+    rgb(63 224 197 / 0.12),
+    transparent
+  );
+}
+
+/* ==========================================================================
+   §9 Focus, and the skip link
+   ========================================================================== */
+
+.corridor :focus-visible {
+  outline: 2px solid var(--c-phosphor);
+  outline-offset: 3px;
+  border-radius: 1px;
+}
+
+.corridor .skip-link {
+  position: absolute;
+  inset-block-start: 0;
+  inset-inline-start: 0;
+  z-index: 60;
+  translate: 0 -200%;
+  padding: 0.75rem 1.25rem;
+  background-color: var(--c-phosphor);
+  color: var(--c-void);
+  font-weight: 600;
+  border-end-end-radius: var(--r-control);
+}
+
+.corridor .skip-link:focus {
+  translate: 0 0;
+}
+
+/* ==========================================================================
+   Controls
+   ========================================================================== */
+
+.corridor .btn {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 0.5rem;
+  min-block-size: 2.875rem;
+  padding-inline: 1.5rem;
+  border: 1px solid transparent;
+  border-radius: var(--r-control);
+  font-size: var(--t-body);
+  font-weight: 600;
+  cursor: pointer;
+  transition:
+    background-color var(--d-micro) var(--e-out),
+    border-color var(--d-micro) var(--e-out),
+    color var(--d-micro) var(--e-out),
+    translate var(--d-micro) var(--e-snap);
+}
+
+/* The ONE phosphor button on the page — §3.1's spending rule in practice. */
+.corridor .btn--primary {
+  background-color: var(--c-phosphor);
+  color: var(--c-void);
+}
+
+.corridor .btn--primary:hover {
+  background-color: #57eed5;
+  translate: 0 -1px;
+}
+
+.corridor .btn--ghost {
+  border-color: var(--c-line);
+  color: var(--c-bone);
+  background-color: transparent;
+}
+
+.corridor .btn--ghost:hover {
+  border-color: var(--c-ash);
+  background-color: var(--c-raised);
+}
+
+.corridor .link {
+  color: var(--c-bone);
+  text-decoration-color: var(--c-dim);
+  text-underline-offset: 0.25em;
+  transition: color var(--d-micro) var(--e-out);
+}
+
+.corridor .link:hover {
+  color: var(--c-phosphor);
+}
+
+/* Status pill — a live dot, and a real link to a real status page. */
+.corridor .pill {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.5rem;
+  padding: 0.35rem 0.85rem;
+  border: 1px solid var(--c-line);
+  border-radius: var(--r-pill);
+  font-family: var(--f-mono);
+  font-size: var(--t-meta);
+  color: var(--c-ash);
+}
+
+.corridor .pill-dot {
+  inline-size: 7px;
+  block-size: 7px;
+  border-radius: var(--r-pill);
+  background-color: var(--c-phosphor);
+  box-shadow: 0 0 0 0 rgb(63 224 197 / 0.5);
+  animation: corridor-pulse 2.4s var(--e-in-out) infinite;
+}
+
+@keyframes corridor-pulse {
+  50% {
+    box-shadow: 0 0 0 5px rgb(63 224 197 / 0);
+  }
+}
+
+/* ==========================================================================
+   §3.4 · §6.6 Focal depth
+   ========================================================================== */
+
+/*
+ * Depth is expressed as blur + scale + opacity as a function of distance from
+ * the focal plane. THE RESTING STATE IS THE CORRECT STATE (§3.5): what is
+ * written here is what the page looks like with no JavaScript at all, and the
+ * animation only ever moves an element from a start state it sets itself.
+ */
+.corridor [data-plane] {
+  transform-origin: center;
+}
+
+/*
+ * §3.4 note 3, and the single detail that decides whether this page is smooth
+ * or crashes Chrome on a Galaxy A-series: `will-change` is set when a
+ * transition STARTS and removed when it completes, by the motion code. It is
+ * never declared here, because a permanently promoted layer is a permanent
+ * cost and there are ~40 of these elements on the page.
+ */
+
+/* ==========================================================================
+   §6.8 Reduced motion — none, not "smaller"
+   ========================================================================== */
+
+/*
+ * `prefers-reduced-motion: reduce` forces Tier C, and Tier C runs no
+ * timelines at all (`lib/site/tier.ts`). This block is the belt to that
+ * braces: the CSS rule alone does not stop a JS timeline, and a JS check
+ * alone does not stop a CSS animation, so both exist.
+ *
+ * The manual toggle in the footer sets `data-reduced-motion` on the same
+ * element, for people with vestibular sensitivity who have never found the OS
+ * setting (§6.8).
+ */
+@media (prefers-reduced-motion: reduce) {
+  .corridor *,
+  .corridor *::before,
+  .corridor *::after {
+    animation-duration: 0.01ms !important;
+    animation-iteration-count: 1 !important;
+    transition-duration: 0.01ms !important;
+    scroll-behavior: auto !important;
+  }
+}
+
+.corridor[data-reduced-motion='true'] *,
+.corridor[data-reduced-motion='true'] *::before,
+.corridor[data-reduced-motion='true'] *::after {
+  animation-duration: 0.01ms !important;
+  animation-iteration-count: 1 !important;
+  transition-duration: 0.01ms !important;
+  scroll-behavior: auto !important;
+}
+
+/* ==========================================================================
+   §6.9 Page transitions
+   ========================================================================== */
+
+@view-transition {
+  navigation: auto;
+}
+
+::view-transition-old(root) {
+  animation: corridor-vt-out 260ms cubic-bezier(0.65, 0, 0.35, 1) both;
+}
+
+::view-transition-new(root) {
+  animation: corridor-vt-in 340ms cubic-bezier(0.16, 1, 0.3, 1) both;
+}
+
+@keyframes corridor-vt-out {
+  to {
+    opacity: 0;
+    filter: blur(6px);
+    scale: 0.995;
+  }
+}
+
+@keyframes corridor-vt-in {
+  from {
+    opacity: 0;
+    filter: blur(6px);
+    scale: 1.005;
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  ::view-transition-old(root),
+  ::view-transition-new(root) {
+    animation: none;
+  }
+}
