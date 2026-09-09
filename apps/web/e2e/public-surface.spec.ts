@@ -12,8 +12,24 @@ import { expect, test } from '@playwright/test';
 test.describe('public surface (§4.1)', () => {
   test('an anonymous visitor lands on the marketing page, not a sign-in card', async ({ page }) => {
     await page.goto('/');
+    // The hero's two actions: register, and see how it works.
     await expect(page.getByTestId('landing-signup')).toBeVisible();
-    await expect(page.getByTestId('landing-pricing')).toBeVisible();
+    await expect(page.getByTestId('landing-how')).toBeVisible();
+  });
+
+  test('carries the pricing route through to the closing plate', async ({ page }) => {
+    /*
+     * Pricing moved off the hero and onto Scene 11, where the page makes its
+     * one remaining ask. It is below the fold inside a `content-visibility:
+     * auto` section, so it has to be scrolled to before it has a box at all —
+     * asserting visibility without the scroll would fail for a reason that has
+     * nothing to do with the link being there.
+     */
+    await page.goto('/');
+    const pricing = page.getByTestId('landing-pricing');
+    await pricing.scrollIntoViewIfNeeded();
+    await expect(pricing).toBeVisible();
+    await expect(pricing).toHaveAttribute('href', '/pricing');
   });
 
   test('states the reference-only limit before anyone signs up', async ({ page }) => {
@@ -21,6 +37,9 @@ test.describe('public surface (§4.1)', () => {
     // diagnostic one is what keeps this product outside medical-device
     // regulation, and a prospective customer has to understand it up front.
     await page.goto('/');
+    // Scene 06 is below the fold and skipped by `content-visibility` until it
+    // is approached, so the text has to be reached before it can be read.
+    await page.getByTestId('viewer-banner').scrollIntoViewIfNeeded();
     await expect(page.locator('main')).toContainText(
       /diagnostic|تشخيص|diagnostique/i,
     );

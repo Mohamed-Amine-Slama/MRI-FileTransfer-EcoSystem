@@ -184,11 +184,38 @@ function InteractiveDemo(): React.JSX.Element {
    * The upload starts when the scene is first seen rather than on load.
    * A progress bar that finished while the reader was four scenes away has
    * demonstrated nothing — the whole point is that they watch it.
+   *
+   * ---------------------------------------------------------------------------
+   * THE RECT CHECK IS NOT REDUNDANT WITH THE OBSERVER.
+   *
+   * An IntersectionObserver reports the FIRST time it is notified, and while
+   * the scene is still skipped by `content-visibility: auto` its subtree has
+   * no box to intersect with. Someone who arrives at `#upload` directly — from
+   * the nav, from a shared link, or from a keyboard tab that scrolled the
+   * button into view before hydration finished — can therefore end up with the
+   * scene on screen, the observer attached, and no notification ever arriving,
+   * because nothing moves afterwards.
+   *
+   * The symptom is a dead button labelled "Cut the connection" on the one
+   * scene that is the site's entire argument. So the element's own rectangle
+   * is checked once at mount as well, and whichever answers first wins.
+   * ---------------------------------------------------------------------------
    */
   const rootRef = useRef<HTMLDivElement>(null);
   useEffect(() => {
     const element = rootRef.current;
     if (element === null) return;
+
+    const onScreen = (): boolean => {
+      const rect = element.getBoundingClientRect();
+      if (rect.height === 0) return false;
+      return rect.top < window.innerHeight && rect.bottom > 0;
+    };
+
+    if (onScreen()) {
+      dispatch({ type: 'start' });
+      return;
+    }
 
     const observer = new IntersectionObserver(
       (entries) => {
@@ -197,6 +224,8 @@ function InteractiveDemo(): React.JSX.Element {
           observer.disconnect();
         }
       },
+      // A third of the plate, so the reader has actually arrived rather than
+      // caught its top edge on the way past.
       { threshold: 0.35 },
     );
     observer.observe(element);
