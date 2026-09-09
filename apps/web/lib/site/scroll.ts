@@ -83,7 +83,13 @@ export async function initScroll(tier: Tier): Promise<ScrollSystem | null> {
 export function whenIdle(fn: () => void, timeout = 2000): () => void {
   if (typeof window === 'undefined') return () => {};
 
-  if ('requestIdleCallback' in window) {
+  /*
+   * A `typeof` check, not `'requestIdleCallback' in window`. lib.dom declares
+   * the method as always present, so an `in` narrowing types the fallback
+   * branch as `never` — the compiler would be certain of something the runtime
+   * disagrees with on every iOS device this page has to serve.
+   */
+  if (typeof window.requestIdleCallback === 'function') {
     const id = window.requestIdleCallback(fn, { timeout });
     return () => window.cancelIdleCallback(id);
   }

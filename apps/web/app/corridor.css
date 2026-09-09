@@ -584,3 +584,1154 @@
     animation: none;
   }
 }
+
+/* ==========================================================================
+   Atmospherics — §2.2 channels 3 and 4, Tier A only
+   ========================================================================== */
+
+.corridor .cursor-light {
+  position: fixed;
+  inset-block-start: 0;
+  inset-inline-start: 0;
+  z-index: 0;
+  inline-size: 620px;
+  block-size: 620px;
+  margin-block-start: -310px;
+  margin-inline-start: -310px;
+  pointer-events: none;
+  opacity: 0;
+  transition: opacity 400ms var(--e-out);
+  background: radial-gradient(circle closest-side, rgb(63 224 197 / 0.07), transparent);
+}
+
+.corridor .handoff-canvas {
+  position: fixed;
+  inset: 0;
+  z-index: 0;
+  inline-size: 100%;
+  block-size: 100%;
+  pointer-events: none;
+  opacity: 0;
+  transition: opacity 240ms linear;
+}
+
+/* ==========================================================================
+   Scene 00 — Load
+   ========================================================================== */
+
+.corridor .loader {
+  position: fixed;
+  inset: 0;
+  z-index: 70;
+  background-color: var(--c-void);
+  pointer-events: none;
+  transition: opacity 420ms var(--e-in-out);
+}
+
+.corridor .loader[data-state='done'] {
+  opacity: 0;
+}
+
+/* The hairline drawing across the viewport at 40% height, which then becomes
+   the top edge of the hero plate. One element, one transform. */
+.corridor .loader-line {
+  position: absolute;
+  inset-block-start: 40%;
+  inset-inline-start: 0;
+  inline-size: 100%;
+  block-size: 1px;
+  background-color: var(--c-phosphor);
+  transform-origin: left center;
+  animation: corridor-draw 900ms var(--e-in-out) forwards;
+}
+
+/* The one place a physical origin is correct: `transform-origin` names an
+   edge of the BOX, not a reading direction, and the line is mirrored by the
+   scaleX below rather than by swapping the origin. */
+.corridor[dir='rtl'] .loader-line {
+  transform-origin: right center;
+}
+
+@keyframes corridor-draw {
+  from { scale: 0 1; }
+  to   { scale: 1 1; }
+}
+
+.corridor .loader-count {
+  position: absolute;
+  inset-block-end: clamp(1rem, 4vh, 2.5rem);
+  inset-inline-end: var(--margin);
+}
+
+/* ==========================================================================
+   Chrome
+   ========================================================================== */
+
+.corridor .chrome {
+  position: fixed;
+  inset-block-start: 0;
+  inset-inline: 0;
+  z-index: 50;
+  transition:
+    background-color var(--d-scene) var(--e-out),
+    border-color var(--d-scene) var(--e-out);
+  border-block-end: 1px solid transparent;
+}
+
+.corridor .chrome[data-detached='true'] {
+  background-color: rgb(6 8 11 / 0.86);
+  border-block-end-color: var(--c-line);
+}
+
+.corridor .chrome-inner {
+  display: flex;
+  align-items: center;
+  gap: 1.5rem;
+  max-inline-size: var(--content-max);
+  margin-inline: auto;
+  padding: 0.9rem var(--margin);
+}
+
+.corridor .chrome-mark {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.6rem;
+  color: var(--c-bone);
+  font-family: var(--f-mono);
+  font-size: 0.875rem;
+  letter-spacing: 0.18em;
+}
+
+/* The reticle — a workstation crosshair standing in for a logo. */
+.corridor .chrome-reticle {
+  position: relative;
+  inline-size: 14px;
+  block-size: 14px;
+  border: 1px solid var(--c-phosphor);
+  border-radius: var(--r-pill);
+}
+
+.corridor .chrome-reticle::before,
+.corridor .chrome-reticle::after {
+  content: '';
+  position: absolute;
+  background-color: var(--c-phosphor);
+}
+
+.corridor .chrome-reticle::before {
+  inset-block: -4px;
+  inset-inline-start: 50%;
+  inline-size: 1px;
+}
+
+.corridor .chrome-reticle::after {
+  inset-inline: -4px;
+  inset-block-start: 50%;
+  block-size: 1px;
+}
+
+.corridor .chrome-nav {
+  display: none;
+  gap: 1.5rem;
+}
+
+.corridor .chrome-link {
+  color: var(--c-ash);
+  font-size: 0.75rem;
+  transition: color var(--d-micro) var(--e-out);
+}
+
+.corridor .chrome-link:hover {
+  color: var(--c-phosphor);
+}
+
+.corridor .chrome-actions {
+  display: flex;
+  align-items: center;
+  gap: 1rem;
+  margin-inline-start: auto;
+}
+
+.corridor .chrome-signin {
+  display: none;
+}
+
+.corridor .chrome-toggle {
+  display: flex;
+  flex-direction: column;
+  justify-content: center;
+  gap: 5px;
+  /* 44px: the minimum touch target, on the one control a phone user needs. */
+  inline-size: 44px;
+  block-size: 44px;
+  padding-inline: 10px;
+  background: none;
+  border: 0;
+  cursor: pointer;
+}
+
+.corridor .chrome-toggle-bar {
+  display: block;
+  block-size: 1px;
+  background-color: var(--c-bone);
+}
+
+.corridor .chrome-menu {
+  display: flex;
+  flex-direction: column;
+  gap: 0.25rem;
+  padding: 0.5rem var(--margin) 1.25rem;
+  background-color: var(--c-surface);
+  border-block-start: 1px solid var(--c-line);
+}
+
+.corridor .chrome-menu .chrome-link {
+  display: flex;
+  align-items: center;
+  min-block-size: 44px;
+  font-size: 0.8125rem;
+}
+
+@media (min-width: 900px) {
+  .corridor .chrome-nav,
+  .corridor .chrome-signin {
+    display: inline-flex;
+  }
+
+  .corridor .chrome-toggle,
+  .corridor .chrome-menu {
+    display: none;
+  }
+}
+
+/* ==========================================================================
+   Scene 01 — Hero
+   ========================================================================== */
+
+.corridor .hero-frame {
+  position: relative;
+  display: flex;
+  flex-direction: column;
+  gap: 1.25rem;
+  min-block-size: 100svh;
+  padding: clamp(5rem, 12vh, 7.5rem) var(--margin) clamp(2rem, 6vh, 3.5rem);
+  max-inline-size: var(--content-max);
+  margin-inline: auto;
+}
+
+.corridor .hero-plate {
+  flex: 1;
+  overflow: hidden;
+  /* The one bloom on this viewport (§3.4 material 4). */
+  background-image: radial-gradient(
+    ellipse 60% 50% at 50% 45%,
+    rgb(63 224 197 / 0.06),
+    transparent 70%
+  );
+}
+
+.corridor .hero-stack {
+  position: relative;
+  display: grid;
+  block-size: 100%;
+  min-block-size: 60svh;
+}
+
+/* Poster and canvas occupy the same cell. The canvas paints over the poster
+   once frames arrive; on Tier C it never does, and the poster IS the hero. */
+.corridor .slice-poster,
+.corridor .slice-canvas {
+  grid-area: 1 / 1;
+  inline-size: 100%;
+  block-size: 100%;
+  object-fit: cover;
+  /* §Scene 01: the volume sits BEHIND the headline at 35%. */
+  opacity: 0.35;
+}
+
+.corridor .hero-copy {
+  grid-area: 1 / 1;
+  z-index: 2;
+  display: flex;
+  flex-direction: column;
+  justify-content: center;
+  padding-block: clamp(2rem, 8vh, 5rem);
+}
+
+/* One of exactly two centred blocks on the page (§3.3). */
+.corridor .hero-headline {
+  text-align: center;
+  margin-inline: auto;
+  max-inline-size: 18ch;
+}
+
+.corridor .hero-subhead {
+  margin-block-start: 1.5rem;
+  margin-inline: auto;
+  text-align: center;
+}
+
+.corridor .hero-actions {
+  display: flex;
+  flex-wrap: wrap;
+  justify-content: center;
+  gap: 0.75rem;
+  margin-block-start: 2.25rem;
+}
+
+.corridor .hero-rail {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 0.75rem 1.5rem;
+}
+
+.corridor .hero-trust {
+  display: none;
+}
+
+.corridor .hero-slice {
+  margin-inline-start: auto;
+}
+
+.corridor .hero-hint {
+  position: absolute;
+  inset-block-end: clamp(2rem, 6vh, 3.5rem);
+  inset-inline-start: 50%;
+  translate: -50% 0;
+  opacity: 0.5;
+}
+
+@media (min-width: 700px) {
+  .corridor .hero-trust {
+    display: inline;
+  }
+}
+
+/* ==========================================================================
+   Scene 02 — The problem
+   ========================================================================== */
+
+.corridor .problem-viewport {
+  margin-block-start: clamp(2.5rem, 6vh, 4rem);
+  /* The track is wider than the viewport on desktop and scrubs sideways.
+     `clip` rather than `hidden` so the pinned section cannot become its own
+     scroll container and swallow the page's scroll. */
+  overflow: clip;
+}
+
+.corridor .problem-track {
+  display: flex;
+  flex-direction: column;
+  gap: 1.5rem;
+}
+
+.corridor .problem-plate {
+  flex: 0 0 auto;
+}
+
+.corridor .problem-figure {
+  display: flex;
+  align-items: center;
+  gap: 1.5rem;
+  margin: 0;
+}
+
+.corridor .artefact {
+  flex: 0 0 auto;
+  inline-size: clamp(72px, 18vw, 120px);
+  block-size: auto;
+  color: var(--c-ash);
+}
+
+.corridor .artefact-flaw {
+  color: var(--c-sand);
+  stroke: var(--c-sand);
+}
+
+.corridor .artefact-ink {
+  stroke: var(--c-dim);
+}
+
+.corridor .artefact-mark {
+  fill: var(--c-phosphor);
+  stroke: none;
+}
+
+.corridor .problem-line {
+  margin-block-start: 0.4rem;
+}
+
+@media (min-width: 900px) {
+  .corridor .problem-track {
+    flex-direction: row;
+    gap: 2rem;
+    inline-size: max-content;
+  }
+
+  .corridor .problem-plate {
+    inline-size: min(46vw, 560px);
+  }
+
+  .corridor .problem-figure {
+    flex-direction: column;
+    align-items: start;
+    gap: 2rem;
+  }
+}
+
+/* ==========================================================================
+   Scene 03 — The corridor
+   ========================================================================== */
+
+.corridor .corridor-body,
+.corridor .upload-body,
+.corridor .consent-body,
+.corridor .appointment-body {
+  margin-block-start: 1.25rem;
+}
+
+.corridor .corridor-plate-wrap {
+  margin-block-start: clamp(2rem, 5vh, 3.5rem);
+}
+
+.corridor .corridor-map {
+  position: relative;
+  margin: 0;
+}
+
+.corridor .corridor-map-plate,
+.corridor .corridor-route {
+  inline-size: 100%;
+  block-size: auto;
+  display: block;
+}
+
+.corridor .corridor-route {
+  position: absolute;
+  inset: 0;
+}
+
+.corridor .corridor-legend {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.5rem 2rem;
+  padding: 1rem clamp(1.25rem, 3vw, 2.5rem) 1.25rem;
+  border-block-start: 1px solid var(--c-line);
+}
+
+.corridor .legend-dot {
+  display: inline-block;
+  inline-size: 6px;
+  block-size: 6px;
+  border-radius: var(--r-pill);
+  background-color: var(--c-phosphor);
+  vertical-align: middle;
+}
+
+.corridor .corridor-readout {
+  margin-block-start: 1.5rem;
+}
+
+.corridor .corridor-readout-line {
+  /* Latin technical tokens keep their order in every script. */
+  direction: ltr;
+  text-align: start;
+}
+
+/* ==========================================================================
+   Scene 04 — Upload
+   ========================================================================== */
+
+.corridor .upload-head {
+  display: flex;
+  justify-content: space-between;
+  gap: 1rem;
+  margin-block-end: 0.75rem;
+}
+
+.corridor .upload-bar {
+  block-size: 6px;
+  background-color: var(--c-raised);
+  border-radius: var(--r-pill);
+  overflow: hidden;
+}
+
+.corridor .upload-bar-fill {
+  display: block;
+  block-size: 100%;
+  background-color: var(--c-phosphor);
+  transition: inline-size 160ms linear;
+}
+
+.corridor .upload-bar[data-phase='interrupted'] .upload-bar-fill {
+  background-color: var(--c-sand);
+  /* The bar STOPS. No indeterminate shimmer — the whole argument of this
+     scene is that nothing is happening and nothing is being lost. */
+  transition: none;
+}
+
+.corridor .upload-controls {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 1rem;
+  margin-block-start: 1.5rem;
+}
+
+.corridor .upload-cut:disabled {
+  opacity: 0.45;
+  cursor: default;
+}
+
+.corridor .upload-log {
+  display: flex;
+  flex-direction: column;
+  gap: 0.35rem;
+  margin-block-start: 1.5rem;
+  min-block-size: 4.5rem;
+  padding-block-start: 1rem;
+  border-block-start: 1px solid var(--c-line);
+}
+
+.corridor .upload-static {
+  display: grid;
+  gap: 1.25rem;
+}
+
+.corridor .upload-static .upload-bar {
+  margin-block-start: 0.75rem;
+}
+
+.corridor .upload-static-note {
+  grid-column: 1 / -1;
+}
+
+@media (min-width: 900px) {
+  .corridor .upload-static {
+    grid-template-columns: repeat(3, 1fr);
+  }
+}
+
+/* ==========================================================================
+   Scene 05 — Consent
+   ========================================================================== */
+
+.corridor .consent-grid {
+  display: grid;
+  gap: 2rem;
+  margin-block-start: clamp(2rem, 5vh, 3.5rem);
+}
+
+.corridor .consent-document {
+  position: relative;
+  /* The paper moment (§Scene 05) — the only skeuomorphic beat on the site. */
+  transform: perspective(1200px) rotateX(1.4deg);
+}
+
+.corridor .consent-doc-title {
+  max-inline-size: 28ch;
+}
+
+.corridor .consent-doc-body {
+  margin-block-start: 1rem;
+}
+
+.corridor .consent-recipient {
+  margin-block-start: 1.5rem;
+}
+
+.corridor .consent-redaction-note {
+  margin-block-start: 0.35rem;
+}
+
+.corridor .consent-stamp {
+  position: absolute;
+  inset-block-end: 1.5rem;
+  inset-inline-end: 1.5rem;
+  padding: 0.4rem 0.9rem;
+  border: 2px solid var(--c-phosphor);
+  border-radius: var(--r-plate);
+  color: var(--c-phosphor);
+  font-size: 0.9rem;
+  letter-spacing: 0.2em;
+  rotate: -7deg;
+  opacity: 0.9;
+}
+
+.corridor .evidence {
+  display: flex;
+  flex-direction: column;
+  gap: 0.4rem;
+  margin: 0;
+  direction: ltr;
+  text-align: start;
+}
+
+.corridor .evidence-row {
+  display: grid;
+  grid-template-columns: 11rem 1fr;
+  gap: 0.75rem;
+}
+
+.corridor .evidence-row dd {
+  margin: 0;
+}
+
+.corridor .consent-revoke {
+  margin-block-start: 1.75rem;
+}
+
+.corridor .consent-switch {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.75rem;
+  min-block-size: 44px;
+  cursor: pointer;
+}
+
+/* The native input stays in the accessibility tree and keeps the keyboard
+   behaviour; only its painting is replaced. */
+.corridor .consent-switch input {
+  position: absolute;
+  inline-size: 1px;
+  block-size: 1px;
+  opacity: 0;
+}
+
+.corridor .consent-switch-track {
+  display: inline-flex;
+  align-items: center;
+  inline-size: 44px;
+  block-size: 24px;
+  padding: 3px;
+  border: 1px solid var(--c-line);
+  border-radius: var(--r-pill);
+  background-color: var(--c-raised);
+  transition: background-color var(--d-micro) var(--e-out);
+}
+
+.corridor .consent-switch-thumb {
+  inline-size: 16px;
+  block-size: 16px;
+  border-radius: var(--r-pill);
+  background-color: var(--c-ash);
+  transition: translate var(--d-micro) var(--e-snap), background-color var(--d-micro) var(--e-out);
+}
+
+.corridor .consent-switch input:checked + .consent-switch-track {
+  background-color: var(--c-clay);
+}
+
+.corridor .consent-switch input:checked + .consent-switch-track .consent-switch-thumb {
+  /* Multiplied by --dir so the thumb travels towards the reader's "on". */
+  translate: calc(20px * var(--dir)) 0;
+  background-color: var(--c-sand);
+}
+
+.corridor .consent-switch input:focus-visible + .consent-switch-track {
+  outline: 2px solid var(--c-phosphor);
+  outline-offset: 3px;
+}
+
+.corridor .consent-thumbs {
+  margin-block-start: 1.75rem;
+}
+
+.corridor .consent-thumb-row {
+  display: flex;
+  gap: 0.75rem;
+  margin-block-start: 0.6rem;
+}
+
+.corridor .consent-thumb-row img {
+  inline-size: clamp(72px, 20vw, 140px);
+  block-size: auto;
+  border: 1px solid var(--c-line);
+  border-radius: var(--r-plate);
+  /* Same frame, no transition: revocation in the product is immediate, and a
+     fade here would dramatise a security property as a flourish. */
+  transition: none;
+}
+
+.corridor .consent-thumbs[data-revoked='true'] img {
+  filter: brightness(0.06) grayscale(1);
+}
+
+.corridor .consent-thumb-placeholder {
+  display: block;
+  inline-size: 100%;
+  block-size: 90px;
+  border: 1px dashed var(--c-line);
+  border-radius: var(--r-plate);
+}
+
+.corridor .consent-thumbs-notice {
+  display: block;
+  margin-block-start: 0.6rem;
+}
+
+@media (min-width: 1000px) {
+  .corridor .consent-grid {
+    grid-template-columns: 1.1fr 1fr;
+    align-items: start;
+    gap: 3rem;
+  }
+}
+
+/* ==========================================================================
+   Scene 06 — The viewer
+   ========================================================================== */
+
+.corridor .viewer-grid {
+  display: grid;
+  gap: 2rem;
+  margin-block-start: clamp(2rem, 5vh, 3.5rem);
+}
+
+.corridor .viewer-plate {
+  overflow: hidden;
+}
+
+/*
+ * The page's only large light surface.
+ *
+ * It declares its own colours instead of inheriting the corridor palette,
+ * because the point being made is a CONTRAST: the product is a bright clinical
+ * tool used in bright rooms, and this site is the dark room around it (§3.1).
+ */
+.corridor .viewer-panel {
+  background-color: #f6f8fa;
+  color: #101826;
+  font-size: 0.875rem;
+}
+
+.corridor .viewer-banner {
+  padding: 0.75rem 1rem;
+  background-color: #fdf1df;
+  color: #7a4b00;
+  font-weight: 600;
+  border-block-end: 1px solid #e6d3b4;
+  /* At real size. §Scene 06: do not shrink it to hide it. */
+  font-size: 0.9375rem;
+}
+
+.corridor .viewer-body {
+  display: flex;
+}
+
+.corridor .viewer-rail {
+  display: flex;
+  flex-direction: column;
+  gap: 0.5rem;
+  padding: 0.75rem;
+  background-color: #ffffff;
+  border-inline-end: 1px solid #dbe2ea;
+}
+
+.corridor .viewer-tool {
+  inline-size: 22px;
+  block-size: 22px;
+  border: 1px solid #c6d0dc;
+  border-radius: 4px;
+}
+
+.corridor .viewer-stage {
+  position: relative;
+  flex: 1;
+  background-color: #0b0d10;
+  min-block-size: 220px;
+}
+
+.corridor .viewer-stage img {
+  inline-size: 100%;
+  block-size: 100%;
+  object-fit: cover;
+  display: block;
+}
+
+.corridor .viewer-meta {
+  position: absolute;
+  inset-block-start: 0.6rem;
+  color: #9db0c3;
+  font-size: 0.625rem;
+  line-height: 1.4;
+  /* DICOM corner overlays are Latin identifiers and never reorder. */
+  direction: ltr;
+}
+
+.corridor .viewer-meta--start {
+  inset-inline-start: 0.6rem;
+}
+
+.corridor .viewer-meta--end {
+  inset-inline-end: 0.6rem;
+  text-align: end;
+}
+
+@media (min-width: 1000px) {
+  .corridor .viewer-grid {
+    grid-template-columns: 1.4fr 1fr;
+    align-items: center;
+    gap: 3rem;
+  }
+}
+
+/* ==========================================================================
+   Scene 07 — The appointment
+   ========================================================================== */
+
+.corridor .appointment-clocks {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 2.5rem;
+  padding-block-end: 1.5rem;
+  border-block-end: 1px solid var(--c-line);
+}
+
+.corridor .clock {
+  display: flex;
+  flex-direction: column;
+  gap: 0.25rem;
+}
+
+.corridor .clock-time {
+  font-size: clamp(2rem, 5vw, 3rem);
+  color: var(--c-bone);
+  line-height: 1;
+}
+
+.corridor .appointment-slot {
+  padding-block: 1.5rem;
+}
+
+.corridor .appointment-slot-time {
+  margin-block: 0.35rem 0.75rem;
+  direction: ltr;
+  text-align: start;
+}
+
+.corridor .appointment-payment {
+  padding-block-start: 1.5rem;
+  border-block-start: 1px solid var(--c-line);
+}
+
+/* ==========================================================================
+   Scene 08 — Security
+   ========================================================================== */
+
+.corridor .security {
+  display: flex;
+  flex-direction: column;
+  gap: 0.6rem;
+  margin: 0;
+}
+
+.corridor .security-row {
+  display: grid;
+  gap: 0.15rem 1.5rem;
+}
+
+.corridor .security-row dd {
+  margin: 0;
+}
+
+.corridor .security-status {
+  margin-block-start: 1.5rem;
+}
+
+@media (min-width: 700px) {
+  .corridor .security-row {
+    grid-template-columns: 14rem 1fr;
+    align-items: baseline;
+  }
+}
+
+/* ==========================================================================
+   Scene 09 — Two doors
+   ========================================================================== */
+
+.corridor .doors-title {
+  margin-block-end: 1.5rem;
+}
+
+.corridor .doors {
+  display: grid;
+  border: 1px solid var(--c-line);
+  border-radius: var(--r-plate);
+  overflow: hidden;
+}
+
+.corridor .door {
+  display: flex;
+  flex-direction: column;
+  gap: 0.75rem;
+  padding: clamp(1.75rem, 5vw, 3.5rem);
+  color: var(--c-bone);
+  background-color: var(--c-surface);
+  transition: background-color var(--d-scene) var(--e-out), flex-grow var(--d-scene) var(--e-out);
+}
+
+.corridor .door + .door {
+  border-block-start: 1px solid var(--c-line);
+}
+
+.corridor .door-body {
+  max-inline-size: 42ch;
+}
+
+.corridor .door-cta {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.5rem;
+  margin-block-start: 0.75rem;
+}
+
+/* §3.6: arrows mirror. One glyph in the markup, flipped by the multiplier. */
+.corridor .door-arrow {
+  display: inline-block;
+  scale: var(--dir) 1;
+  transition: translate var(--d-micro) var(--e-out);
+}
+
+.corridor .door:hover .door-arrow,
+.corridor .door:focus-visible .door-arrow {
+  translate: calc(4px * var(--dir)) 0;
+}
+
+@media (min-width: 900px) {
+  .corridor .doors {
+    grid-auto-flow: column;
+    grid-auto-columns: 1fr;
+  }
+
+  .corridor .door + .door {
+    border-block-start: 0;
+    border-inline-start: 1px solid var(--c-line);
+  }
+
+  /*
+   * The preview. §Scene 09 permits this hover because it is meaningful — the
+   * chosen side expands and the other dims, which shows the consequence of the
+   * choice before it is made. `:focus-within` gives a keyboard user the same
+   * preview; a hover-only affordance would make it a reward for owning a mouse.
+   */
+  .corridor .doors:hover .door,
+  .corridor .doors:focus-within .door {
+    opacity: 0.55;
+  }
+
+  .corridor .doors .door:hover,
+  .corridor .doors .door:focus-within {
+    opacity: 1;
+    background-color: var(--c-raised);
+  }
+}
+
+/* ==========================================================================
+   Scene 10 — Questions
+   ========================================================================== */
+
+.corridor .faq {
+  margin-block-start: clamp(2rem, 5vh, 3rem);
+  border-block-start: 1px solid var(--c-line);
+}
+
+.corridor .faq-item {
+  border-block-end: 1px solid var(--c-line);
+}
+
+.corridor .faq-question {
+  display: flex;
+  align-items: baseline;
+  gap: 1rem;
+  padding-block: 1.25rem;
+  cursor: pointer;
+  list-style: none;
+}
+
+/* The default disclosure triangle is a physical-direction glyph that does not
+   flip reliably under RTL, so it is replaced entirely. */
+.corridor .faq-question::-webkit-details-marker {
+  display: none;
+}
+
+.corridor .faq-index {
+  flex: 0 0 auto;
+}
+
+.corridor .faq-marker {
+  position: relative;
+  flex: 0 0 auto;
+  inline-size: 14px;
+  block-size: 14px;
+  margin-inline-start: auto;
+  align-self: center;
+}
+
+.corridor .faq-marker::before,
+.corridor .faq-marker::after {
+  content: '';
+  position: absolute;
+  inset-block-start: 50%;
+  inset-inline-start: 0;
+  inline-size: 14px;
+  block-size: 1px;
+  background-color: var(--c-phosphor);
+  transition: rotate var(--d-micro) var(--e-out);
+}
+
+.corridor .faq-marker::after {
+  rotate: 90deg;
+}
+
+.corridor .faq-item[open] .faq-marker::after {
+  rotate: 0deg;
+}
+
+.corridor .faq-answer {
+  padding-block-end: 1.5rem;
+  /* Aligned under the question text, past the index column. */
+  padding-inline-start: calc(1rem + 2ch);
+}
+
+/* ==========================================================================
+   Scene 11 — Close
+   ========================================================================== */
+
+.corridor .scene--close {
+  padding-block-end: clamp(4rem, 10vh, 7rem);
+}
+
+/*
+ * The inversion. The only large light surface in the document after the
+ * viewer panel, and the last thing seen.
+ */
+.corridor .close-plate {
+  position: relative;
+  padding: clamp(3rem, 10vh, 7rem) clamp(1.5rem, 6vw, 5rem);
+  background-color: var(--c-bone);
+  color: var(--c-void);
+  border-radius: var(--r-plate);
+  text-align: center;
+}
+
+.corridor .close-counter {
+  color: var(--c-clay);
+  letter-spacing: 0.2em;
+}
+
+.corridor .close-line {
+  margin-block-start: 1.5rem;
+  margin-inline: auto;
+  max-inline-size: 22ch;
+  color: var(--c-void);
+}
+
+.corridor .close-actions {
+  display: flex;
+  flex-wrap: wrap;
+  justify-content: center;
+  gap: 0.75rem;
+  margin-block-start: 2.5rem;
+}
+
+.corridor .btn--invert {
+  background-color: var(--c-void);
+  color: var(--c-bone);
+}
+
+.corridor .btn--invert:hover {
+  background-color: #11181f;
+  translate: 0 -1px;
+}
+
+.corridor .btn--invert-ghost {
+  border-color: rgb(6 8 11 / 0.25);
+  color: var(--c-void);
+}
+
+.corridor .btn--invert-ghost:hover {
+  border-color: var(--c-void);
+}
+
+/* The inverted plate needs its own focus colour: phosphor on bone fails
+   contrast, and an invisible focus ring on the page's one remaining call to
+   action is the worst place to have one. */
+.corridor .close-plate :focus-visible {
+  outline-color: var(--c-clay);
+}
+
+/* ==========================================================================
+   Footer
+   ========================================================================== */
+
+.corridor .site-footer {
+  border-block-start: 1px solid var(--c-line);
+  padding-block: clamp(2.5rem, 7vh, 4rem);
+}
+
+.corridor .site-footer-inner {
+  display: flex;
+  flex-direction: column;
+  gap: 1.75rem;
+}
+
+.corridor .footer-locales {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 1rem;
+}
+
+.corridor .footer-locale {
+  color: var(--c-ash);
+  min-block-size: 44px;
+  display: inline-flex;
+  align-items: center;
+  transition: color var(--d-micro) var(--e-out);
+}
+
+.corridor .footer-locale:hover {
+  color: var(--c-bone);
+}
+
+.corridor .footer-locale.is-current {
+  color: var(--c-phosphor);
+}
+
+.corridor .footer-legal {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.75rem 1.75rem;
+}
+
+.corridor .footer-switches {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 1rem 2rem;
+}
+
+.corridor .footer-switch {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.6rem;
+  min-block-size: 44px;
+  font-size: var(--t-meta);
+  color: var(--c-ash);
+  cursor: pointer;
+}
+
+.corridor .footer-switch input {
+  inline-size: 16px;
+  block-size: 16px;
+  accent-color: var(--c-phosphor);
+}
+
+.corridor .footer-entity {
+  display: flex;
+  flex-direction: column;
+  gap: 0.25rem;
+  padding-block-start: 1.5rem;
+  border-block-start: 1px solid var(--c-line);
+}

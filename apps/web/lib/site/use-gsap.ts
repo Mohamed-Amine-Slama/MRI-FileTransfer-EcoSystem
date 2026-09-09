@@ -46,7 +46,13 @@ export function useGsapScope(
       cancelled = true;
       context?.revert();
     };
-    // eslint-disable-next-line react-hooks/exhaustive-deps
+    /*
+     * `deps` is passed straight through from the caller. The exhaustive-deps
+     * lint rule cannot see through that indirection — and this repository does
+     * not load the plugin — so the discipline is the contract instead: every
+     * caller lists what its setup closes over, and the tier flag is always
+     * among them so a demotion tears the timeline down.
+     */
   }, deps);
 }
 
@@ -59,7 +65,7 @@ export function useGsapScope(
  * memory exhaustion. So it is set when a transition starts and removed the
  * instant it finishes, never declared in the stylesheet.
  */
-export function promoting(element: HTMLElement, properties: string) {
+export function promoting(element: ElementCSSInlineStyle, properties: string) {
   return {
     onStart: () => {
       element.style.willChange = properties;

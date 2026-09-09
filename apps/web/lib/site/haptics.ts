@@ -24,13 +24,23 @@ export type HapticMoment = (typeof MOMENTS)[number];
 /** One short tick. §2.2 specifies 8 ms — a tap, not a buzz. */
 const PATTERN = [8];
 
-interface VibratingNavigator extends Navigator {
-  vibrate?: (pattern: number | number[]) => boolean;
+/*
+ * `Navigator.vibrate` is declared as REQUIRED by lib.dom, and it is simply
+ * absent on iOS Safari. Widening the type would conflict with the built-in
+ * declaration, so the check is a runtime `in` test and the call goes through
+ * the narrowed alias below.
+ */
+type Vibrate = (pattern: number | number[]) => boolean;
+
+function vibrateFn(): Vibrate | null {
+  if (typeof navigator === 'undefined') return null;
+  if (!('vibrate' in navigator)) return null;
+  const fn: unknown = navigator.vibrate;
+  return typeof fn === 'function' ? (fn.bind(navigator) as Vibrate) : null;
 }
 
 export function hapticsAvailable(): boolean {
-  if (typeof navigator === 'undefined') return false;
-  return typeof (navigator as VibratingNavigator).vibrate === 'function';
+  return vibrateFn() !== null;
 }
 
 /**
@@ -44,11 +54,13 @@ export function hapticsAvailable(): boolean {
  */
 export function haptic(moment: HapticMoment, expressive: boolean): void {
   if (!expressive) return;
-  if (!hapticsAvailable()) return;
   if (!MOMENTS.includes(moment)) return;
 
+  const vibrate = vibrateFn();
+  if (vibrate === null) return;
+
   try {
-    (navigator as VibratingNavigator).vibrate?.(PATTERN);
+    vibrate(PATTERN);
   } catch {
     // Some in-app WebViews expose the method and reject the call. Nothing to
     // do about it, and nothing that should reach the user.

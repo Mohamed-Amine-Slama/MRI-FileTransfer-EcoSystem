@@ -55,3 +55,6 @@ BUILD_SPEC.md
 platform-requirements.md
 landing-page-spec.md
 Landing-Page-Specs.md
+# Natural Earth geojson cache for apps/web/scripts/render-corridor-map.mjs.
+# Multi-megabyte source data; the generated map and route module are committed.
+apps/web/.map-cache/

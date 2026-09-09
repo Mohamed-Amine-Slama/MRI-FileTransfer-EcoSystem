@@ -1,0 +1,131 @@
+'use client';
+
+import Link from 'next/link';
+import { useRef } from 'react';
+import { corridorLabels } from '../../../lib/site/corridor-labels';
+import { SEQUENCE } from '../../../lib/site/sequence';
+import { useSite } from '../../../lib/site/site-provider';
+import { HeadlineReveal } from '../motion/HeadlineReveal';
+import { ScrubCanvas } from '../motion/ScrubCanvas';
+import { Plate } from '../primitives/Plate';
+import { SliceCounter } from '../primitives/SliceCounter';
+import { StatusPill } from '../primitives/StatusPill';
+
+/**
+ * Scene 01 — Hero. Landing-Page-Specs §Scene 01.
+ *
+ * Two jobs, in this order: say what the product does in one sentence, and
+ * perform the slice mechanic within the first 300 px of scroll so the reader
+ * learns the page's grammar before they have decided anything.
+ *
+ * The volume sits BEHIND the headline at 35% opacity and the headline is on
+ * the focal plane. Scrolling advances the slices and drifts the headline back
+ * out of focus — you scroll past it, into the volume. That single relationship
+ * is the whole design idea (§2.1 concept C) and everything else on the page is
+ * a consequence of it.
+ *
+ * The scene is `100vh` and the scrub runs over the following viewport, so a
+ * reader who never scrolls sees a complete, still hero — which is exactly what
+ * Tier C sees too.
+ */
+export function S01Hero(): React.JSX.Element {
+  const sectionRef = useRef<HTMLElement>(null);
+  const { t, tpl, locale, budget } = useSite();
+  const corridor = corridorLabels(locale);
+
+  return (
+    <section
+      ref={sectionRef}
+      id="hero"
+      className="scene scene--hero"
+      aria-labelledby="hero-headline"
+    >
+      <div className="hero-frame">
+        <Plate
+          className="hero-plate"
+          /*
+           * A real DICOM series description, in the format a doctor reads
+           * fifty times a day. It is decoration for everyone else and a
+           * handshake for them.
+           */
+          label="CT · AX · 512×512"
+          scanline
+          padded={false}
+        >
+          <div className="hero-stack">
+            {/*
+              The poster is the hero image on every tier. On A and B the canvas
+              paints over it once frames arrive; on C it IS the hero, and
+              nothing else ever loads. `fetchpriority="high"` because this is
+              the LCP candidate (§8.2 technique 6).
+
+              A plain <img>, not next/image. The file is already AVIF at its
+              final dimensions, committed by the render script, so the image
+              optimiser has nothing to do but add a serverless hop in front of
+              the one asset whose latency decides LCP. Explicit width and
+              height are what keep CLS at zero (§8.1).
+            */}
+            <img
+              src={SEQUENCE.poster}
+              alt=""
+              width={SEQUENCE.width}
+              height={SEQUENCE.height}
+              className="slice-poster"
+              fetchPriority="high"
+              decoding="async"
+              aria-hidden="true"
+            />
+            <ScrubCanvas triggerRef={sectionRef} />
+
+            <div className="hero-copy shell">
+              <HeadlineReveal
+                id="hero-headline"
+                text={t.heroHeadline}
+                className="hero-headline"
+              />
+              <p className="hero-subhead t-body-l ash measure">
+                {tpl.heroSubhead(corridor.source, corridor.destination)}
+              </p>
+
+              <div className="hero-actions">
+                {/*
+                  `data-testid` values are the ones `e2e/public-surface.spec.ts`
+                  already knows. The scene changed; the contract that an
+                  anonymous visitor lands on a marketing page with these two
+                  routes out of it did not.
+                */}
+                <Link href="/signup" className="btn btn--primary" data-testid="landing-signup">
+                  {t.heroCtaPrimary}
+                </Link>
+                <a href="#problem" className="btn btn--ghost" data-testid="landing-how">
+                  {t.heroCtaSecondary}
+                </a>
+              </div>
+            </div>
+          </div>
+        </Plate>
+
+        <div className="hero-rail">
+          <StatusPill
+            operationalLabel={t.heroStatusOperational}
+            unknownLabel={t.heroStatusUnknown}
+          />
+          <span className="mono dim hero-trust">{t.heroTrustLine}</span>
+          {/*
+            The counter is positioned as the plate's own bottom-edge label, so
+            it reads as part of the viewport chrome rather than as a widget.
+            It is the page's scrollbar (§Scene 01) and it runs to 180/180 at
+            the final plate.
+          */}
+          <SliceCounter className="hero-slice" />
+        </div>
+
+        {budget.planes > 0 && (
+          <p className="hero-hint mono dim" aria-hidden="true">
+            {t.heroScrollHint}
+          </p>
+        )}
+      </div>
+    </section>
+  );
+}

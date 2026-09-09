@@ -3,7 +3,7 @@
 import { useEffect, useRef, useState } from 'react';
 import { useSite } from '../../../lib/site/site-provider';
 import { splitForAnimation } from '../../../lib/site/split';
-import { promoting, useGsapScope } from '../../../lib/site/use-gsap';
+import { useGsapScope } from '../../../lib/site/use-gsap';
 
 /**
  * The hero headline resolving out of focal blur — §Scene 01's transition in.
@@ -34,9 +34,11 @@ import { promoting, useGsapScope } from '../../../lib/site/use-gsap';
  */
 export function HeadlineReveal({
   text,
+  id,
   className = '',
 }: {
   text: string;
+  id?: string;
   className?: string;
 }): React.JSX.Element {
   const ref = useRef<HTMLHeadingElement>(null);
@@ -82,7 +84,7 @@ export function HeadlineReveal({
   );
 
   return (
-    <h1 ref={ref} className={`display t-hero ${className}`.trim()} aria-label={text}>
+    <h1 ref={ref} id={id} className={`display t-hero ${className}`.trim()} aria-label={text}>
       {split
         ? splitForAnimation(text, locale).map((unit, index) =>
             unit.space ? (
