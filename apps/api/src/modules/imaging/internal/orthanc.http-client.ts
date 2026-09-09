@@ -1,7 +1,7 @@
 import { Inject, Injectable, Logger } from '@nestjs/common';
 import { APP_CONFIG } from '../../../shared/config/config.module';
 import type { AppConfig } from '../../../shared/config/config.schema';
-import type { AnonymisedStudy, OrthancClient } from './orthanc.client';
+import type { AnonymisedStudy, OrthancClient, StudyInstanceRef } from './orthanc.client';
 
 /**
  * HTTP client for Orthanc's DICOMweb API — BUILD_SPEC P8.1, P8.2.
@@ -109,6 +109,34 @@ export class OrthancHttpClient implements OrthancClient {
       studyInstanceUid: uid,
       failedInstances: created.FailedInstancesCount ?? 0,
     };
+  }
+
+  /**
+   * List a study's instances over DICOMweb.
+   *
+   * Returns UIDs only — no pixel data — because the viewer uses this to learn
+   * how many frames exist before requesting them one at a time (P9.1).
+   */
+  async listInstances(studyInstanceUid: string): Promise<StudyInstanceRef[]> {
+    const res = await this.request(
+      `/dicom-web/studies/${encodeURIComponent(studyInstanceUid)}/instances`,
+      { method: 'GET', headers: { accept: 'application/dicom+json' } },
+    );
+    if (res.status === 404) return [];
+    if (!res.ok) throw new Error(`Orthanc instance list failed: ${res.status}`);
+
+    // DICOM JSON: tag keys, each a { vr, Value: [...] }. 00080018 is
+    // SOPInstanceUID and 0020000E SeriesInstanceUID.
+    const rows = (await res.json()) as Record<string, { Value?: string[] }>[];
+    return rows.flatMap((row) => {
+      const sop = row['00080018']?.Value?.[0];
+      const series = row['0020000E']?.Value?.[0];
+      // Skip rather than emit a half-identified instance: a frame URL built
+      // from an undefined uid would 404 in a way that looks like an outage.
+      return sop === undefined || series === undefined
+        ? []
+        : [{ sopInstanceUid: sop, seriesInstanceUid: series }];
+    });
   }
 
   /**

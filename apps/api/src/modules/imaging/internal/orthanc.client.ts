@@ -53,6 +53,21 @@ export interface OrthancClient {
    * Orthanc dedupe the twin into the original.
    */
   anonymiseStudy(orthancStudyId: string, request: unknown): Promise<AnonymisedStudy>;
+  /**
+   * The SOP and series UIDs of one study, as Orthanc holds them.
+   *
+   * Needed because a twin's instances carry DIFFERENT UIDs from the original's
+   * — anonymisation reallocates them. `imaging_instances` records the
+   * original's, so serving that list to a doctor would hand them identifiers
+   * that resolve against nothing in the twin, and every frame request would
+   * 404. The twin is the only thing that knows its own instance UIDs.
+   */
+  listInstances(studyInstanceUid: string): Promise<StudyInstanceRef[]>;
+}
+
+export interface StudyInstanceRef {
+  sopInstanceUid: string;
+  seriesInstanceUid: string;
 }
 
 /**
@@ -86,6 +101,13 @@ export class InMemoryOrthancClient implements OrthancClient {
 
   async findStudy(): Promise<unknown> {
     return null;
+  }
+
+  /** Instance lists keyed by study uid, for tests that exercise the viewer. */
+  readonly instancesByStudy = new Map<string, StudyInstanceRef[]>();
+
+  async listInstances(studyInstanceUid: string): Promise<StudyInstanceRef[]> {
+    return this.instancesByStudy.get(studyInstanceUid) ?? [];
   }
 
   /** Answers with a deterministic id so tests need no Orthanc container. */
