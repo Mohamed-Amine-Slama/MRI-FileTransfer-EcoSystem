@@ -81,11 +81,26 @@ export async function generateMetadata({
       url: `${SITE_ORIGIN}/${locale}`,
       title: copy.metaTitle,
       description: copy.metaDescription,
+      /*
+       * One card per locale, with the headline set in the right script and
+       * direction — §10, and the reason `scripts/render-og.mjs` renders these
+       * in Chromium rather than through `next/og`: Satori does no complex text
+       * shaping, so it would ship the Arabic card as unjoined letterforms.
+       */
+      images: [
+        {
+          url: `${SITE_ORIGIN}/og/${locale}.png`,
+          width: 1200,
+          height: 630,
+          alt: copy.heroHeadline,
+        },
+      ],
     },
     twitter: {
       card: 'summary_large_image',
       title: copy.metaTitle,
       description: copy.metaDescription,
+      images: [`${SITE_ORIGIN}/og/${locale}.png`],
     },
     /*
      * §10 forbids `MedicalWebPage` and every `MedicalEntity` type: those

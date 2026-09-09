@@ -86,7 +86,7 @@ export function SliceCounter({ className = '' }: { className?: string }): React.
   return (
     <span
       ref={ref}
-      className={`mono dim ${className}`.trim()}
+      className={`mono dim slice-counter ${className}`.trim()}
       /*
        * Announced on request rather than continuously. A live region here
        * would read a new number into a screen reader on every slice, which is

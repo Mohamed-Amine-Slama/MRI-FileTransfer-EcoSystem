@@ -30,7 +30,7 @@ import { StatusPill } from '../primitives/StatusPill';
  */
 export function S01Hero(): React.JSX.Element {
   const sectionRef = useRef<HTMLElement>(null);
-  const { t, tpl, locale, budget } = useSite();
+  const { t, tpl, locale } = useSite();
   const corridor = corridorLabels(locale);
 
   return (
@@ -120,11 +120,17 @@ export function S01Hero(): React.JSX.Element {
           <SliceCounter className="hero-slice" />
         </div>
 
-        {budget.planes > 0 && (
-          <p className="hero-hint mono dim" aria-hidden="true">
-            {t.heroScrollHint}
-          </p>
-        )}
+        {/*
+          Rendered on EVERY tier, and that is the point. §6.3 requires a
+          demotion to cause no visible layout change; gating this on the tier
+          made it vanish the moment a device stepped from B to C, which is
+          exactly the visible downgrade the rule forbids. It is also still true
+          on Tier C: the slice counter runs 001 → 180 whether or not the canvas
+          scrubs behind it.
+        */}
+        <p className="hero-hint mono dim" aria-hidden="true">
+          {t.heroScrollHint}
+        </p>
       </div>
     </section>
   );

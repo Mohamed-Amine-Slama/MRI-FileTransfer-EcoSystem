@@ -105,7 +105,18 @@
   --f-display-latin: var(--font-grotesk), 'Segoe UI', system-ui, sans-serif;
   --f-display-arabic: var(--font-reem), var(--font-plex), 'Noto Kufi Arabic', sans-serif;
   --f-body: var(--font-plex), system-ui, -apple-system, 'Segoe UI', Tahoma, 'Noto Sans Arabic', sans-serif;
-  --f-mono: var(--font-plex-mono), ui-monospace, 'SFMono-Regular', 'Cascadia Mono', monospace;
+  /*
+   * IBM Plex Mono is LATIN-ONLY, and font fallback is per glyph, so the tail
+   * of this stack decides what Arabic looks like in every mono readout on the
+   * page — the eyebrows, the nav, the plate labels, the trust line.
+   *
+   * Ending at `monospace` sent Arabic to the system fixed-pitch face, which
+   * sets every glyph in an equal cell and pulls the joins apart: نقل مشفّر
+   * came out as spaced, barely-connected letters. Putting the body face next
+   * in line means Latin still comes from Plex Mono and Arabic comes from Plex
+   * Sans Arabic, correctly shaped, in the same family the body copy uses.
+   */
+  --f-mono: var(--font-plex-mono), var(--font-plex), ui-monospace, 'SFMono-Regular', monospace;
 
   /* The scene the page is currently at, written by the scroll orchestrator and
      read by the chrome. Declared here so it always resolves, even with no JS. */
@@ -312,6 +323,21 @@
   pointer-events: none;
 }
 
+/*
+ * `unicode-bidi: plaintext` — the counters are the one place bidi gets this
+ * wrong on purpose.
+ *
+ * "36 / 312" is two LTR digit runs separated by a neutral slash. In an RTL
+ * paragraph the algorithm is entitled to order those runs right-to-left, and
+ * it does: the plate read "312 / 36", quietly inverting a progress fraction
+ * into a nonsense one. `plaintext` takes the direction from the content, and
+ * content with no strong character resolves left-to-right — which is what a
+ * fraction is in every locale.
+ *
+ * It is set on the TEXT rather than by flipping `direction`, because
+ * `direction` also decides which physical edge `inset-inline-end` means, and
+ * the counter must stay on the trailing corner of the plate in both scripts.
+ */
 .corridor .plate-counter {
   position: absolute;
   inset-block-end: -0.62em;
@@ -322,7 +348,14 @@
   font-family: var(--f-mono);
   font-size: 0.6875rem;
   font-variant-numeric: tabular-nums;
+  unicode-bidi: plaintext;
   pointer-events: none;
+}
+
+/* Same reasoning, for the page-wide counter and the closing 180 / 180. */
+.corridor .slice-counter,
+.corridor .close-counter {
+  unicode-bidi: plaintext;
 }
 
 .corridor .plate-body {
@@ -894,12 +927,26 @@
   margin-inline-start: auto;
 }
 
+/*
+ * Hidden on narrow viewports rather than repositioned. The hero rail already
+ * wraps to two rows at 390px, and a centred hint underneath it collided with
+ * the slice counter — two pieces of dim mono text overlapping is worse than
+ * one missing hint on a device whose user does not need to be told a page
+ * scrolls.
+ */
 .corridor .hero-hint {
-  position: absolute;
-  inset-block-end: clamp(2rem, 6vh, 3.5rem);
-  inset-inline-start: 50%;
-  translate: -50% 0;
-  opacity: 0.5;
+  display: none;
+}
+
+@media (min-width: 900px) {
+  .corridor .hero-hint {
+    display: block;
+    position: absolute;
+    inset-block-end: clamp(2rem, 6vh, 3.5rem);
+    inset-inline-start: 50%;
+    translate: -50% 0;
+    opacity: 0.5;
+  }
 }
 
 @media (min-width: 700px) {
