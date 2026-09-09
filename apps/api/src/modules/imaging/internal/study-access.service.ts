@@ -41,16 +41,29 @@ export interface AuthorisedStudy {
 
 export interface StudySummary {
   id: string;
+  /**
+   * The uid THIS CALLER should address the study by — the twin's for a
+   * receiving doctor, the original's for the lab. The viewer builds its URL
+   * from this, so returning the original to a doctor would produce a link that
+   * resolves against nothing they are allowed to read.
+   */
   studyInstanceUid: string;
   description: string | null;
   studyDate: string | null;
   modality: string;
   instanceCount: number;
+  /**
+   * Lets the lab see that a study is held rather than merely slow. A doctor
+   * only ever sees 'ready' — RLS refuses the rest (migration 0029).
+   */
+  status: string;
 }
 
 interface StudyRow {
   id: string;
   study_instance_uid: string;
+  twin_study_uid: string | null;
+  status: string;
   description: string | null;
   study_date: string | null;
   modality: string;
@@ -79,12 +92,14 @@ export class StudyAccessService {
    * is confirmed.
    */
   async listStudies(filter: { patientId?: string; caseId?: string }): Promise<StudySummary[]> {
+    const byTwin = requireContext().role === 'tunisia_doctor';
+
     return this.db.tx(async (tx) => {
       const rows =
         filter.caseId !== undefined
           ? await tx.query<StudyRow>(
-              `SELECT s.id, s.study_instance_uid, s.description, s.study_date,
-                      s.modality, s.file_count
+              `SELECT s.id, s.study_instance_uid, s.twin_study_uid, s.status,
+                      s.description, s.study_date, s.modality, s.file_count
                FROM imaging_studies s
                JOIN cases_case_studies l ON l.study_id = s.id
                WHERE l.case_id = $1
@@ -92,8 +107,8 @@ export class StudyAccessService {
               [filter.caseId],
             )
           : await tx.query<StudyRow>(
-              `SELECT s.id, s.study_instance_uid, s.description, s.study_date,
-                      s.modality, s.file_count
+              `SELECT s.id, s.study_instance_uid, s.twin_study_uid, s.status,
+                      s.description, s.study_date, s.modality, s.file_count
                FROM imaging_studies s
                WHERE s.patient_id = $1
                ORDER BY s.study_date DESC NULLS LAST`,
@@ -102,13 +117,17 @@ export class StudyAccessService {
 
       return rows.rows.map((r) => ({
         id: r.id,
-        studyInstanceUid: r.study_instance_uid,
+        // The uid this caller may address. A doctor is given the twin's; the
+        // viewer builds its URL from this value, and handing them the original
+        // would produce a link that resolves against nothing they can read.
+        studyInstanceUid: byTwin ? (r.twin_study_uid ?? '') : r.study_instance_uid,
         description: r.description,
         // DATE columns are parsed as plain strings (see pg-types) so a study
         // dated 2025-01-14 never shifts a day by timezone.
         studyDate: r.study_date,
         modality: r.modality,
         instanceCount: r.file_count,
+        status: r.status,
       }));
     });
   }

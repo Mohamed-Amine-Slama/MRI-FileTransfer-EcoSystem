@@ -101,6 +101,7 @@ async function scenario(opts: { withConsent: boolean; status?: 'accepted' | 'pai
     tunisDoctor,
     patient,
     studyId,
+    caseId: appt,
     /** The original. The lab addresses this; the doctor never sees it. */
     studyUid: uid.rows[0]?.study_instance_uid as string,
     /** The de-identified copy. This is what a doctor's URLs carry. */
@@ -402,5 +403,129 @@ describe('the doctor\'s instance list comes from the twin', () => {
     expect(result.instances).toEqual([
       { sopInstanceUid: 'original-sop', seriesInstanceUid: 'original-series' },
     ]);
+  });
+});
+
+describe('the doctor\'s preview is rendered from the twin', () => {
+  /** Captures what the handler writes, since thumbnails stream to Response. */
+  function recorder(): { res: unknown; sent: () => { type: string; body: Buffer | null } } {
+    let type = '';
+    let body: Buffer | null = null;
+    const res = {
+      status: () => res,
+      setHeader: (k: string, v: string) => {
+        if (k === 'content-type') type = v;
+      },
+      end: (b: Buffer) => {
+        body = b;
+      },
+    };
+    return { res, sent: () => ({ type, body }) };
+  }
+
+  function controllerWith(orthanc: InMemoryOrthancClient, blobs: BlobStore): DicomWebController {
+    return new DicomWebController(access, orthanc as unknown as OrthancHttpClient, db, blobs);
+  }
+
+  it('renders the doctor a preview of the twin instance, never the stored blob', async () => {
+    const s = await scenario({ withConsent: true });
+    const orthanc = new InMemoryOrthancClient();
+    orthanc.previewsBySop.set('twin-sop', {
+      bytes: new Uint8Array([137, 80, 78, 71]),
+      contentType: 'image/png',
+    });
+    // The blob store must not be consulted at all for a doctor: the stored
+    // thumbnail is keyed by the ORIGINAL sop uid and is not theirs to read.
+    const blobs = {
+      getDerived: () => Promise.reject(new Error('blob store must not be read for a doctor')),
+    } as unknown as BlobStore;
+
+    const rec = recorder();
+    await runWithContext(ctx(s.tunisDoctor, 'tunisia_doctor'), () =>
+      controllerWith(orthanc, blobs).thumbnail(s.twinUid, 'twin-sop', rec.res as never),
+    );
+
+    expect(rec.sent().type).toBe('image/png');
+    expect(rec.sent().body).toEqual(Buffer.from([137, 80, 78, 71]));
+  });
+
+  it('404s rather than falling back when the twin cannot be rendered', async () => {
+    // A transfer syntax Orthanc has no codec for. The viewer must be able to
+    // tell "no preview" from "a preview of nothing".
+    const s = await scenario({ withConsent: true });
+    const blobs = {
+      getDerived: () => Promise.resolve(new Uint8Array([1, 2, 3])),
+    } as unknown as BlobStore;
+
+    await expect(
+      runWithContext(ctx(s.tunisDoctor, 'tunisia_doctor'), () =>
+        controllerWith(new InMemoryOrthancClient(), blobs).thumbnail(
+          s.twinUid,
+          'twin-sop',
+          recorder().res as never,
+        ),
+      ),
+    ).rejects.toThrow(/not available/i);
+  });
+
+  it('still serves the lab its stored thumbnail', async () => {
+    const s = await scenario({ withConsent: true });
+    const blobs = {
+      getDerived: () => Promise.resolve(new Uint8Array([255, 216, 255])),
+    } as unknown as BlobStore;
+
+    const rec = recorder();
+    await runWithContext(ctx(s.libyaDoctor, 'libya_doctor'), () =>
+      controllerWith(new InMemoryOrthancClient(), blobs).thumbnail(
+        s.studyUid,
+        // A real SOP uid shape: the blob key sanitiser refuses anything that
+        // is not digits and dots, which is a control worth not defeating.
+        '1.3.6.1.4.1.99999.1.101.1.1.1',
+        rec.res as never,
+      ),
+    );
+
+    expect(rec.sent().type).toBe('image/jpeg');
+    expect(rec.sent().body).toEqual(Buffer.from([255, 216, 255]));
+  });
+});
+
+describe('the study list hands each side the uid it may use', () => {
+  it('lists the twin uid to a doctor — the viewer link is built from this value', async () => {
+    const s = await scenario({ withConsent: true });
+
+    const studies = await runWithContext(ctx(s.tunisDoctor, 'tunisia_doctor'), () =>
+      access.listStudies({ caseId: s.caseId }),
+    );
+
+    expect(studies).toHaveLength(1);
+    expect(studies[0]?.studyInstanceUid).toBe(s.twinUid);
+    // Handing over the original here would render a viewer link that resolves
+    // against nothing the doctor may read — a 404 that looks like an outage.
+    expect(studies[0]?.studyInstanceUid).not.toBe(s.studyUid);
+    expect(studies[0]?.status).toBe('ready');
+  });
+
+  it('lists the original to the lab, which is the copy it owns', async () => {
+    const s = await scenario({ withConsent: true });
+
+    const studies = await runWithContext(ctx(s.libyaDoctor, 'libya_doctor'), () =>
+      access.listStudies({ caseId: s.caseId }),
+    );
+
+    expect(studies[0]?.studyInstanceUid).toBe(s.studyUid);
+  });
+
+  it('shows the lab that a study is held, not merely slow', async () => {
+    const s = await scenario({ withConsent: true });
+    await h.owner.query(`UPDATE imaging_studies SET status = 'quarantined' WHERE id = $1`, [
+      s.studyId,
+    ]);
+
+    const studies = await runWithContext(ctx(s.libyaDoctor, 'libya_doctor'), () =>
+      access.listStudies({ caseId: s.caseId }),
+    );
+
+    expect(studies[0]?.status).toBe('quarantined');
   });
 });

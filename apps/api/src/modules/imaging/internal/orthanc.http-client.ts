@@ -1,7 +1,12 @@
 import { Inject, Injectable, Logger } from '@nestjs/common';
 import { APP_CONFIG } from '../../../shared/config/config.module';
 import type { AppConfig } from '../../../shared/config/config.schema';
-import type { AnonymisedStudy, OrthancClient, StudyInstanceRef } from './orthanc.client';
+import type {
+  AnonymisedStudy,
+  InstancePreview,
+  OrthancClient,
+  StudyInstanceRef,
+} from './orthanc.client';
 
 /**
  * HTTP client for Orthanc's DICOMweb API — BUILD_SPEC P8.1, P8.2.
@@ -59,16 +64,45 @@ export class OrthancHttpClient implements OrthancClient {
    * blindly would hand a series id to an endpoint expecting a study.
    */
   async lookupStudy(studyInstanceUid: string): Promise<string | null> {
+    return this.lookup(studyInstanceUid, 'Study');
+  }
+
+  /**
+   * Resolve any DICOM UID to Orthanc's resource id of the requested kind.
+   *
+   * The Type filter is not cosmetic: `/tools/lookup` answers for study, series
+   * and instance UIDs from one call, so taking the first row would eventually
+   * hand a series id to an endpoint expecting a study.
+   */
+  private async lookup(uid: string, type: 'Study' | 'Instance'): Promise<string | null> {
     const res = await this.request('/tools/lookup', {
       method: 'POST',
       headers: { 'content-type': 'text/plain' },
-      body: studyInstanceUid,
+      body: uid,
     });
     if (!res.ok) throw new Error(`Orthanc lookup failed: ${res.status}`);
 
     const rows = (await res.json()) as { Type?: string; ID?: string }[];
-    const study = rows.find((r) => r.Type === 'Study');
-    return study?.ID ?? null;
+    return rows.find((r) => r.Type === type)?.ID ?? null;
+  }
+
+  /** Orthanc renders the preview itself; nothing is decoded in this process. */
+  async instancePreview(sopInstanceUid: string): Promise<InstancePreview | null> {
+    const id = await this.lookup(sopInstanceUid, 'Instance');
+    if (id === null) return null;
+
+    const res = await this.request(`/instances/${encodeURIComponent(id)}/preview`, {
+      method: 'GET',
+      headers: { accept: 'image/png' },
+    });
+    // Orthanc answers 4xx for a transfer syntax it cannot decode. That is a
+    // missing preview, not an outage, and must not fail the request.
+    if (!res.ok) return null;
+
+    return {
+      bytes: new Uint8Array(await res.arrayBuffer()),
+      contentType: res.headers.get('content-type') ?? 'image/png',
+    };
   }
 
   /**
@@ -137,6 +171,17 @@ export class OrthancHttpClient implements OrthancClient {
         ? []
         : [{ sopInstanceUid: sop, seriesInstanceUid: series }];
     });
+  }
+
+  /** Delete a study. Called only with a twin's id — never an original's. */
+  async deleteStudy(orthancStudyId: string): Promise<void> {
+    const res = await this.request(`/studies/${encodeURIComponent(orthancStudyId)}`, {
+      method: 'DELETE',
+    });
+    // 404 means someone already removed it, which is the state we wanted.
+    if (!res.ok && res.status !== 404) {
+      throw new Error(`Orthanc delete failed: ${res.status}`);
+    }
   }
 
   /**

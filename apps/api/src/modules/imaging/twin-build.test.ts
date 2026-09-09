@@ -3,15 +3,17 @@ import type { AppConfig } from '../../shared/config/config.schema';
 import { DatabaseService } from '../../shared/db/database.service';
 import {
   appUrl,
+  createCase,
   createPatient,
   createStudy,
   createUser,
+  linkStudy,
   setupTestDatabase,
   truncateAll,
   type Harness,
 } from '../../shared/db/testing/rls-harness';
 import { InMemoryOrthancClient } from './internal/orthanc.client';
-import { TwinService } from './internal/twin.service';
+import { TwinService, reapTwins } from './internal/twin.service';
 
 let h: Harness;
 let db: DatabaseService;
@@ -157,5 +159,93 @@ describe('TwinService.build', () => {
 
     await expect(twins.build({ studyId, actorId })).rejects.toThrow(/not in orthanc/i);
     expect((await studyRow(studyId)).status).toBe('processing');
+  });
+});
+
+describe('reapTwins', () => {
+  /** A study with a twin, linked to one case in the given state. */
+  async function twinnedCase(opts: {
+    terminalDaysAgo: number | null;
+  }): Promise<{ studyId: string; caseId: string }> {
+    const lab = await createUser(h.owner, 'libya_doctor');
+    const doctor = await createUser(h.owner, 'tunisia_doctor');
+    const patient = await createPatient(h.owner, lab);
+    const studyId = await createStudy(h.owner, patient, lab);
+    await h.owner.query(`UPDATE imaging_studies SET twin_orthanc_id = $2 WHERE id = $1`, [
+      studyId,
+      `twin-orthanc-${studyId}`,
+    ]);
+    const caseId = await createCase(h.owner, patient, doctor, 'closed');
+    await linkStudy(h.owner, caseId, studyId);
+    await h.owner.query(
+      `UPDATE cases_cases SET terminal_at = CASE WHEN $2::int IS NULL THEN NULL
+                                            ELSE now() - ($2 || ' days')::interval END
+       WHERE id = $1`,
+      [caseId, opts.terminalDaysAgo],
+    );
+    return { studyId, caseId };
+  }
+
+  const twinOf = async (studyId: string): Promise<string | null> => {
+    const res = await h.owner.query<{ twin_orthanc_id: string | null }>(
+      'SELECT twin_orthanc_id FROM imaging_studies WHERE id = $1',
+      [studyId],
+    );
+    return res.rows[0]?.twin_orthanc_id ?? null;
+  };
+
+  it('reaps a twin whose case closed beyond the window, and keeps a recent one', async () => {
+    const old = await twinnedCase({ terminalDaysAgo: 120 });
+    const recent = await twinnedCase({ terminalDaysAgo: 10 });
+
+    expect(await reapTwins(db, orthanc, 90)).toBe(1);
+
+    expect(await twinOf(old.studyId)).toBeNull();
+    expect(await twinOf(recent.studyId)).not.toBeNull();
+    expect(orthanc.deleted).toEqual([`twin-orthanc-${old.studyId}`]);
+  });
+
+  it('never reaps a twin whose case is still live, however old the case is', async () => {
+    // terminal_at NULL means the case has not finished. A case open for a year
+    // is still a case, and its doctor still needs to open the study.
+    const live = await twinnedCase({ terminalDaysAgo: null });
+    await h.owner.query(`UPDATE cases_cases SET status = 'accepted' WHERE id = $1`, [live.caseId]);
+
+    expect(await reapTwins(db, orthanc, 90)).toBe(0);
+    expect(await twinOf(live.studyId)).not.toBeNull();
+  });
+
+  it('keeps a twin while ANY linked case is unfinished', async () => {
+    const first = await twinnedCase({ terminalDaysAgo: 200 });
+    // The same study referred a second time; that case is still running.
+    const doctor = await createUser(h.owner, 'tunisia_doctor');
+    const res = await h.owner.query<{ patient_id: string }>(
+      'SELECT patient_id FROM imaging_studies WHERE id = $1',
+      [first.studyId],
+    );
+    const second = await createCase(
+      h.owner,
+      res.rows[0]?.patient_id as string,
+      doctor,
+      'accepted',
+    );
+    await linkStudy(h.owner, second, first.studyId);
+
+    expect(await reapTwins(db, orthanc, 90)).toBe(0);
+    expect(await twinOf(first.studyId)).not.toBeNull();
+  });
+
+  it('leaves a study that was never referred to anyone', async () => {
+    // No case ever ended, so the window never started. It costs storage and
+    // loses nothing; deleting on a guess is the failure that matters.
+    const lab = await createUser(h.owner, 'libya_doctor');
+    const patient = await createPatient(h.owner, lab);
+    const studyId = await createStudy(h.owner, patient, lab);
+    await h.owner.query(`UPDATE imaging_studies SET twin_orthanc_id = 'orphan' WHERE id = $1`, [
+      studyId,
+    ]);
+
+    expect(await reapTwins(db, orthanc, 90)).toBe(0);
+    expect(await twinOf(studyId)).toBe('orphan');
   });
 });

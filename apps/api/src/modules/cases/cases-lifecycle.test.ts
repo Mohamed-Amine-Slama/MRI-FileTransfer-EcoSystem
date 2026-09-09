@@ -383,6 +383,35 @@ describe('the receiving doctor answers', () => {
     expect(rows[0]?.answer_due_at).not.toBeNull();
   });
 
+  it('stamps terminal_at when a case reaches a state it cannot leave', async () => {
+    // The twin reap reads this column and treats NULL as "never reap", so a
+    // missed stamp wastes storage silently rather than losing anything — which
+    // is why it is asserted here rather than trusted.
+    const { tunis, caseId } = await paidCase();
+    await runWithContext(ctx(tunis, 'tunisia_doctor'), () => cases.decline(caseId));
+
+    const { rows } = await h.owner.query<{ terminal_at: Date | null }>(
+      'SELECT terminal_at FROM cases_cases WHERE id = $1',
+      [caseId],
+    );
+    expect(rows[0]?.terminal_at).not.toBeNull();
+  });
+
+  it('leaves terminal_at null on answered, which still has somewhere to go', async () => {
+    const { tunis, caseId } = await paidCase();
+    await runWithContext(ctx(tunis, 'tunisia_doctor'), () => cases.accept(caseId));
+    await runWithContext(ctx(tunis, 'tunisia_doctor'), () => cases.markAnswered(caseId));
+
+    const { rows } = await h.owner.query<{ terminal_at: Date | null; status: string }>(
+      'SELECT terminal_at, status FROM cases_cases WHERE id = $1',
+      [caseId],
+    );
+    expect(rows[0]?.status).toBe('answered');
+    // `answered` still moves to `closed`. Reaping its twin here would delete
+    // the imaging while the lab is still reading the answer against it.
+    expect(rows[0]?.terminal_at).toBeNull();
+  });
+
   it('declining writes declined, not cancelled', async () => {
     // The referring lab reads them differently: a refusal means pick another
     // doctor, a cancellation is their own withdrawal.

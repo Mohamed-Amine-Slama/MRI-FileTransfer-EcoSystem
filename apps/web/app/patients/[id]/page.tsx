@@ -9,6 +9,7 @@ import { useSession } from '../../../lib/session/session';
 import { RoleGate } from '../../../components/RoleGate';
 import {
   Alert,
+  Badge,
   Breadcrumbs,
   Button,
   Card,
@@ -169,6 +170,15 @@ function PatientDetail({ patientId }: { patientId: string }): React.JSX.Element 
       {error !== null && <Alert tone="danger">{error}</Alert>}
 
       <Card title={t.patientStudies}>
+        {/*
+          Says what to DO, not merely that something is held. A notice that
+          reports a state without an action generates a support call.
+        */}
+        {studies.some((s) => s.status === 'quarantined') && (
+          <Alert tone="warning" testId="studies-quarantined-notice">
+            {t.studyQuarantinedBody}
+          </Alert>
+        )}
         {studies.length === 0 ? (
           <EmptyState testId="studies-empty">{t.none}</EmptyState>
         ) : (
@@ -192,12 +202,24 @@ function PatientDetail({ patientId }: { patientId: string }): React.JSX.Element 
                   </TableCell>
                   <TableCell className="text-muted-foreground">{s.instanceCount}</TableCell>
                   <TableCell className="text-end">
-                    <Link
-                      className={buttonVariants({ variant: 'outline', size: 'sm' })}
-                      href={`/viewer/${s.studyInstanceUid}`}
-                    >
-                      {t.inboxViewStudies}
-                    </Link>
+                    {/*
+                      A held study offers no view action. Rendering the link
+                      anyway would send the lab to a viewer that refuses them,
+                      which reads as a broken page rather than as a deliberate
+                      hold — and the hold is the thing they need to act on.
+                    */}
+                    {s.status === 'quarantined' ? (
+                      <Badge tone="warning" data-testid="study-quarantined">
+                        {t.studyHeldLabel}
+                      </Badge>
+                    ) : (
+                      <Link
+                        className={buttonVariants({ variant: 'outline', size: 'sm' })}
+                        href={`/viewer/${s.studyInstanceUid}`}
+                      >
+                        {t.inboxViewStudies}
+                      </Link>
+                    )}
                   </TableCell>
                 </TableRow>
               ))}
