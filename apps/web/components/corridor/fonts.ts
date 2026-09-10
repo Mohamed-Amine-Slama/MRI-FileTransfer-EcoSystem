@@ -3,17 +3,21 @@ import localFont from 'next/font/local';
 /**
  * The landing page's added faces — spec 2026-09-10 §3.2.
  *
- * The Arabic faces (IBM Plex Sans Arabic, now including Light 300 for display)
- * are declared in `app/layout.tsx` and shared with the whole application; the
- * two here exist only on this page.
+ * Plex Sans Arabic's text weights (Regular/Medium/SemiBold/Bold) are declared
+ * in `app/layout.tsx` and shared with the whole application. Its Light 300 —
+ * the Arabic display weight — lives here instead, with the other two
+ * landing-only faces: the application never uses weight 300, and §3.2 keeps
+ * every display face off the preload list, so it does not belong in the
+ * shared, preloaded declaration.
  *
- * `preload: false` on both, deliberately: §8.2 technique 6 preloads the
+ * `preload: false` on all three, deliberately: §8.2 technique 6 preloads the
  * critical body weights and nothing else, and a `swap` on the headline costs a
  * repaint of one line rather than a competing request in the first round-trip.
  *
- * `adjustFontFallback: false` on both: they are Latin-only subsets, and Next's
- * synthetic Arial-derived fallback is inserted AHEAD of `--font-plex` in the
- * stack, so every Arabic glyph would fall through to it instead of to Plex.
+ * `adjustFontFallback: false` on all three: they are Latin-only subsets, and
+ * Next's synthetic Arial-derived fallback is inserted AHEAD of `--font-plex`
+ * in the stack, so every Arabic glyph would fall through to it instead of to
+ * Plex.
  */
 
 /** Latin display and body. Variable, weight 300–500. */
@@ -38,4 +42,19 @@ export const plexMono = localFont({
   variable: '--font-plex-mono',
 });
 
-export const CORRIDOR_FONT_CLASS = [sansFlex.variable, plexMono.variable].join(' ');
+/** Arabic display — IBM Plex Sans Arabic Light 300. A complete file (both scripts). */
+export const plexArabicLight = localFont({
+  src: '../../app/fonts/IBMPlexSansArabic-Light.woff2',
+  weight: '300',
+  style: 'normal',
+  display: 'swap',
+  preload: false,
+  adjustFontFallback: false,
+  variable: '--font-plex-arabic-light',
+});
+
+export const CORRIDOR_FONT_CLASS = [
+  sansFlex.variable,
+  plexMono.variable,
+  plexArabicLight.variable,
+].join(' ');
