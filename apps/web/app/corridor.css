@@ -1923,7 +1923,7 @@
 }
 
 .corridor .close-counter {
-  color: var(--c-alert);
+  color: var(--c-lime);
   letter-spacing: 0.2em;
 }
 
@@ -1948,12 +1948,12 @@
 }
 
 .corridor .btn--invert:hover {
-  background-color: #11181f;
+  background-color: var(--c-lime);
   translate: 0 -1px;
 }
 
 .corridor .btn--invert-ghost {
-  border-color: rgb(6 8 11 / 0.25);
+  border-color: rgb(255 255 255 / 0.4);
   color: var(--c-ground);
 }
 
