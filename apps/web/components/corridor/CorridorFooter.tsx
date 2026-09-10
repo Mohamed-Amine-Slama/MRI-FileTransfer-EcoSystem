@@ -47,7 +47,7 @@ export function CorridorFooter({
     <footer className="site-footer">
       <div className="shell site-footer-inner">
         <nav className="footer-locales" aria-label={t.footerLanguage}>
-          <span className="mono dim">{t.footerLanguage}</span>
+          <span className="mono subtle">{t.footerLanguage}</span>
           {UI_LOCALES.map((code) => (
             <a
               key={code}
@@ -99,7 +99,7 @@ export function CorridorFooter({
           </label>
         </div>
 
-        <div className="footer-entity t-meta ash">
+        <div className="footer-entity t-meta subtle">
           {ENTITY.name === null || ENTITY.address === null ? (
             /*
               The launch gate, made visible rather than silent. §12 L0 requires
@@ -107,11 +107,11 @@ export function CorridorFooter({
               `launchBlockers()` in lib/site/entity.ts lists what is missing.
               Saying so in the footer is uncomfortable, which is the point.
             */
-            <p className="dim">{t.footerEntityPending}</p>
+            <p className="subtle">{t.footerEntityPending}</p>
           ) : (
             <>
               <p>{ENTITY.name}</p>
-              <p className="dim">{ENTITY.address}</p>
+              <p className="subtle">{ENTITY.address}</p>
             </>
           )}
           {/*
@@ -119,7 +119,7 @@ export function CorridorFooter({
             line and it is exactly the kind of care §7.1 says a judge and a
             regulator both notice.
           */}
-          <p className="dim">{t.footerCredits}</p>
+          <p className="subtle">{t.footerCredits}</p>
         </div>
       </div>
     </footer>

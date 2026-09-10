@@ -83,20 +83,20 @@ export function S05Consent(): React.JSX.Element {
           <h2 id="consent-title" className="display t-h1 measure">
             {t.consentTitle}
           </h2>
-          <p className="t-body-l ash measure consent-body">{t.consentBody}</p>
+          <p className="t-body-l subtle measure consent-body">{t.consentBody}</p>
         </FocalReveal>
 
         <div className="consent-grid">
           <FocalReveal plane={2}>
             <Plate label="CONSENT · cross_border_transfer" className="consent-document">
               <h3 className="t-h3 consent-doc-title">{t.consentDocumentTitle}</h3>
-              <p className="ash consent-doc-body measure">{t.consentDocumentBody}</p>
+              <p className="subtle consent-doc-body measure">{t.consentDocumentBody}</p>
 
               <p className="consent-recipient">
-                <span className="mono dim">{t.consentGrantedTo}</span>{' '}
-                <span className="bone">{tpl.consentRecipient(corridor.destination)}</span>
+                <span className="mono subtle">{t.consentGrantedTo}</span>{' '}
+                <span className="ink">{tpl.consentRecipient(corridor.destination)}</span>
               </p>
-              <p className="mono dim consent-redaction-note">{t.consentRecipientRedacted}</p>
+              <p className="mono subtle consent-redaction-note">{t.consentRecipientRedacted}</p>
 
               <span ref={stampRef} className="consent-stamp mono" aria-hidden="true">
                 GRANTED
@@ -129,7 +129,7 @@ export function S05Consent(): React.JSX.Element {
                 </span>
                 <span>{t.consentRevoke}</span>
               </label>
-              <p className="t-meta ash consent-revoke-hint">{t.consentRevokeHint}</p>
+              <p className="t-meta subtle consent-revoke-hint">{t.consentRevokeHint}</p>
             </div>
 
             <Thumbnails revoked={revoked} />
@@ -203,8 +203,8 @@ function EvidenceBlock({ revoked }: { revoked: boolean }): React.JSX.Element {
     <dl ref={ref} className="evidence mono" data-revoked={revoked}>
       {rows.map(([key, value]) => (
         <div key={key} className="evidence-row">
-          <dt className="dim">{key}</dt>
-          <dd className={key === 'revoked_at' ? 'sand' : 'ash'}>{value}</dd>
+          <dt className="subtle">{key}</dt>
+          <dd className={key === 'revoked_at' ? 'alert' : 'subtle'}>{value}</dd>
         </div>
       ))}
     </dl>
@@ -233,14 +233,14 @@ function Thumbnails({ revoked }: { revoked: boolean }): React.JSX.Element {
 
   return (
     <div className="consent-thumbs" data-revoked={revoked} aria-hidden="true">
-      <span className="mono dim consent-thumbs-label">{t.consentThumbnailsLabel}</span>
+      <span className="mono subtle consent-thumbs-label">{t.consentThumbnailsLabel}</span>
       <div className="consent-thumb-row">
         {frames.map((src) => (
           <img key={src} src={src} alt="" width={160} height={90} loading="lazy" decoding="async" />
         ))}
         {frames.length === 0 && <span className="consent-thumb-placeholder" />}
       </div>
-      {revoked && <span className="mono sand consent-thumbs-notice">{t.consentRevokedNotice}</span>}
+      {revoked && <span className="mono alert consent-thumbs-notice">{t.consentRevokedNotice}</span>}
     </div>
   );
 }

@@ -67,7 +67,7 @@ export function S09Doors(): React.JSX.Element {
                 onPointerEnter={() => cue('press')}
               >
                 <h3 className="display t-h2 door-heading">{door.title}</h3>
-                <p className="ash door-body">{door.body}</p>
+                <p className="subtle door-body">{door.body}</p>
                 {/*
                   No arrow appended. The whole panel is the link and it says
                   what it does; a glyph after the words is decoration standing

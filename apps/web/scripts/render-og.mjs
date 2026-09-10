@@ -78,8 +78,8 @@ const font = (file) =>
 const FONTS = {
   body: font('IBMPlexSansArabic-Regular.woff2'),
   bodyMedium: font('IBMPlexSansArabic-Medium.woff2'),
-  display: font('ReemKufi-Medium-arabic.woff2'),
-  grotesk: font('SpaceGrotesk-Medium-latin.woff2'),
+  display: font('IBMPlexSansArabic-Light.woff2'),
+  sansFlex: font('GoogleSansFlex-latin.woff2'),
   mono: font('IBMPlexMono-Regular-latin.woff2'),
 };
 
@@ -102,8 +102,8 @@ function template(locale, card) {
 <style>
   @font-face { font-family: 'Plex'; src: url(data:font/woff2;base64,${FONTS.body}) format('woff2'); font-weight: 400; }
   @font-face { font-family: 'Plex'; src: url(data:font/woff2;base64,${FONTS.bodyMedium}) format('woff2'); font-weight: 500; }
-  @font-face { font-family: 'Reem'; src: url(data:font/woff2;base64,${FONTS.display}) format('woff2'); }
-  @font-face { font-family: 'Grotesk'; src: url(data:font/woff2;base64,${FONTS.grotesk}) format('woff2'); }
+  @font-face { font-family: 'PlexArabicLight'; src: url(data:font/woff2;base64,${FONTS.display}) format('woff2'); }
+  @font-face { font-family: 'SansFlex'; src: url(data:font/woff2;base64,${FONTS.sansFlex}) format('woff2'); }
   @font-face { font-family: 'PlexMono'; src: url(data:font/woff2;base64,${FONTS.mono}) format('woff2'); }
 
   * { margin: 0; padding: 0; box-sizing: border-box; }
@@ -153,7 +153,7 @@ function template(locale, card) {
   .headline {
     position: relative;
     margin-block-start: auto;
-    font-family: ${isArabic ? "'Reem', 'Plex'" : "'Grotesk', 'Plex'"}, sans-serif;
+    font-family: ${isArabic ? "'PlexArabicLight', 'Plex'" : "'SansFlex', 'Plex'"}, sans-serif;
     font-size: ${isArabic ? 82 : 76}px;
     line-height: ${isArabic ? 1.3 : 1.08};
     font-weight: 500;

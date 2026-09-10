@@ -76,7 +76,7 @@ export function S03Corridor(): React.JSX.Element {
           <h2 id="corridor-title" className="display t-h1 measure">
             {t.corridorTitle}
           </h2>
-          <p className="t-body-l ash measure corridor-body">{t.corridorBody}</p>
+          <p className="t-body-l subtle measure corridor-body">{t.corridorBody}</p>
         </FocalReveal>
 
         <FocalReveal plane={2} className="corridor-plate-wrap">
@@ -108,16 +108,16 @@ export function S03Corridor(): React.JSX.Element {
                     <path
                       ref={routeRef}
                       d={map.route}
-                      stroke="var(--c-phosphor)"
+                      stroke="var(--c-accent)"
                       strokeWidth="2.5"
                       strokeLinecap="round"
                     />
-                    <circle cx={map.source[0]} cy={map.source[1]} r="5" fill="var(--c-phosphor)" />
+                    <circle cx={map.source[0]} cy={map.source[1]} r="5" fill="var(--c-accent)" />
                     <circle
                       cx={map.destination[0]}
                       cy={map.destination[1]}
                       r="5"
-                      fill="var(--c-phosphor)"
+                      fill="var(--c-accent)"
                     />
                   </svg>
                 </>
@@ -127,11 +127,11 @@ export function S03Corridor(): React.JSX.Element {
             </figure>
 
             <div className="corridor-legend">
-              <span className="mono dim">
+              <span className="mono subtle">
                 <span className="legend-dot" aria-hidden="true" /> {t.corridorSourceLabel} ·{' '}
                 {corridor.source}
               </span>
-              <span className="mono dim">
+              <span className="mono subtle">
                 <span className="legend-dot" aria-hidden="true" /> {t.corridorDestinationLabel} ·{' '}
                 {corridor.destination}
               </span>
@@ -147,10 +147,10 @@ export function S03Corridor(): React.JSX.Element {
             study, and without the caption it would read as a claim about
             averages that nobody has measured.
           */}
-          <p className="mono ash corridor-readout-line">
+          <p className="mono subtle corridor-readout-line">
             ENCRYPTED · TLS 1.3 · 847 MB · CONSENT: GRANTED
           </p>
-          <p className="mono dim">{t.corridorReadoutCaption}</p>
+          <p className="mono subtle">{t.corridorReadoutCaption}</p>
         </FocalReveal>
       </div>
     </section>

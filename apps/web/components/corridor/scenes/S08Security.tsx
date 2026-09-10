@@ -96,7 +96,7 @@ export function S08Security(): React.JSX.Element {
                   <dt dir="ltr">
                     {row.term}
                   </dt>
-                  <dd className="ash">{t[row.descKey]}</dd>
+                  <dd className="subtle">{t[row.descKey]}</dd>
                 </div>
               ))}
             </dl>
@@ -104,7 +104,7 @@ export function S08Security(): React.JSX.Element {
         </FocalReveal>
 
         <FocalReveal plane={1}>
-          <p className="ash measure security-status">{t.securityStatusNote}</p>
+          <p className="subtle measure security-status">{t.securityStatusNote}</p>
         </FocalReveal>
       </div>
     </section>

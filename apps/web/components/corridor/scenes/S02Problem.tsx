@@ -97,7 +97,7 @@ export function S02Problem(): React.JSX.Element {
                   */}
                   <Art />
                   <figcaption>
-                    <span className="mono dim problem-label">{label}</span>
+                    <span className="mono subtle problem-label">{label}</span>
                     <p className="t-h3 problem-line">{line}</p>
                   </figcaption>
                 </figure>
