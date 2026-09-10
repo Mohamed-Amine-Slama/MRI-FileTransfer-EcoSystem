@@ -65,7 +65,6 @@ const ar = {
   heroSliceCounterLabel: 'موضع المقطع في المجلد',
 
   // -- Scene 02 · the problem ----------------------------------------------
-  problemEyebrow: 'الوضع اليوم',
   problemTitle: 'ثلاثة أشياء تُبطئ كل إحالة.',
   problemCdLabel: 'القرص المضغوط',
   problemCdLine: 'القرص يصل مخدوشًا، أو لا يصل.',
@@ -75,7 +74,6 @@ const ar = {
   problemCalendarLine: 'ستة أسابيع لموعد كان يمكن حجزه في يوم واحد.',
 
   // -- Scene 03 · the corridor ---------------------------------------------
-  corridorEyebrow: 'المسار',
   corridorTitle: 'من غرفة الأشعة إلى غرفة الطبيب المستقبِل.',
   corridorBody:
     'تُرفع الدراسة مرة واحدة من العيادة المُحيلة، وتصل كما هي — البايتات الأصلية دون إعادة ترميز.',
@@ -107,7 +105,6 @@ const ar = {
   uploadAnnounceComplete: 'اكتمل الرفع والتحقّق من التطابق.',
 
   // -- Scene 05 · consent ---------------------------------------------------
-  consentEyebrow: 'الموافقة',
   consentTitle: 'الموافقة سجلّ، لا مربّع اختيار.',
   consentBody:
     'يوافق المريض على مشاركة دراسته مع طبيب محدَّد بالاسم. الموافقة مؤرّخة، ومرتبطة بنسخة النص التي قرأها، وقابلة للسحب في أي وقت.',
@@ -124,7 +121,6 @@ const ar = {
   consentAnnounceRestored: 'أُعيدت الموافقة. عاد الوصول إلى الدراسات.',
 
   // -- Scene 06 · the viewer ------------------------------------------------
-  viewerEyebrow: 'الحدود',
   viewerTitle: 'التشخيص ليس من عملنا، وهذه ميزة.',
   viewerBanner: 'للعرض المرجعي فقط — ليس للاستخدام التشخيصي.',
   viewerBody:
@@ -133,7 +129,6 @@ const ar = {
     'لقطة من عارض الصور داخل المنصّة، وفي أعلاه شريط دائم يوضّح أن العرض مرجعي فقط.',
 
   // -- Scene 07 · the appointment -------------------------------------------
-  appointmentEyebrow: 'الموعد',
   appointmentTitle: 'الصورة نصف الوعد. الموعد هو النصف الآخر.',
   appointmentBody:
     'يُحجز الموعد قبل سفر المريض، بتوقيت البلدين معًا، فلا أحد يحسب فرق الساعة في رسالة.',
@@ -143,7 +138,6 @@ const ar = {
     'طريقة الدفع تعتمد على عيادتك — ندعم القنوات التي تعمل فعليًا بين البلدين.',
 
   // -- Scene 08 · security --------------------------------------------------
-  securityEyebrow: 'البنية',
   securityTitle: 'ما هو مطبَّق فعليًا، مكتوبًا كما هو.',
   securityAesDesc: 'تشفير البيانات المخزَّنة، بمفاتيح تديرها المنشأة',
   securityTlsDesc: 'تشفير النقل، كحدّ أدنى',
@@ -166,7 +160,6 @@ const ar = {
   doorsPatientCta: 'ما يخصّ المريض',
 
   // -- Scene 10 · questions -------------------------------------------------
-  faqEyebrow: 'أسئلة',
   faqTitle: 'الأسئلة التي تُطرح فعلاً.',
   faqQ1: 'هل ما زال على المريض إحضار القرص المضغوط؟',
   faqA1:
@@ -243,7 +236,6 @@ const fr: SiteCopy = {
   heroScrollHint: 'Faites défiler à travers les coupes',
   heroSliceCounterLabel: 'Position de la coupe dans le volume',
 
-  problemEyebrow: "Ce qui se passe aujourd'hui",
   problemTitle: 'Trois choses ralentissent chaque orientation.',
   problemCdLabel: 'Le CD',
   problemCdLine: "Le CD arrive rayé, ou il n'arrive pas.",
@@ -253,7 +245,6 @@ const fr: SiteCopy = {
   problemCalendarLine:
     "Six semaines pour un rendez-vous qui aurait pu être pris en un jour.",
 
-  corridorEyebrow: 'Le trajet',
   corridorTitle: "De la salle d'examen au cabinet qui reçoit.",
   corridorBody:
     "L'étude est téléversée une fois depuis le cabinet qui oriente, et arrive telle quelle — les octets d'origine, sans réencodage.",
@@ -286,7 +277,6 @@ const fr: SiteCopy = {
     'Connexion rétablie. Le téléversement a repris au même point, sans rien renvoyer.',
   uploadAnnounceComplete: 'Téléversement terminé et empreinte vérifiée.',
 
-  consentEyebrow: 'Le consentement',
   consentTitle: "Le consentement est un registre, pas une case à cocher.",
   consentBody:
     "Le patient consent à partager son étude avec un médecin nommé. Le consentement est horodaté, lié à la version du texte qu'il a lue, et révocable à tout moment.",
@@ -302,7 +292,6 @@ const fr: SiteCopy = {
   consentAnnounceRevoked: "Consentement révoqué. L'accès aux études est fermé.",
   consentAnnounceRestored: "Consentement rétabli. L'accès aux études est rouvert.",
 
-  viewerEyebrow: 'La limite',
   viewerTitle: "Le diagnostic n'est pas notre métier, et c'est voulu.",
   viewerBanner: 'Visualisation de référence uniquement — non destinée au diagnostic.',
   viewerBody:
@@ -310,7 +299,6 @@ const fr: SiteCopy = {
   viewerScreenshotAlt:
     "Capture de la visionneuse intégrée, avec en tête un bandeau permanent indiquant que la visualisation est de référence uniquement.",
 
-  appointmentEyebrow: 'Le rendez-vous',
   appointmentTitle: "L'examen est la moitié de la promesse. Le rendez-vous est l'autre moitié.",
   appointmentBody:
     "Le rendez-vous est pris avant le départ du patient, affiché dans les deux fuseaux, pour que personne ne calcule l'heure dans un message.",
@@ -319,7 +307,6 @@ const fr: SiteCopy = {
   appointmentPaymentNote:
     'Le moyen de paiement dépend de votre cabinet — nous prenons en charge les canaux qui fonctionnent réellement entre les deux pays.',
 
-  securityEyebrow: "L'architecture",
   securityTitle: "Ce qui est réellement en place, écrit tel quel.",
   securityAesDesc: 'chiffrement au repos, clés gérées par le client',
   securityTlsDesc: 'en transit, au minimum',
@@ -342,7 +329,6 @@ const fr: SiteCopy = {
     "Ce qu'il faut apporter, ce qui se passe ensuite, et qui voit vos images.",
   doorsPatientCta: 'Côté patient',
 
-  faqEyebrow: 'Questions',
   faqTitle: 'Les questions qui se posent vraiment.',
   faqQ1: 'Le patient doit-il encore apporter le CD ?',
   faqA1:
@@ -417,7 +403,6 @@ const en: SiteCopy = {
   heroScrollHint: 'Scroll through the slices',
   heroSliceCounterLabel: 'Slice position in the volume',
 
-  problemEyebrow: 'What happens today',
   problemTitle: 'Three things slow every referral down.',
   problemCdLabel: 'The CD',
   problemCdLine: 'The CD arrives scratched, or it doesn’t arrive.',
@@ -426,7 +411,6 @@ const en: SiteCopy = {
   problemCalendarLabel: 'The wait',
   problemCalendarLine: 'Six weeks for an appointment that could have been booked in a day.',
 
-  corridorEyebrow: 'The route',
   corridorTitle: 'From the scanner room to the doctor who receives it.',
   corridorBody:
     'The study is uploaded once from the referring clinic and arrives as it left — the original bytes, with no re-encoding.',
@@ -459,7 +443,6 @@ const en: SiteCopy = {
     'Connection restored. The upload resumed at the same point with nothing re-sent.',
   uploadAnnounceComplete: 'Upload complete and checksum verified.',
 
-  consentEyebrow: 'Consent',
   consentTitle: 'Consent is a record, not a checkbox.',
   consentBody:
     'The patient consents to sharing their study with one named doctor. The consent is timestamped, bound to the version of the text they read, and revocable at any time.',
@@ -475,7 +458,6 @@ const en: SiteCopy = {
   consentAnnounceRevoked: 'Consent revoked. Access to the studies is closed.',
   consentAnnounceRestored: 'Consent restored. Access to the studies is open again.',
 
-  viewerEyebrow: 'The boundary',
   viewerTitle: 'Diagnosis is not our job, and that is the point.',
   viewerBanner: 'Reference viewing only — not for diagnostic use.',
   viewerBody:
@@ -483,7 +465,6 @@ const en: SiteCopy = {
   viewerScreenshotAlt:
     'The in-product image viewer, with a permanent banner across the top stating that viewing is for reference only.',
 
-  appointmentEyebrow: 'The appointment',
   appointmentTitle: 'The scan is half the promise. The appointment is the other half.',
   appointmentBody:
     'The appointment is booked before the patient travels, shown in both timezones, so nobody is doing the arithmetic in a message.',
@@ -492,7 +473,6 @@ const en: SiteCopy = {
   appointmentPaymentNote:
     'Payment method depends on your clinic — we support the rails that actually work between the two countries.',
 
-  securityEyebrow: 'The architecture',
   securityTitle: 'What is actually in place, written as it is.',
   securityAesDesc: 'encryption at rest, customer-managed keys',
   securityTlsDesc: 'in transit, minimum',
@@ -514,7 +494,6 @@ const en: SiteCopy = {
   doorsPatientBody: 'What to bring, what happens next, and who sees your images.',
   doorsPatientCta: 'The patient side',
 
-  faqEyebrow: 'Questions',
   faqTitle: 'The questions people actually ask.',
   faqQ1: 'Does the patient still need to bring the CD?',
   faqA1:

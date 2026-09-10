@@ -47,7 +47,6 @@ export function S06Viewer(): React.JSX.Element {
     <section id="viewer" className="scene" aria-labelledby="viewer-title">
       <div className="shell">
         <FocalReveal plane={1}>
-          <p className="eyebrow">{t.viewerEyebrow}</p>
           <h2 id="viewer-title" className="display t-h1 measure">
             {t.viewerTitle}
           </h2>
@@ -55,7 +54,7 @@ export function S06Viewer(): React.JSX.Element {
 
         <div className="viewer-grid">
           <FocalReveal plane={2}>
-            <Plate label="VIEWER · REFERENCE" padded={false} className="viewer-plate">
+            <Plate label="VIEWER" padded={false} className="viewer-plate">
               {/*
                 The lightbox. `.viewer-panel` is the page's only light surface
                 and it does not inherit the corridor palette — it declares the

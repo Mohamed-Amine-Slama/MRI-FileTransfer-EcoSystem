@@ -106,8 +106,26 @@ COPY --from=build /app/apps/web/.next/standalone ./
 # be placed by hand, at the path the server expects.
 COPY --from=build /app/apps/web/.next/static ./apps/web/.next/static
 
-# apps/web has no public/ directory. If one is added, it needs a COPY here or
-# its contents will 404 in the container while working in `next dev`.
+# Static files served from the root path. `output: 'standalone'` does NOT
+# include public/, exactly as it does not include .next/static, so it has to be
+# placed by hand at the path the server expects.
+#
+# This line was missing, and its absence was invisible in development because
+# `next dev` serves public/ from the source tree. Two things were 404ing in the
+# container and nowhere else:
+#
+#   /theme-init.js   the pre-paint theme script (app/layout.tsx loads it
+#                    `beforeInteractive`). Without it `data-theme` is only
+#                    applied after hydration, so every container-served page
+#                    load flashed white at a user who had chosen dark — the
+#                    one failure that script exists to prevent.
+#   /seq /map /grain the landing page's hero sequence, poster, corridor map and
+#                    grain tile. The hero would have rendered as an empty plate.
+#
+# The Dockerfile previously carried a comment saying apps/web had no public/
+# directory. That was true when it was written and stopped being true when the
+# theme script landed.
+COPY --from=build /app/apps/web/public ./apps/web/public
 
 USER node
 

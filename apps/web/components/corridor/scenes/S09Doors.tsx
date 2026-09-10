@@ -46,7 +46,7 @@ export function S09Doors(): React.JSX.Element {
     <section id="doors" className="scene" aria-labelledby="doors-title">
       <div className="shell">
         <FocalReveal plane={1}>
-          <h2 id="doors-title" className="eyebrow doors-title">
+          <h2 id="doors-title" className="display t-h2 doors-title">
             {t.doorsEyebrow}
           </h2>
         </FocalReveal>
@@ -66,23 +66,14 @@ export function S09Doors(): React.JSX.Element {
                 data-testid={door.testid}
                 onPointerEnter={() => cue('press')}
               >
-                <span className="mono dim door-index" aria-hidden="true">
-                  {door.key === 'doctors' ? '01' : '02'}
-                </span>
                 <h3 className="display t-h2 door-heading">{door.title}</h3>
                 <p className="ash door-body">{door.body}</p>
-                <span className="door-cta phosphor mono">
-                  {door.cta}
-                  {/*
-                    §3.6: arrows MIRROR under RTL. The `--dir` multiplier flips
-                    the glyph's scale in CSS rather than swapping the character,
-                    so there is one arrow in the markup and it always points
-                    the way the reader reads.
-                  */}
-                  <span className="door-arrow" aria-hidden="true">
-                    →
-                  </span>
-                </span>
+                {/*
+                  No arrow appended. The whole panel is the link and it says
+                  what it does; a glyph after the words is decoration standing
+                  in for an affordance the surface already has.
+                */}
+                <span className="door-cta">{door.cta}</span>
               </Link>
             ))}
           </div>

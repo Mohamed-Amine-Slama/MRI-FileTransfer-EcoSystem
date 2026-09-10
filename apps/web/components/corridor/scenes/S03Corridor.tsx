@@ -73,7 +73,6 @@ export function S03Corridor(): React.JSX.Element {
     <section ref={sectionRef} id="corridor" className="scene" aria-labelledby="corridor-title">
       <div className="shell">
         <FocalReveal plane={1}>
-          <p className="eyebrow">{t.corridorEyebrow}</p>
           <h2 id="corridor-title" className="display t-h1 measure">
             {t.corridorTitle}
           </h2>
@@ -148,7 +147,7 @@ export function S03Corridor(): React.JSX.Element {
             study, and without the caption it would read as a claim about
             averages that nobody has measured.
           */}
-          <p className="mono phosphor corridor-readout-line">
+          <p className="mono ash corridor-readout-line">
             ENCRYPTED · TLS 1.3 · 847 MB · CONSENT: GRANTED
           </p>
           <p className="mono dim">{t.corridorReadoutCaption}</p>

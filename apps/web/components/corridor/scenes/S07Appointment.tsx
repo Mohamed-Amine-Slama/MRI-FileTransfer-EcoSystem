@@ -34,7 +34,6 @@ export function S07Appointment(): React.JSX.Element {
     <section id="appointment" className="scene" aria-labelledby="appointment-title">
       <div className="shell">
         <FocalReveal plane={1}>
-          <p className="eyebrow">{t.appointmentEyebrow}</p>
           <h2 id="appointment-title" className="display t-h1 measure">
             {t.appointmentTitle}
           </h2>

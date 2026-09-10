@@ -80,7 +80,6 @@ export function S05Consent(): React.JSX.Element {
     <section ref={sectionRef} id="consent" className="scene" aria-labelledby="consent-title">
       <div className="shell">
         <FocalReveal plane={1}>
-          <p className="eyebrow">{t.consentEyebrow}</p>
           <h2 id="consent-title" className="display t-h1 measure">
             {t.consentTitle}
           </h2>
@@ -95,7 +94,7 @@ export function S05Consent(): React.JSX.Element {
 
               <p className="consent-recipient">
                 <span className="mono dim">{t.consentGrantedTo}</span>{' '}
-                <span className="phosphor">{tpl.consentRecipient(corridor.destination)}</span>
+                <span className="bone">{tpl.consentRecipient(corridor.destination)}</span>
               </p>
               <p className="mono dim consent-redaction-note">{t.consentRecipientRedacted}</p>
 
@@ -130,7 +129,7 @@ export function S05Consent(): React.JSX.Element {
                 </span>
                 <span>{t.consentRevoke}</span>
               </label>
-              <p className="mono dim">{t.consentRevokeHint}</p>
+              <p className="t-meta ash consent-revoke-hint">{t.consentRevokeHint}</p>
             </div>
 
             <Thumbnails revoked={revoked} />

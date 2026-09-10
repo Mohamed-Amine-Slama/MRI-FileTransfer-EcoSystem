@@ -34,16 +34,42 @@
    ========================================================================== */
 
 .corridor {
+  /*
+   * -------------------------------------------------------------------------
+   * WARM-DARK, WHICH IS WHAT §3.1 ASKED FOR AND NOT WHAT ITS HEX VALUES SAY.
+   *
+   * §3.1's prose: "Dark, but warm-dark rather than blue-dark, so it does not
+   * read as generic tech." Its hexes are the opposite — #06080B and #0C1116
+   * are blue-black, and built as written the page landed exactly where the
+   * prose warned: a near-black screen with one bright cyan accent, which is
+   * the most common dark-site treatment there is.
+   *
+   * The ramp below is the same design at hue ~30° instead of ~210°. Against a
+   * warm ground the phosphor accent reads as a signal rather than as the
+   * page's colour scheme, which is what §3.1 wanted from it.
+   *
+   * The accents themselves — phosphor, sand, clay, alert — are UNCHANGED.
+   * They are the identity; the room around them is what was wrong.
+   *
+   * On contrast: bone on the old void was 14.6:1. Sustained reading of
+   * near-white on near-black at that ratio is what makes a dark page tiring,
+   * so body copy now uses `--c-bone-soft` (~11:1, still far above AA) and full
+   * bone is kept for headlines and for anything small. Nothing dropped below
+   * the §3.1 table's requirements — the ratios are re-listed there.
+   * -------------------------------------------------------------------------
+   */
+
   /* Base — the reading room */
-  --c-void: #06080b; /* page background, the darkened room */
-  --c-surface: #0c1116; /* panels, cards, the lightbox frame */
-  --c-raised: #141b23; /* elevated surface, hover state */
-  --c-line: #1e272f; /* hairlines, dividers, panel borders */
+  --c-void: #0b0a09; /* page background, the darkened room */
+  --c-surface: #15120f; /* panels, plates, the lightbox frame */
+  --c-raised: #1f1b16; /* elevated surface, hover state */
+  --c-line: #2e2820; /* hairlines, dividers, panel borders */
 
   /* Content */
-  --c-bone: #e9e5dc; /* primary text — film ivory, never pure white */
-  --c-ash: #93a0ac; /* secondary text, metadata */
-  --c-dim: #5b6874; /* disabled, tertiary, watermark — decorative only */
+  --c-bone: #ece7dd; /* headlines and small text — film ivory, never pure white */
+  --c-bone-soft: #d5cec1; /* sustained body copy */
+  --c-ash: #a09889; /* secondary text, metadata */
+  --c-dim: #6b6357; /* tertiary, watermark — decorative only */
 
   /* Signal */
   --c-phosphor: #3fe0c5;
@@ -92,7 +118,7 @@
 
   /* §3.2 Type scale — major third at desktop, compressing at mobile, fluid
      via clamp() so there are no breakpoint jumps in the headline. */
-  --t-hero: calc(clamp(2.75rem, 1.6rem + 5.6vw, 7rem) * var(--script-scale));
+  --t-hero: calc(clamp(2.5rem, 1.4rem + 4.8vw, 5.75rem) * var(--script-scale));
   --t-h1: calc(clamp(2.25rem, 1.5rem + 3.4vw, 4.25rem) * var(--script-scale));
   --t-h2: calc(clamp(1.75rem, 1.35rem + 1.9vw, 2.75rem) * var(--script-scale));
   --t-h3: calc(clamp(1.375rem, 1.2rem + 0.8vw, 1.75rem) * var(--script-scale));
@@ -124,7 +150,7 @@
 
   color-scheme: dark;
   background-color: var(--c-void);
-  color: var(--c-bone);
+  color: var(--c-bone-soft);
   font-family: var(--f-body);
   font-size: var(--t-body);
   line-height: var(--leading-body);
@@ -148,6 +174,7 @@
    ========================================================================== */
 
 .corridor :where(h1, h2, h3, h4) {
+  color: var(--c-bone);
   font-weight: 500;
   line-height: 1.06;
   text-wrap: balance;
@@ -170,12 +197,26 @@
   line-height: 1.24; /* Kufic ascenders sit high; 1.06 clips them */
 }
 
+/*
+ * No `text-transform: uppercase`.
+ *
+ * It was on every mono element, and it did two kinds of damage. It made
+ * SENTENCES shout — "TRY IT. THE EFFECT IS IMMEDIATE." — which is the
+ * all-caps-label tell and reads as a warning rather than an invitation. And it
+ * falsified the records the page is claiming to show: log keys are
+ * `granted_to`, not `GRANTED_TO`; a SHA-256 digest is `9f2c…a41e`, not
+ * `9F2C…A41E`; a locale tag is `en`. A doctor who reads real logs sees the
+ * difference immediately, and this page's whole argument is that its details
+ * are real.
+ *
+ * Labels that genuinely are upper case — the DICOM-style plate captions — are
+ * written that way in the markup, where the choice is visible.
+ */
 .corridor .mono {
   font-family: var(--f-mono);
   font-size: var(--t-meta);
   font-variant-numeric: tabular-nums;
-  letter-spacing: 0.04em;
-  text-transform: uppercase;
+  letter-spacing: 0.02em;
 }
 
 /*
@@ -189,7 +230,6 @@
  */
 .corridor[dir='rtl'] .mono {
   letter-spacing: normal;
-  text-transform: none;
 }
 
 .corridor .t-hero { font-size: var(--t-hero); }
@@ -199,6 +239,7 @@
 .corridor .t-body-l { font-size: var(--t-body-l); }
 .corridor .t-meta { font-size: var(--t-meta); }
 
+.corridor .bone { color: var(--c-bone); }
 .corridor .ash { color: var(--c-ash); }
 .corridor .dim { color: var(--c-dim); }
 .corridor .phosphor { color: var(--c-phosphor); }
@@ -264,18 +305,18 @@
   padding-block: 0;
 }
 
-.corridor .eyebrow {
-  font-family: var(--f-mono);
-  font-size: var(--t-meta);
-  letter-spacing: 0.12em;
-  text-transform: uppercase;
-  color: var(--c-phosphor);
-  margin-block-end: 1.25rem;
-}
-
-.corridor[dir='rtl'] .eyebrow {
-  letter-spacing: normal;
-  text-transform: none;
+/*
+ * A standfirst — a sentence that introduces the scene, set as prose.
+ *
+ * This replaces the tracked mono label that used to sit above every heading.
+ * Nine of them made the page look assembled from a template, and eight of the
+ * nine were a noun repeating what the heading already said. Only the one that
+ * was an actual sentence survived.
+ */
+.corridor .standfirst {
+  color: var(--c-ash);
+  font-size: var(--t-body-l);
+  margin-block-end: 0.75rem;
 }
 
 /* ==========================================================================
@@ -294,15 +335,40 @@
  *   │                                   │
  *   └──────────────────────── 24 / 180 ─┘
  */
+/*
+ * A plate has to read as an OBJECT sitting in the room, not as a rectangle
+ * drawn on it. Three things do that, and none of them is a drop shadow with a
+ * grey blur:
+ *
+ *   - a lit top edge. Light in this room comes from above, so the frame is a
+ *     shade brighter where it faces the source and the fill falls away
+ *     downward. That single gradient is most of the effect.
+ *   - a fill that is not flat. 3% of vertical falloff is invisible as a
+ *     gradient and obvious as depth.
+ *   - a shadow that is BLACK rather than grey. On a warm near-black ground a
+ *     grey shadow is lighter than the page and haloes; black just deepens.
+ */
 .corridor .plate {
   position: relative;
   border: 1px solid var(--c-line);
   border-radius: var(--r-plate);
+  background-image: linear-gradient(
+    to bottom,
+    rgb(255 250 240 / 0.035),
+    rgb(255 250 240 / 0.012) 22%,
+    transparent 60%
+  );
   background-color: var(--c-surface);
+  box-shadow:
+    inset 0 1px 0 rgb(255 248 236 / 0.05),
+    0 1px 1px rgb(0 0 0 / 0.4),
+    0 12px 32px -12px rgb(0 0 0 / 0.65);
 }
 
 .corridor .plate--flush {
   background-color: transparent;
+  background-image: none;
+  box-shadow: none;
 }
 
 /* Corner ticks. Two pseudo-elements carry all four by mirroring, and they are
@@ -861,8 +927,148 @@
 }
 
 /* ==========================================================================
+   Chrome controls — language and appearance
+   ========================================================================== */
+
+.corridor .control {
+  position: relative;
+}
+
+.corridor .control-trigger {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.45rem;
+  min-block-size: 36px;
+  padding-inline: 0.6rem;
+  border: 1px solid transparent;
+  border-radius: var(--r-control);
+  color: var(--c-ash);
+  font-size: 0.8125rem;
+  cursor: pointer;
+  list-style: none;
+  transition:
+    color var(--d-micro) var(--e-out),
+    border-color var(--d-micro) var(--e-out),
+    background-color var(--d-micro) var(--e-out);
+}
+
+/* Safari still paints a disclosure triangle without this. */
+.corridor .control-trigger::-webkit-details-marker {
+  display: none;
+}
+
+.corridor .control-trigger:hover,
+.corridor .control[open] .control-trigger {
+  color: var(--c-bone);
+  border-color: var(--c-line);
+  background-color: var(--c-surface);
+}
+
+.corridor .control-mark {
+  inline-size: 15px;
+  block-size: 15px;
+  fill: none;
+  stroke: currentColor;
+  stroke-width: 1.2;
+}
+
+/* The current language is worth the width; the theme is an icon alone. */
+.corridor .control-value {
+  display: none;
+}
+
+.corridor .control-menu {
+  position: absolute;
+  inset-block-start: calc(100% + 0.5rem);
+  inset-inline-end: 0;
+  z-index: 10;
+  display: flex;
+  flex-direction: column;
+  min-inline-size: 11rem;
+  padding: 0.3rem;
+  border: 1px solid var(--c-line);
+  border-radius: var(--r-control);
+  background-color: var(--c-raised);
+  box-shadow: 0 16px 40px -12px rgb(0 0 0 / 0.8);
+}
+
+.corridor .control-option {
+  display: flex;
+  align-items: center;
+  min-block-size: 40px;
+  padding-inline: 0.7rem;
+  border: 0;
+  border-radius: 4px;
+  background: none;
+  color: var(--c-ash);
+  font: inherit;
+  font-size: 0.875rem;
+  text-align: start;
+  cursor: pointer;
+  transition: background-color var(--d-micro) var(--e-out), color var(--d-micro) var(--e-out);
+}
+
+.corridor .control-option:hover {
+  background-color: var(--c-surface);
+  color: var(--c-bone);
+}
+
+/* The selected state is carried by a mark and by weight, not by colour alone. */
+.corridor .control-option[data-selected='true'] {
+  color: var(--c-bone);
+  font-weight: 500;
+}
+
+.corridor .control-option[data-selected='true']::after {
+  content: '';
+  inline-size: 5px;
+  block-size: 5px;
+  margin-inline-start: auto;
+  border-radius: var(--r-pill);
+  background-color: var(--c-phosphor);
+}
+
+.corridor .control-note {
+  max-inline-size: 15rem;
+  padding: 0.5rem 0.7rem 0.35rem;
+  border-block-start: 1px solid var(--c-line);
+  margin-block-start: 0.3rem;
+  color: var(--c-dim);
+  font-size: 0.75rem;
+  line-height: 1.5;
+}
+
+@media (min-width: 1100px) {
+  .corridor .control-value {
+    display: inline;
+  }
+}
+
+/* ==========================================================================
    Scene 01 — Hero
    ========================================================================== */
+
+/*
+ * The hero's job is to perform the slice mechanic before a word is read, and
+ * the first build did not: a faint image at 35% behind centred text reads as a
+ * stock background, not as a volume you are about to scroll into.
+ *
+ * What changed, and why each thing:
+ *
+ *   The volume is BIGGER and BRIGHTER, and a radial vignette is cut out of the
+ *   middle of it rather than the whole layer being dimmed. The anatomy stays
+ *   legible at the edges where nothing is written, and the centre stays clean
+ *   enough to set type on. Dimming the whole plane to reach the same
+ *   legibility is what made it look like a placeholder.
+ *
+ *   The plate carries a real workstation HUD — corner metadata, a windowing
+ *   readout, a reticle. §2.3 says to study that chrome and use it as the
+ *   page's own: it is the detail a referring doctor recognises, and it costs
+ *   four spans.
+ *
+ *   The type is larger and tighter, and the hero remains CENTRED because §3.3
+ *   allows exactly two centred blocks and names this as one of them.
+ */
 
 .corridor .hero-frame {
   position: relative;
@@ -870,7 +1076,7 @@
   flex-direction: column;
   gap: 1.25rem;
   min-block-size: 100svh;
-  padding: clamp(5rem, 12vh, 7.5rem) var(--margin) clamp(2rem, 6vh, 3.5rem);
+  padding: clamp(4.5rem, 11vh, 7rem) var(--margin) clamp(1.75rem, 5vh, 3rem);
   max-inline-size: var(--content-max);
   margin-inline: auto;
 }
@@ -878,31 +1084,49 @@
 .corridor .hero-plate {
   flex: 1;
   overflow: hidden;
-  /* The one bloom on this viewport (§3.4 material 4). */
-  background-image: radial-gradient(
-    ellipse 60% 50% at 50% 45%,
-    rgb(63 224 197 / 0.06),
-    transparent 70%
-  );
 }
 
 .corridor .hero-stack {
   position: relative;
   display: grid;
   block-size: 100%;
-  min-block-size: 60svh;
+  min-block-size: 62svh;
+  isolation: isolate;
 }
 
-/* Poster and canvas occupy the same cell. The canvas paints over the poster
-   once frames arrive; on Tier C it never does, and the poster IS the hero. */
+/*
+ * Poster and canvas share one cell. The canvas paints over the poster once
+ * frames arrive; on Tier C it never does and the poster IS the hero.
+ *
+ * `mask-image` is the vignette: fully opaque at the edges, falling to almost
+ * nothing across the middle third. It is a mask rather than an overlay so the
+ * void behind shows through rather than a black film sitting on top — an
+ * overlay greys the blacks and the plate stops looking like a lit panel.
+ */
 .corridor .slice-poster,
 .corridor .slice-canvas {
   grid-area: 1 / 1;
   inline-size: 100%;
   block-size: 100%;
   object-fit: cover;
-  /* §Scene 01: the volume sits BEHIND the headline at 35%. */
-  opacity: 0.35;
+  opacity: 0.92;
+  mask-image: radial-gradient(
+    ellipse 58% 54% at 50% 50%,
+    rgb(0 0 0 / 0.16),
+    rgb(0 0 0 / 0.6) 52%,
+    #000 100%
+  );
+}
+
+/* A warm floor under the volume, so the plate is lit rather than merely dark. */
+.corridor .hero-stack::after {
+  content: '';
+  grid-area: 1 / 1;
+  z-index: 1;
+  pointer-events: none;
+  background:
+    radial-gradient(ellipse 70% 60% at 50% 42%, rgb(63 224 197 / 0.07), transparent 70%),
+    radial-gradient(ellipse 90% 70% at 50% 120%, rgb(138 82 51 / 0.16), transparent 70%);
 }
 
 .corridor .hero-copy {
@@ -915,16 +1139,32 @@
 }
 
 /* One of exactly two centred blocks on the page (§3.3). */
+/* One box per word: the animated letters inside it can never be split. */
+.corridor .headline-word {
+  display: inline-block;
+  white-space: nowrap;
+}
+
 .corridor .hero-headline {
   text-align: center;
   margin-inline: auto;
-  max-inline-size: 18ch;
+  max-inline-size: 13ch;
+  letter-spacing: -0.02em;
+  /* The headline sits ON the volume, so it gets its own shadow to hold the
+     baseline against whatever slice is behind it at that moment. */
+  text-shadow: 0 2px 24px rgb(11 10 9 / 0.75);
+}
+
+.corridor[dir='rtl'] .hero-headline {
+  /* Arabic joins; negative tracking closes the joins up and thickens the word. */
+  letter-spacing: normal;
 }
 
 .corridor .hero-subhead {
   margin-block-start: 1.5rem;
   margin-inline: auto;
   text-align: center;
+  text-shadow: 0 1px 16px rgb(11 10 9 / 0.8);
 }
 
 .corridor .hero-actions {
@@ -933,6 +1173,67 @@
   justify-content: center;
   gap: 0.75rem;
   margin-block-start: 2.25rem;
+}
+
+/* --- the workstation HUD, inside the plate ------------------------------- */
+
+.corridor .hero-hud {
+  position: absolute;
+  z-index: 3;
+  color: var(--c-dim);
+  font-family: var(--f-mono);
+  font-size: 0.6875rem;
+  line-height: 1.6;
+  pointer-events: none;
+  /* Identifiers and numbers, never reordered by the paragraph direction. */
+  direction: ltr;
+  text-align: start;
+}
+
+.corridor .hero-hud--tl {
+  inset-block-start: 1rem;
+  inset-inline-start: 1rem;
+}
+
+.corridor .hero-hud--tr {
+  inset-block-start: 1rem;
+  inset-inline-end: 1rem;
+  text-align: end;
+}
+
+.corridor .hero-hud--bl {
+  inset-block-end: 1rem;
+  inset-inline-start: 1rem;
+}
+
+/* The reticle at the volume's centre — the one on the nav is its small sibling. */
+/*
+ * Centred with `inset: 0; margin: auto`, not with a 50% offset and a translate.
+ *
+ * `inset-inline-start: 50%` resolves to `right: 50%` under RTL, so the element
+ * grows away from the centre in the opposite direction and the pull-back
+ * translate doubles the error instead of correcting it — the reticle sat a
+ * third of the way across the plate in Arabic and dead centre in French.
+ * `margin: auto` inside a fully-inset box is direction-agnostic and needs no
+ * multiplier.
+ */
+.corridor .hero-reticle {
+  position: absolute;
+  z-index: 3;
+  inset: 0;
+  margin: auto;
+  inline-size: min(52vmin, 420px);
+  block-size: min(52vmin, 420px);
+  pointer-events: none;
+  opacity: 0.32;
+}
+
+.corridor .hero-reticle line,
+.corridor .hero-reticle circle {
+  stroke: var(--c-phosphor);
+  stroke-width: 0.75;
+  fill: none;
+  vector-effect: non-scaling-stroke;
 }
 
 .corridor .hero-rail {
@@ -961,6 +1262,12 @@
   display: none;
 }
 
+@media (min-width: 700px) {
+  .corridor .hero-trust {
+    display: inline;
+  }
+}
+
 @media (min-width: 900px) {
   .corridor .hero-hint {
     display: block;
@@ -969,12 +1276,6 @@
     inset-inline-start: 50%;
     translate: -50% 0;
     opacity: 0.5;
-  }
-}
-
-@media (min-width: 700px) {
-  .corridor .hero-trust {
-    display: inline;
   }
 }
 
@@ -1252,6 +1553,10 @@
   margin-block-start: 1.75rem;
 }
 
+.corridor .consent-revoke-hint {
+  margin-block-start: 0.35rem;
+}
+
 .corridor .consent-switch {
   display: inline-flex;
   align-items: center;
@@ -1502,6 +1807,10 @@
   gap: 0.15rem 1.5rem;
 }
 
+.corridor .security-row dt {
+  color: var(--c-bone);
+}
+
 .corridor .security-row dd {
   margin: 0;
 }
@@ -1553,8 +1862,16 @@
 .corridor .door-cta {
   display: inline-flex;
   align-items: center;
-  gap: 0.5rem;
-  margin-block-start: 0.75rem;
+  margin-block-start: 1rem;
+  padding-block-end: 2px;
+  color: var(--c-bone);
+  border-block-end: 1px solid var(--c-line);
+  transition: border-color var(--d-micro) var(--e-out);
+}
+
+.corridor .door:hover .door-cta,
+.corridor .door:focus-visible .door-cta {
+  border-block-end-color: var(--c-phosphor);
 }
 
 /* §3.6: arrows mirror. One glyph in the markup, flipped by the multiplier. */
@@ -1647,7 +1964,7 @@
   inset-inline-start: 0;
   inline-size: 14px;
   block-size: 1px;
-  background-color: var(--c-phosphor);
+  background-color: var(--c-ash);
   transition: rotate var(--d-micro) var(--e-out);
 }
 

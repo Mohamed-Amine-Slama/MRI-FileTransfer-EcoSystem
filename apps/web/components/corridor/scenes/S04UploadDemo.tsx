@@ -146,7 +146,13 @@ export function S04UploadDemo(): React.JSX.Element {
     <section id="upload" className="scene" aria-labelledby="upload-title">
       <div className="shell">
         <FocalReveal plane={1}>
-          <p className="eyebrow">{t.uploadEyebrow}</p>
+          {/*
+            A standfirst, not a label. "The connection drops. The upload does
+            not start again." is a sentence making the scene's argument, and
+            setting it in tracked mono above the heading turned an idea into
+            furniture.
+          */}
+          <p className="standfirst measure">{t.uploadEyebrow}</p>
           <h2 id="upload-title" className="display t-h1 measure">
             {t.uploadTitle}
           </h2>
@@ -285,7 +291,7 @@ function InteractiveDemo(): React.JSX.Element {
 
   return (
     <div ref={rootRef}>
-      <Plate label="UPLOAD · RESUMABLE · SIMULATION" counter={`${state.files} / ${TOTAL_FILES}`}>
+      <Plate label="TRANSFER · SIMULATED" counter={`${state.files} / ${TOTAL_FILES}`}>
         <div className="upload-head">
           <span className={`mono ${state.phase === 'interrupted' ? 'sand' : 'phosphor'}`}>
             {
