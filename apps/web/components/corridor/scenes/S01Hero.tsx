@@ -117,7 +117,7 @@ export function S01Hero(): React.JSX.Element {
                 text={t.heroHeadline}
                 className="hero-headline"
               />
-              <p className="hero-subhead t-body-l ash measure">
+              <p className="hero-subhead t-body-l subtle measure">
                 {tpl.heroSubhead(corridor.source, corridor.destination)}
               </p>
 
@@ -144,7 +144,7 @@ export function S01Hero(): React.JSX.Element {
             operationalLabel={t.heroStatusOperational}
             unknownLabel={t.heroStatusUnknown}
           />
-          <span className="mono dim hero-trust">{t.heroTrustLine}</span>
+          <span className="mono subtle hero-trust">{t.heroTrustLine}</span>
           {/*
             The counter is positioned as the plate's own bottom-edge label, so
             it reads as part of the viewport chrome rather than as a widget.
@@ -162,7 +162,7 @@ export function S01Hero(): React.JSX.Element {
           on Tier C: the slice counter runs 001 → 180 whether or not the canvas
           scrubs behind it.
         */}
-        <p className="hero-hint mono dim" aria-hidden="true">
+        <p className="hero-hint mono subtle" aria-hidden="true">
           {t.heroScrollHint}
         </p>
       </div>

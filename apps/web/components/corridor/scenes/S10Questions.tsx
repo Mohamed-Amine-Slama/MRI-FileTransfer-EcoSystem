@@ -50,7 +50,7 @@ export function S10Questions(): React.JSX.Element {
             {FAQ_ROWS.map((row, index) => (
               <details key={row.q} className="faq-item" onToggle={() => cue('press')}>
                 <summary className="faq-question">
-                  <span className="mono dim faq-index" aria-hidden="true">
+                  <span className="mono subtle faq-index" aria-hidden="true">
                     {String(index + 1).padStart(2, '0')}
                   </span>
                   <span className="t-h3">{t[row.q]}</span>
@@ -63,7 +63,7 @@ export function S10Questions(): React.JSX.Element {
                   <span className="faq-marker" aria-hidden="true" />
                 </summary>
                 <div className="faq-answer">
-                  <p className="ash measure">{t[row.a]}</p>
+                  <p className="subtle measure">{t[row.a]}</p>
                 </div>
               </details>
             ))}

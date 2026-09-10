@@ -36,88 +36,61 @@
 .corridor {
   /*
    * -------------------------------------------------------------------------
-   * WARM-DARK, WHICH IS WHAT §3.1 ASKED FOR AND NOT WHAT ITS HEX VALUES SAY.
+   * THE LIGHT PALETTE — spec 2026-09-10 §3.1.
    *
-   * §3.1's prose: "Dark, but warm-dark rather than blue-dark, so it does not
-   * read as generic tech." Its hexes are the opposite — #06080B and #0C1116
-   * are blue-black, and built as written the page landed exactly where the
-   * prose warned: a near-black screen with one bright cyan accent, which is
-   * the most common dark-site treatment there is.
+   * A clinical, calm register: white ground, mint panels, one teal accent and
+   * one lime highlight. Contrast is asserted by lib/site/tokens.test.ts, which
+   * parses THIS rule — keep every colour a 6-digit hex or `rgb(r g b / a)`.
    *
-   * The ramp below is the same design at hue ~30° instead of ~210°. Against a
-   * warm ground the phosphor accent reads as a signal rather than as the
-   * page's colour scheme, which is what §3.1 wanted from it.
-   *
-   * The accents themselves — phosphor, sand, clay, alert — are UNCHANGED.
-   * They are the identity; the room around them is what was wrong.
-   *
-   * On contrast: bone on the old void was 14.6:1. Sustained reading of
-   * near-white on near-black at that ratio is what makes a dark page tiring,
-   * so body copy now uses `--c-bone-soft` (~11:1, still far above AA) and full
-   * bone is kept for headlines and for anything small. Nothing dropped below
-   * the §3.1 table's requirements — the ratios are re-listed there.
+   * `--c-ink-muted` is 3.3:1 at best: large text (≥ 24px) and decoration only.
+   * Secondary body copy uses `--c-ink-subtle`.
    * -------------------------------------------------------------------------
    */
+  --c-ground: #ffffff;
+  --c-panel: #eff4f2;
+  --c-panel-deep: #e5f1ed;
+  --c-ink: #000000;
+  --c-ink-subtle: rgb(0 0 0 / 0.62);
+  --c-ink-muted: rgb(0 0 0 / 0.45);
+  --c-line: rgb(0 0 0 / 0.1);
+  --c-accent: #246f65;
+  --c-accent-deep: #054038;
+  --c-on-accent: #ffffff;
+  --c-lime: #f8ffb4;
+  --c-lime-edge: #e5ed9b;
+  --c-glass: rgb(255 255 255 / 0.8);
+  --c-glass-soft: rgb(255 255 255 / 0.5);
+  --c-glass-strong: rgb(255 255 255 / 0.9);
+  --c-alert: #b3261e;
+  --glass-blur: 10px;
 
-  /* Base — the reading room */
-  --c-void: #0b0a09; /* page background, the darkened room */
-  --c-surface: #15120f; /* panels, plates, the lightbox frame */
-  --c-raised: #1f1b16; /* elevated surface, hover state */
-  --c-line: #2e2820; /* hairlines, dividers, panel borders */
+  /* Shape */
+  --r-section: 48px;
+  --r-card: 24px;
+  --r-chip: 37px;
+  --r-pill: 46px;
+  --r-tile: 8px;
 
-  /* Content */
-  --c-bone: #ece7dd; /* headlines and small text — film ivory, never pure white */
-  --c-bone-soft: #d5cec1; /* sustained body copy */
-  --c-ash: #a09889; /* secondary text, metadata */
-  --c-dim: #6b6357; /* tertiary, watermark — decorative only */
-
-  /* Signal */
-  --c-phosphor: #3fe0c5;
-  --c-phosphor-d: #1b8f7c;
-
-  /* Warmth — and the caution state */
-  --c-sand: #e0a05c;
-  --c-clay: #8a5233;
-
-  /* States */
-  --c-alert: #ff6b6b;
-
-  /* §3.3 Radius — three values, each meaning one thing: plates are clinical,
-     controls are touchable, pills are status. */
-  --r-plate: 2px;
-  --r-control: 6px;
-  --r-pill: 999px;
-
-  /* §3.5 Easing */
-  --e-out: cubic-bezier(0.16, 1, 0.3, 1); /* expo out — entrances */
-  --e-in-out: cubic-bezier(0.65, 0, 0.35, 1); /* scene handoffs */
-  --e-snap: cubic-bezier(0.34, 1.56, 0.64, 1); /* controls, one overshoot */
-
-  /* §3.5 Duration */
+  /* Motion */
+  --ease-entrance: cubic-bezier(0.2, 0, 0, 1);
+  --dur-fast: 150ms;
+  --dur-normal: 250ms;
+  --e-out: cubic-bezier(0.16, 1, 0.3, 1);
+  --e-in-out: cubic-bezier(0.65, 0, 0.35, 1);
+  --e-snap: cubic-bezier(0.34, 1.56, 0.64, 1);
   --d-micro: 140ms;
   --d-enter: 620ms;
   --d-scene: 900ms;
   --d-hero: 1400ms;
   --stagger: 60ms;
 
-  /* §3.6 Direction multiplier — set once, read by every horizontal motion.
-     There is no `left` or `right` anywhere below; this is the only way a
-     horizontal value is allowed to know which way it is going. */
+  /* Direction, rhythm and type (type is replaced in Task 2) */
   --dir: 1;
-
-  /* §3.2 Per-script scale. Arabic runs 8–15% larger than Latin at the same
-     optical size, so the whole scale is multiplied rather than each heading
-     being nudged by hand. */
   --script-scale: 1;
   --leading-body: 1.55;
-
-  /* §3.3 Layout */
   --margin: clamp(20px, 5vw, 120px);
   --content-max: 1440px;
   --measure: 68ch;
-
-  /* §3.2 Type scale — major third at desktop, compressing at mobile, fluid
-     via clamp() so there are no breakpoint jumps in the headline. */
   --t-hero: calc(clamp(2.5rem, 1.4rem + 4.8vw, 5.75rem) * var(--script-scale));
   --t-h1: calc(clamp(2.25rem, 1.5rem + 3.4vw, 4.25rem) * var(--script-scale));
   --t-h2: calc(clamp(1.75rem, 1.35rem + 1.9vw, 2.75rem) * var(--script-scale));
@@ -125,37 +98,18 @@
   --t-body-l: calc(clamp(1.0625rem, 1rem + 0.3vw, 1.25rem) * var(--script-scale));
   --t-body: calc(1rem * var(--script-scale));
   --t-meta: calc(0.8125rem * var(--script-scale));
-
-  /* Families. The variables are set by next/font in components/corridor/fonts.ts;
-     the fallbacks are what paints during the swap. */
   --f-display-latin: var(--font-grotesk), 'Segoe UI', system-ui, sans-serif;
   --f-display-arabic: var(--font-reem), var(--font-plex), 'Noto Kufi Arabic', sans-serif;
   --f-body: var(--font-plex), system-ui, -apple-system, 'Segoe UI', Tahoma, 'Noto Sans Arabic', sans-serif;
-  /*
-   * IBM Plex Mono is LATIN-ONLY, and font fallback is per glyph, so the tail
-   * of this stack decides what Arabic looks like in every mono readout on the
-   * page — the eyebrows, the nav, the plate labels, the trust line.
-   *
-   * Ending at `monospace` sent Arabic to the system fixed-pitch face, which
-   * sets every glyph in an equal cell and pulls the joins apart: نقل مشفّر
-   * came out as spaced, barely-connected letters. Putting the body face next
-   * in line means Latin still comes from Plex Mono and Arabic comes from Plex
-   * Sans Arabic, correctly shaped, in the same family the body copy uses.
-   */
   --f-mono: var(--font-plex-mono), var(--font-plex), ui-monospace, 'SFMono-Regular', monospace;
-
-  /* The scene the page is currently at, written by the scroll orchestrator and
-     read by the chrome. Declared here so it always resolves, even with no JS. */
   --scene-progress: 0;
 
-  color-scheme: dark;
-  background-color: var(--c-void);
-  color: var(--c-bone-soft);
+  color-scheme: light;
+  background-color: var(--c-ground);
+  color: var(--c-ink);
   font-family: var(--f-body);
   font-size: var(--t-body);
   line-height: var(--leading-body);
-  /* §4.5 (platform) and §13: the body must never scroll horizontally. Scenes
-     that move sideways do it inside their own overflow container. */
   overflow-x: clip;
 }
 
@@ -174,7 +128,7 @@
    ========================================================================== */
 
 .corridor :where(h1, h2, h3, h4) {
-  color: var(--c-bone);
+  color: var(--c-ink);
   font-weight: 500;
   line-height: 1.06;
   text-wrap: balance;
@@ -239,11 +193,11 @@
 .corridor .t-body-l { font-size: var(--t-body-l); }
 .corridor .t-meta { font-size: var(--t-meta); }
 
-.corridor .bone { color: var(--c-bone); }
-.corridor .ash { color: var(--c-ash); }
-.corridor .dim { color: var(--c-dim); }
-.corridor .phosphor { color: var(--c-phosphor); }
-.corridor .sand { color: var(--c-sand); }
+.corridor .ink { color: var(--c-ink); }
+.corridor .subtle { color: var(--c-ink-subtle); }
+.corridor .muted { color: var(--c-ink-muted); }
+.corridor .accent { color: var(--c-accent); }
+.corridor .alert { color: var(--c-alert); }
 
 /* §3.2 rule 7 — 68ch Latin, 60ch Arabic, set from one token so a locale
    switch cannot leave the measure behind. */
@@ -314,7 +268,7 @@
  * was an actual sentence survived.
  */
 .corridor .standfirst {
-  color: var(--c-ash);
+  color: var(--c-ink-subtle);
   font-size: var(--t-body-l);
   margin-block-end: 0.75rem;
 }
@@ -351,18 +305,11 @@
 .corridor .plate {
   position: relative;
   border: 1px solid var(--c-line);
-  border-radius: var(--r-plate);
-  background-image: linear-gradient(
-    to bottom,
-    rgb(255 250 240 / 0.035),
-    rgb(255 250 240 / 0.012) 22%,
-    transparent 60%
-  );
-  background-color: var(--c-surface);
+  border-radius: var(--r-card);
+  background-color: var(--c-ground);
   box-shadow:
-    inset 0 1px 0 rgb(255 248 236 / 0.05),
-    0 1px 1px rgb(0 0 0 / 0.4),
-    0 12px 32px -12px rgb(0 0 0 / 0.65);
+    0 1px 2px rgb(0 0 0 / 0.04),
+    0 24px 48px -32px rgb(0 0 0 / 0.18);
 }
 
 .corridor .plate--flush {
@@ -371,40 +318,13 @@
   box-shadow: none;
 }
 
-/* Corner ticks. Two pseudo-elements carry all four by mirroring, and they are
-   inset-inline so they land correctly under both directions. */
-.corridor .plate::before,
-.corridor .plate::after {
-  content: '';
-  position: absolute;
-  inline-size: 9px;
-  block-size: 9px;
-  border-color: var(--c-phosphor);
-  opacity: 0.55;
-  pointer-events: none;
-}
-
-.corridor .plate::before {
-  inset-block-start: -1px;
-  inset-inline-start: -1px;
-  border-block-start: 1px solid;
-  border-inline-start: 1px solid;
-}
-
-.corridor .plate::after {
-  inset-block-end: -1px;
-  inset-inline-end: -1px;
-  border-block-end: 1px solid;
-  border-inline-end: 1px solid;
-}
-
 .corridor .plate-label {
   position: absolute;
   inset-block-start: -0.62em;
   inset-inline-start: 1.25rem;
   padding-inline: 0.5rem;
-  background-color: var(--c-void);
-  color: var(--c-dim);
+  background-color: var(--c-ground);
+  color: var(--c-ink-subtle);
   font-family: var(--f-mono);
   font-size: 0.6875rem;
   letter-spacing: 0.08em;
@@ -432,8 +352,8 @@
   inset-block-end: -0.62em;
   inset-inline-end: 1.25rem;
   padding-inline: 0.5rem;
-  background-color: var(--c-void);
-  color: var(--c-dim);
+  background-color: var(--c-ground);
+  color: var(--c-ink-subtle);
   font-family: var(--f-mono);
   font-size: 0.6875rem;
   font-variant-numeric: tabular-nums;
@@ -496,7 +416,7 @@
   pointer-events: none;
   background: radial-gradient(
     circle closest-side,
-    rgb(63 224 197 / 0.12),
+    rgb(36 111 101 / 0.12),
     transparent
   );
 }
@@ -506,7 +426,7 @@
    ========================================================================== */
 
 .corridor :focus-visible {
-  outline: 2px solid var(--c-phosphor);
+  outline: 2px solid var(--c-accent);
   outline-offset: 3px;
   border-radius: 1px;
 }
@@ -518,10 +438,10 @@
   z-index: 60;
   translate: 0 -200%;
   padding: 0.75rem 1.25rem;
-  background-color: var(--c-phosphor);
-  color: var(--c-void);
+  background-color: var(--c-accent);
+  color: var(--c-ground);
   font-weight: 600;
-  border-end-end-radius: var(--r-control);
+  border-end-end-radius: var(--r-tile);
 }
 
 .corridor .skip-link:focus {
@@ -540,7 +460,7 @@
   min-block-size: 2.875rem;
   padding-inline: 1.5rem;
   border: 1px solid transparent;
-  border-radius: var(--r-control);
+  border-radius: var(--r-tile);
   font-size: var(--t-body);
   font-weight: 600;
   cursor: pointer;
@@ -553,35 +473,35 @@
 
 /* The ONE phosphor button on the page — §3.1's spending rule in practice. */
 .corridor .btn--primary {
-  background-color: var(--c-phosphor);
-  color: var(--c-void);
+  background-color: var(--c-accent);
+  color: var(--c-ground);
 }
 
 .corridor .btn--primary:hover {
-  background-color: #57eed5;
+  background-color: var(--c-accent-deep);
   translate: 0 -1px;
 }
 
 .corridor .btn--ghost {
   border-color: var(--c-line);
-  color: var(--c-bone);
+  color: var(--c-ink);
   background-color: transparent;
 }
 
 .corridor .btn--ghost:hover {
-  border-color: var(--c-ash);
-  background-color: var(--c-raised);
+  border-color: var(--c-ink-subtle);
+  background-color: var(--c-panel-deep);
 }
 
 .corridor .link {
-  color: var(--c-bone);
-  text-decoration-color: var(--c-dim);
+  color: var(--c-ink);
+  text-decoration-color: var(--c-ink-subtle);
   text-underline-offset: 0.25em;
   transition: color var(--d-micro) var(--e-out);
 }
 
 .corridor .link:hover {
-  color: var(--c-phosphor);
+  color: var(--c-accent);
 }
 
 /* Status pill — a live dot, and a real link to a real status page. */
@@ -594,21 +514,21 @@
   border-radius: var(--r-pill);
   font-family: var(--f-mono);
   font-size: var(--t-meta);
-  color: var(--c-ash);
+  color: var(--c-ink-subtle);
 }
 
 .corridor .pill-dot {
   inline-size: 7px;
   block-size: 7px;
   border-radius: var(--r-pill);
-  background-color: var(--c-phosphor);
-  box-shadow: 0 0 0 0 rgb(63 224 197 / 0.5);
+  background-color: var(--c-accent);
+  box-shadow: 0 0 0 0 rgb(36 111 101 / 0.5);
   animation: corridor-pulse 2.4s var(--e-in-out) infinite;
 }
 
 @keyframes corridor-pulse {
   50% {
-    box-shadow: 0 0 0 5px rgb(63 224 197 / 0);
+    box-shadow: 0 0 0 5px rgb(36 111 101 / 0);
   }
 }
 
@@ -723,7 +643,7 @@
   pointer-events: none;
   opacity: 0;
   transition: opacity 400ms var(--e-out);
-  background: radial-gradient(circle closest-side, rgb(63 224 197 / 0.07), transparent);
+  background: radial-gradient(circle closest-side, rgb(36 111 101 / 0.07), transparent);
 }
 
 .corridor .handoff-canvas {
@@ -745,7 +665,7 @@
   position: fixed;
   inset: 0;
   z-index: 70;
-  background-color: var(--c-void);
+  background-color: var(--c-ground);
   pointer-events: none;
   transition: opacity 420ms var(--e-in-out);
 }
@@ -762,7 +682,7 @@
   inset-inline-start: 0;
   inline-size: 100%;
   block-size: 1px;
-  background-color: var(--c-phosphor);
+  background-color: var(--c-accent);
   transform-origin: left center;
   animation: corridor-draw 900ms var(--e-in-out) forwards;
 }
@@ -801,7 +721,8 @@
 }
 
 .corridor .chrome[data-detached='true'] {
-  background-color: rgb(6 8 11 / 0.86);
+  background-color: var(--c-glass);
+  backdrop-filter: blur(var(--glass-blur));
   border-block-end-color: var(--c-line);
 }
 
@@ -818,7 +739,7 @@
   display: inline-flex;
   align-items: center;
   gap: 0.6rem;
-  color: var(--c-bone);
+  color: var(--c-ink);
   font-family: var(--f-mono);
   font-size: 0.875rem;
   letter-spacing: 0.18em;
@@ -829,7 +750,7 @@
   position: relative;
   inline-size: 14px;
   block-size: 14px;
-  border: 1px solid var(--c-phosphor);
+  border: 1px solid var(--c-accent);
   border-radius: var(--r-pill);
 }
 
@@ -837,7 +758,7 @@
 .corridor .chrome-reticle::after {
   content: '';
   position: absolute;
-  background-color: var(--c-phosphor);
+  background-color: var(--c-accent);
 }
 
 .corridor .chrome-reticle::before {
@@ -858,13 +779,13 @@
 }
 
 .corridor .chrome-link {
-  color: var(--c-ash);
+  color: var(--c-ink-subtle);
   font-size: 0.75rem;
   transition: color var(--d-micro) var(--e-out);
 }
 
 .corridor .chrome-link:hover {
-  color: var(--c-phosphor);
+  color: var(--c-accent);
 }
 
 .corridor .chrome-actions {
@@ -895,7 +816,7 @@
 .corridor .chrome-toggle-bar {
   display: block;
   block-size: 1px;
-  background-color: var(--c-bone);
+  background-color: var(--c-ink);
 }
 
 .corridor .chrome-menu {
@@ -903,7 +824,7 @@
   flex-direction: column;
   gap: 0.25rem;
   padding: 0.5rem var(--margin) 1.25rem;
-  background-color: var(--c-surface);
+  background-color: var(--c-panel);
   border-block-start: 1px solid var(--c-line);
 }
 
@@ -941,8 +862,8 @@
   min-block-size: 36px;
   padding-inline: 0.6rem;
   border: 1px solid transparent;
-  border-radius: var(--r-control);
-  color: var(--c-ash);
+  border-radius: var(--r-tile);
+  color: var(--c-ink-subtle);
   font-size: 0.8125rem;
   cursor: pointer;
   list-style: none;
@@ -959,9 +880,9 @@
 
 .corridor .control-trigger:hover,
 .corridor .control[open] .control-trigger {
-  color: var(--c-bone);
+  color: var(--c-ink);
   border-color: var(--c-line);
-  background-color: var(--c-surface);
+  background-color: var(--c-panel);
 }
 
 .corridor .control-mark {
@@ -987,9 +908,9 @@
   min-inline-size: 11rem;
   padding: 0.3rem;
   border: 1px solid var(--c-line);
-  border-radius: var(--r-control);
-  background-color: var(--c-raised);
-  box-shadow: 0 16px 40px -12px rgb(0 0 0 / 0.8);
+  border-radius: var(--r-tile);
+  background-color: var(--c-panel-deep);
+  box-shadow: 0 16px 40px -12px rgb(0 0 0 / 0.18);
 }
 
 .corridor .control-option {
@@ -1000,7 +921,7 @@
   border: 0;
   border-radius: 4px;
   background: none;
-  color: var(--c-ash);
+  color: var(--c-ink-subtle);
   font: inherit;
   font-size: 0.875rem;
   text-align: start;
@@ -1009,13 +930,13 @@
 }
 
 .corridor .control-option:hover {
-  background-color: var(--c-surface);
-  color: var(--c-bone);
+  background-color: var(--c-panel);
+  color: var(--c-ink);
 }
 
 /* The selected state is carried by a mark and by weight, not by colour alone. */
 .corridor .control-option[data-selected='true'] {
-  color: var(--c-bone);
+  color: var(--c-ink);
   font-weight: 500;
 }
 
@@ -1025,7 +946,7 @@
   block-size: 5px;
   margin-inline-start: auto;
   border-radius: var(--r-pill);
-  background-color: var(--c-phosphor);
+  background-color: var(--c-accent);
 }
 
 .corridor .control-note {
@@ -1033,7 +954,7 @@
   padding: 0.5rem 0.7rem 0.35rem;
   border-block-start: 1px solid var(--c-line);
   margin-block-start: 0.3rem;
-  color: var(--c-dim);
+  color: var(--c-ink-subtle);
   font-size: 0.75rem;
   line-height: 1.5;
 }
@@ -1125,7 +1046,7 @@
   z-index: 1;
   pointer-events: none;
   background:
-    radial-gradient(ellipse 70% 60% at 50% 42%, rgb(63 224 197 / 0.07), transparent 70%),
+    radial-gradient(ellipse 70% 60% at 50% 42%, rgb(36 111 101 / 0.07), transparent 70%),
     radial-gradient(ellipse 90% 70% at 50% 120%, rgb(138 82 51 / 0.16), transparent 70%);
 }
 
@@ -1152,7 +1073,6 @@
   letter-spacing: -0.02em;
   /* The headline sits ON the volume, so it gets its own shadow to hold the
      baseline against whatever slice is behind it at that moment. */
-  text-shadow: 0 2px 24px rgb(11 10 9 / 0.75);
 }
 
 .corridor[dir='rtl'] .hero-headline {
@@ -1164,7 +1084,6 @@
   margin-block-start: 1.5rem;
   margin-inline: auto;
   text-align: center;
-  text-shadow: 0 1px 16px rgb(11 10 9 / 0.8);
 }
 
 .corridor .hero-actions {
@@ -1180,7 +1099,7 @@
 .corridor .hero-hud {
   position: absolute;
   z-index: 3;
-  color: var(--c-dim);
+  color: var(--c-ink-subtle);
   font-family: var(--f-mono);
   font-size: 0.6875rem;
   line-height: 1.6;
@@ -1230,7 +1149,7 @@
 
 .corridor .hero-reticle line,
 .corridor .hero-reticle circle {
-  stroke: var(--c-phosphor);
+  stroke: var(--c-accent);
   stroke-width: 0.75;
   fill: none;
   vector-effect: non-scaling-stroke;
@@ -1312,20 +1231,20 @@
   flex: 0 0 auto;
   inline-size: clamp(72px, 18vw, 120px);
   block-size: auto;
-  color: var(--c-ash);
+  color: var(--c-ink-subtle);
 }
 
 .corridor .artefact-flaw {
-  color: var(--c-sand);
-  stroke: var(--c-sand);
+  color: var(--c-alert);
+  stroke: var(--c-alert);
 }
 
 .corridor .artefact-ink {
-  stroke: var(--c-dim);
+  stroke: var(--c-ink-subtle);
 }
 
 .corridor .artefact-mark {
-  fill: var(--c-phosphor);
+  fill: var(--c-accent);
   stroke: none;
 }
 
@@ -1396,7 +1315,7 @@
   inline-size: 6px;
   block-size: 6px;
   border-radius: var(--r-pill);
-  background-color: var(--c-phosphor);
+  background-color: var(--c-accent);
   vertical-align: middle;
 }
 
@@ -1423,7 +1342,7 @@
 
 .corridor .upload-bar {
   block-size: 6px;
-  background-color: var(--c-raised);
+  background-color: var(--c-panel-deep);
   border-radius: var(--r-pill);
   overflow: hidden;
 }
@@ -1431,12 +1350,12 @@
 .corridor .upload-bar-fill {
   display: block;
   block-size: 100%;
-  background-color: var(--c-phosphor);
+  background-color: var(--c-accent);
   transition: inline-size 160ms linear;
 }
 
 .corridor .upload-bar[data-phase='interrupted'] .upload-bar-fill {
-  background-color: var(--c-sand);
+  background-color: var(--c-alert);
   /* The bar STOPS. No indeterminate shimmer — the whole argument of this
      scene is that nothing is happening and nothing is being lost. */
   transition: none;
@@ -1521,9 +1440,9 @@
   inset-block-end: 1.5rem;
   inset-inline-end: 1.5rem;
   padding: 0.4rem 0.9rem;
-  border: 2px solid var(--c-phosphor);
-  border-radius: var(--r-plate);
-  color: var(--c-phosphor);
+  border: 2px solid var(--c-accent);
+  border-radius: var(--r-card);
+  color: var(--c-accent);
   font-size: 0.9rem;
   letter-spacing: 0.2em;
   rotate: -7deg;
@@ -1582,7 +1501,7 @@
   padding: 3px;
   border: 1px solid var(--c-line);
   border-radius: var(--r-pill);
-  background-color: var(--c-raised);
+  background-color: var(--c-panel-deep);
   transition: background-color var(--d-micro) var(--e-out);
 }
 
@@ -1590,22 +1509,22 @@
   inline-size: 16px;
   block-size: 16px;
   border-radius: var(--r-pill);
-  background-color: var(--c-ash);
+  background-color: var(--c-ink-subtle);
   transition: translate var(--d-micro) var(--e-snap), background-color var(--d-micro) var(--e-out);
 }
 
 .corridor .consent-switch input:checked + .consent-switch-track {
-  background-color: var(--c-clay);
+  background-color: var(--c-alert);
 }
 
 .corridor .consent-switch input:checked + .consent-switch-track .consent-switch-thumb {
   /* Multiplied by --dir so the thumb travels towards the reader's "on". */
   translate: calc(20px * var(--dir)) 0;
-  background-color: var(--c-sand);
+  background-color: var(--c-alert);
 }
 
 .corridor .consent-switch input:focus-visible + .consent-switch-track {
-  outline: 2px solid var(--c-phosphor);
+  outline: 2px solid var(--c-accent);
   outline-offset: 3px;
 }
 
@@ -1623,7 +1542,7 @@
   inline-size: clamp(72px, 20vw, 140px);
   block-size: auto;
   border: 1px solid var(--c-line);
-  border-radius: var(--r-plate);
+  border-radius: var(--r-card);
   /* Same frame, no transition: revocation in the product is immediate, and a
      fade here would dramatise a security property as a flourish. */
   transition: none;
@@ -1638,7 +1557,7 @@
   inline-size: 100%;
   block-size: 90px;
   border: 1px dashed var(--c-line);
-  border-radius: var(--r-plate);
+  border-radius: var(--r-card);
 }
 
 .corridor .consent-thumbs-notice {
@@ -1772,7 +1691,7 @@
 
 .corridor .clock-time {
   font-size: clamp(2rem, 5vw, 3rem);
-  color: var(--c-bone);
+  color: var(--c-ink);
   line-height: 1;
 }
 
@@ -1808,7 +1727,7 @@
 }
 
 .corridor .security-row dt {
-  color: var(--c-bone);
+  color: var(--c-ink);
 }
 
 .corridor .security-row dd {
@@ -1837,7 +1756,7 @@
 .corridor .doors {
   display: grid;
   border: 1px solid var(--c-line);
-  border-radius: var(--r-plate);
+  border-radius: var(--r-card);
   overflow: hidden;
 }
 
@@ -1846,8 +1765,8 @@
   flex-direction: column;
   gap: 0.75rem;
   padding: clamp(1.75rem, 5vw, 3.5rem);
-  color: var(--c-bone);
-  background-color: var(--c-surface);
+  color: var(--c-ink);
+  background-color: var(--c-panel);
   transition: background-color var(--d-scene) var(--e-out), flex-grow var(--d-scene) var(--e-out);
 }
 
@@ -1864,14 +1783,14 @@
   align-items: center;
   margin-block-start: 1rem;
   padding-block-end: 2px;
-  color: var(--c-bone);
+  color: var(--c-ink);
   border-block-end: 1px solid var(--c-line);
   transition: border-color var(--d-micro) var(--e-out);
 }
 
 .corridor .door:hover .door-cta,
 .corridor .door:focus-visible .door-cta {
-  border-block-end-color: var(--c-phosphor);
+  border-block-end-color: var(--c-accent);
 }
 
 /* §3.6: arrows mirror. One glyph in the markup, flipped by the multiplier. */
@@ -1911,7 +1830,7 @@
   .corridor .doors .door:hover,
   .corridor .doors .door:focus-within {
     opacity: 1;
-    background-color: var(--c-raised);
+    background-color: var(--c-panel-deep);
   }
 }
 
@@ -1964,7 +1883,7 @@
   inset-inline-start: 0;
   inline-size: 14px;
   block-size: 1px;
-  background-color: var(--c-ash);
+  background-color: var(--c-ink-subtle);
   transition: rotate var(--d-micro) var(--e-out);
 }
 
@@ -1997,14 +1916,14 @@
 .corridor .close-plate {
   position: relative;
   padding: clamp(3rem, 10vh, 7rem) clamp(1.5rem, 6vw, 5rem);
-  background-color: var(--c-bone);
-  color: var(--c-void);
-  border-radius: var(--r-plate);
+  background-color: var(--c-ink);
+  color: var(--c-ground);
+  border-radius: var(--r-card);
   text-align: center;
 }
 
 .corridor .close-counter {
-  color: var(--c-clay);
+  color: var(--c-alert);
   letter-spacing: 0.2em;
 }
 
@@ -2012,7 +1931,7 @@
   margin-block-start: 1.5rem;
   margin-inline: auto;
   max-inline-size: 22ch;
-  color: var(--c-void);
+  color: var(--c-ground);
 }
 
 .corridor .close-actions {
@@ -2024,8 +1943,8 @@
 }
 
 .corridor .btn--invert {
-  background-color: var(--c-void);
-  color: var(--c-bone);
+  background-color: var(--c-ground);
+  color: var(--c-ink);
 }
 
 .corridor .btn--invert:hover {
@@ -2035,18 +1954,18 @@
 
 .corridor .btn--invert-ghost {
   border-color: rgb(6 8 11 / 0.25);
-  color: var(--c-void);
+  color: var(--c-ground);
 }
 
 .corridor .btn--invert-ghost:hover {
-  border-color: var(--c-void);
+  border-color: var(--c-ground);
 }
 
 /* The inverted plate needs its own focus colour: phosphor on bone fails
    contrast, and an invisible focus ring on the page's one remaining call to
    action is the worst place to have one. */
 .corridor .close-plate :focus-visible {
-  outline-color: var(--c-clay);
+  outline-color: var(--c-alert);
 }
 
 /* ==========================================================================
@@ -2072,7 +1991,7 @@
 }
 
 .corridor .footer-locale {
-  color: var(--c-ash);
+  color: var(--c-ink-subtle);
   min-block-size: 44px;
   display: inline-flex;
   align-items: center;
@@ -2080,11 +1999,11 @@
 }
 
 .corridor .footer-locale:hover {
-  color: var(--c-bone);
+  color: var(--c-ink);
 }
 
 .corridor .footer-locale.is-current {
-  color: var(--c-phosphor);
+  color: var(--c-accent);
 }
 
 .corridor .footer-legal {
@@ -2105,14 +2024,14 @@
   gap: 0.6rem;
   min-block-size: 44px;
   font-size: var(--t-meta);
-  color: var(--c-ash);
+  color: var(--c-ink-subtle);
   cursor: pointer;
 }
 
 .corridor .footer-switch input {
   inline-size: 16px;
   block-size: 16px;
-  accent-color: var(--c-phosphor);
+  accent-color: var(--c-accent);
 }
 
 .corridor .footer-entity {

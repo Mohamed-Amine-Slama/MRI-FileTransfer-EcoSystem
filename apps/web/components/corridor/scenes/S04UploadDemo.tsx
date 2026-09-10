@@ -44,7 +44,7 @@ type Phase = 'idle' | 'uploading' | 'interrupted' | 'complete';
 interface LogLine {
   id: number;
   text: string;
-  tone: 'ash' | 'sand' | 'phosphor';
+  tone: 'subtle' | 'alert' | 'accent';
 }
 
 interface State {
@@ -110,7 +110,7 @@ function reducer(state: State, action: Action): State {
         rate: 0,
         retryIn: RETRY_SECONDS,
         resumedAt: state.files,
-        ...log(state, action.message, 'sand'),
+        ...log(state, action.message, 'alert'),
       };
 
     case 'countdown':
@@ -122,7 +122,7 @@ function reducer(state: State, action: Action): State {
         phase: 'uploading',
         rate: 2.4,
         retryIn: 0,
-        ...log(state, action.message(state.resumedAt ?? state.files), 'phosphor'),
+        ...log(state, action.message(state.resumedAt ?? state.files), 'accent'),
       };
 
     case 'complete':
@@ -131,7 +131,7 @@ function reducer(state: State, action: Action): State {
         phase: 'complete',
         files: TOTAL_FILES,
         rate: 0,
-        ...log(state, action.message, 'phosphor'),
+        ...log(state, action.message, 'accent'),
       };
 
     case 'reset':
@@ -156,7 +156,7 @@ export function S04UploadDemo(): React.JSX.Element {
           <h2 id="upload-title" className="display t-h1 measure">
             {t.uploadTitle}
           </h2>
-          <p className="t-body-l ash measure upload-body">{t.uploadBody}</p>
+          <p className="t-body-l subtle measure upload-body">{t.uploadBody}</p>
         </FocalReveal>
 
         <FocalReveal plane={2}>
@@ -293,7 +293,7 @@ function InteractiveDemo(): React.JSX.Element {
     <div ref={rootRef}>
       <Plate label="TRANSFER · SIMULATED" counter={`${state.files} / ${TOTAL_FILES}`}>
         <div className="upload-head">
-          <span className={`mono ${state.phase === 'interrupted' ? 'sand' : 'phosphor'}`}>
+          <span className={`mono ${state.phase === 'interrupted' ? 'alert' : 'accent'}`}>
             {
               {
                 idle: t.uploadStateIdle,
@@ -303,7 +303,7 @@ function InteractiveDemo(): React.JSX.Element {
               }[state.phase]
             }
           </span>
-          <span className="mono dim">
+          <span className="mono subtle">
             {t.uploadRateLabel} {state.rate.toFixed(1)} MB/s
           </span>
         </div>
@@ -335,7 +335,7 @@ function InteractiveDemo(): React.JSX.Element {
               <button type="button" className="btn btn--primary" onClick={restore}>
                 {t.uploadRestore}
               </button>
-              <span className="mono sand">
+              <span className="mono alert">
                 {t.uploadRetryIn} {state.retryIn}
                 {t.uploadSeconds}
               </span>
@@ -400,9 +400,9 @@ function StaticStates(): React.JSX.Element {
   const { t } = useSite();
 
   const states = [
-    { label: t.uploadStateUploading, files: 142, tone: 'phosphor', width: 45 },
-    { label: t.uploadStateInterrupted, files: 142, tone: 'sand', width: 45 },
-    { label: t.uploadStateComplete, files: TOTAL_FILES, tone: 'phosphor', width: 100 },
+    { label: t.uploadStateUploading, files: 142, tone: 'accent', width: 45 },
+    { label: t.uploadStateInterrupted, files: 142, tone: 'alert', width: 45 },
+    { label: t.uploadStateComplete, files: TOTAL_FILES, tone: 'accent', width: 100 },
   ] as const;
 
   return (
@@ -415,7 +415,7 @@ function StaticStates(): React.JSX.Element {
           </div>
         </Plate>
       ))}
-      <p className="mono ash upload-static-note">{t.uploadResumedLine}</p>
+      <p className="mono subtle upload-static-note">{t.uploadResumedLine}</p>
     </div>
   );
 }

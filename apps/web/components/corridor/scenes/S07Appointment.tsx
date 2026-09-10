@@ -37,7 +37,7 @@ export function S07Appointment(): React.JSX.Element {
           <h2 id="appointment-title" className="display t-h1 measure">
             {t.appointmentTitle}
           </h2>
-          <p className="t-body-l ash measure appointment-body">{t.appointmentBody}</p>
+          <p className="t-body-l subtle measure appointment-body">{t.appointmentBody}</p>
         </FocalReveal>
 
         <FocalReveal plane={2}>
@@ -48,14 +48,14 @@ export function S07Appointment(): React.JSX.Element {
             </div>
 
             <div className="appointment-slot">
-              <span className="mono dim">{t.appointmentSlotLabel}</span>
+              <span className="mono subtle">{t.appointmentSlotLabel}</span>
               <p className="t-h3 appointment-slot-time">
                 <time dateTime="2026-03-21T10:30">21 · 03 · 2026 — 10:30</time>
               </p>
-              <p className="mono phosphor">{t.appointmentConfirmLine}</p>
+              <p className="mono accent">{t.appointmentConfirmLine}</p>
             </div>
 
-            <p className="ash appointment-payment measure">{t.appointmentPaymentNote}</p>
+            <p className="subtle appointment-payment measure">{t.appointmentPaymentNote}</p>
           </Plate>
         </FocalReveal>
       </div>
@@ -87,7 +87,7 @@ function Clock({ country, name }: { country: string; name: string }): React.JSX.
 
   return (
     <div className="clock">
-      <span className="mono dim">{tpl.clockLabel(name)}</span>
+      <span className="mono subtle">{tpl.clockLabel(name)}</span>
       {/*
         §3.6: clocks do NOT mirror under RTL. A clock face is not directional,
         and neither is 10:30 — the digits stay in logical order in every script.
@@ -95,7 +95,7 @@ function Clock({ country, name }: { country: string; name: string }): React.JSX.
       <span className="clock-time mono" dir="ltr">
         {now ?? '--:--'}
       </span>
-      <span className="mono dim clock-zone">{countryTimeZone(country)}</span>
+      <span className="mono subtle clock-zone">{countryTimeZone(country)}</span>
     </div>
   );
 }

@@ -118,7 +118,7 @@ export function S00Load(): React.JSX.Element | null {
       aria-hidden="true"
     >
       <span className="loader-line" />
-      <span className="loader-count mono dim">
+      <span className="loader-count mono subtle">
         {t.loadingLabel} {String(percent).padStart(3, '0')}
       </span>
     </div>
