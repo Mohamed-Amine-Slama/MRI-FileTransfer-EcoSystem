@@ -58,6 +58,7 @@ export const metadata = {
 // ---------------------------------------------------------------------------
 const plex = localFont({
   src: [
+    { path: './fonts/IBMPlexSansArabic-Light.woff2', weight: '300', style: 'normal' },
     { path: './fonts/IBMPlexSansArabic-Regular.woff2', weight: '400', style: 'normal' },
     { path: './fonts/IBMPlexSansArabic-Medium.woff2', weight: '500', style: 'normal' },
     { path: './fonts/IBMPlexSansArabic-SemiBold.woff2', weight: '600', style: 'normal' },

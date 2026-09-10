@@ -12,24 +12,26 @@ Landing-Page-Specs §6.10 and §8.2:
    to system fonts and still exits 0. The deployment image ships without its
    typeface and nothing fails. Vendoring makes the image build hermetic.
 
-All four families are **SIL Open Font License 1.1**. Full licence text for
-IBM Plex is in `LICENSE.txt`; Reem Kufi and Space Grotesk carry the same
-licence, reproduced at <https://openfontlicense.org>.
+All three families are **SIL Open Font License 1.1**. Full licence text for
+IBM Plex is in `LICENSE.txt`, and for Google Sans Flex in
+`GoogleSansFlex-OFL.txt`.
 
 | File | Family | Role | Bytes | Coverage |
 |---|---|---|---|---|
 | `IBMPlexSansArabic-{Regular,Medium,SemiBold,Bold}.woff2` | IBM Plex Sans Arabic | Application + landing body, both scripts | ~72–76 KB each | full |
-| `ReemKufi-Medium-arabic.woff2` | Reem Kufi (variable, wght 400–700) | Arabic **display** — landing only | 9.2 KB | Arabic subset |
-| `SpaceGrotesk-Medium-latin.woff2` | Space Grotesk (variable, wght 300–700) | Latin **display** — landing only | 13.3 KB | Latin subset |
+| `IBMPlexSansArabic-Light.woff2` | IBM Plex Sans Arabic | Arabic **display** (weight 300) — landing only; the app never requests 300 | ~75 KB | full |
+| `GoogleSansFlex-latin.woff2` | Google Sans Flex (variable, wght 300–500) | Latin display + body — landing only | ~49.6 KB | Latin subset |
 | `IBMPlexMono-Regular-latin.woff2` | IBM Plex Mono | Data, metadata, DICOM-style readouts — landing only | 14.7 KB | Latin subset |
 
-## Why the three landing faces are subset and the Plex Sans Arabic files are not
+## Why the Latin landing faces are subset and the Plex Sans Arabic files are not
 
-The three added for the landing page (§3.2) are the Google Fonts **subset**
-builds: the Arabic block for Reem Kufi, the Latin block for the other two.
-§7.2 sets a target of ≤48 KB per Arabic weight and ≤28 KB per Latin weight,
-and all three come in far under it because each carries one script rather
-than both.
+The two Latin faces added for the landing page (§3.2) — Google Sans Flex and
+IBM Plex Mono — are the Google Fonts **Latin subset** builds fetched by
+`scripts/fetch-fonts.sh`: the Latin block only, not the full character set.
+
+`IBMPlexSansArabic-Light.woff2`, the landing page's Arabic display weight, is
+fetched as a **complete** file instead, from IBM's own release — like the four
+base Plex Sans Arabic weights below, and unlike the two Latin faces above.
 
 The IBM Plex Sans Arabic files predate this page, are shared with the whole
 signed-in application, and carry both scripts in one file by design (D4: one

@@ -1,22 +1,15 @@
 #!/usr/bin/env bash
-# Re-downloads the three landing-page display/data faces — Landing-Page-Specs §3.2, §7.2.
+# Re-download the landing page's vendored faces — app/fonts/README.md.
 #
-# These are the Google Fonts SUBSET builds (one script per file), fetched once
-# and committed. §6.10 forbids a third-party font origin on this property, so
-# the files must live in the repository; this script exists so that "where did
-# these bytes come from" has an answer other than someone's memory.
-#
-# A font update is a visual change. Diff the output before committing.
-#
-#   bash apps/web/scripts/fetch-fonts.sh
+# Google Fonts serves a different file per User-Agent; this one asks for woff2.
+# Re-running picks up whatever version is served today, so diff before
+# committing: a font update is a visual change.
 set -euo pipefail
-
 cd "$(dirname "$0")/../app/fonts"
 
-# Google Fonts serves woff2 only to a browser UA; anything else gets ttf.
 UA='Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0 Safari/537.36'
 
-# $1 = css2 family spec, $2 = subset comment to select, $3 = output file
+# get <css2 family query> <subset comment> <output file>
 get() {
   local url
   url=$(curl -sS -A "$UA" "https://fonts.googleapis.com/css2?family=$1&display=swap" \
@@ -26,12 +19,19 @@ get() {
   curl -sS -o "$3" "$url"
 }
 
-# Arabic display (§3.2: a genuine display Arabic, not a bolded text face).
-get "Reem+Kufi:wght@500"      arabic ReemKufi-Medium-arabic.woff2
-# Latin display, paired with it.
-get "Space+Grotesk:wght@500"  latin  SpaceGrotesk-Medium-latin.woff2
-# Data, metadata, and the DICOM-style readouts. Same superfamily as the body
-# face, so mono metadata does not feel imported.
-get "IBM+Plex+Mono:wght@400"  latin  IBMPlexMono-Regular-latin.woff2
+# Latin display + body. Variable, weight 300–500; the latin subset covers fr and en.
+get "Google+Sans+Flex:wght@300..500" latin GoogleSansFlex-latin.woff2
+# Data, metadata and DICOM-style readouts.
+get "IBM+Plex+Mono:wght@400"         latin IBMPlexMono-Regular-latin.woff2
 
-ls -la ./*.woff2
+# Arabic display weight. A COMPLETE file (both scripts), like the four Plex
+# Sans Arabic weights the root layout already ships — from IBM's own release.
+curl -sS -o IBMPlexSansArabic-Light.woff2 \
+  https://raw.githubusercontent.com/IBM/plex/master/packages/plex-sans-arabic/fonts/complete/woff2/IBMPlexSansArabic-Light.woff2
+
+# Google Sans Flex's licence text, from the family's own download manifest.
+curl -sS 'https://fonts.google.com/download/list?family=Google%20Sans%20Flex' \
+  | python3 -c 'import json,sys; t=sys.stdin.read(); d=json.loads(t[t.index("{"):]); print(next(f["contents"] for f in d["manifest"]["files"] if f["filename"]=="OFL.txt"), end="")' \
+  > GoogleSansFlex-OFL.txt
+
+ls -la ./*.woff2 ./GoogleSansFlex-OFL.txt

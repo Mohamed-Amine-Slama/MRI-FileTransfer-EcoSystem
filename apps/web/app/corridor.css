@@ -87,20 +87,23 @@
   /* Direction, rhythm and type (type is replaced in Task 2) */
   --dir: 1;
   --script-scale: 1;
-  --leading-body: 1.55;
+  --leading-body: 1.2;
+  --leading-display: 1.1;
+  --w-body: 300;
   --margin: clamp(20px, 5vw, 120px);
   --content-max: 1440px;
   --measure: 68ch;
-  --t-hero: calc(clamp(2.5rem, 1.4rem + 4.8vw, 5.75rem) * var(--script-scale));
-  --t-h1: calc(clamp(2.25rem, 1.5rem + 3.4vw, 4.25rem) * var(--script-scale));
-  --t-h2: calc(clamp(1.75rem, 1.35rem + 1.9vw, 2.75rem) * var(--script-scale));
-  --t-h3: calc(clamp(1.375rem, 1.2rem + 0.8vw, 1.75rem) * var(--script-scale));
-  --t-body-l: calc(clamp(1.0625rem, 1rem + 0.3vw, 1.25rem) * var(--script-scale));
+  --t-hero: calc(clamp(2.5rem, 1.6rem + 2.4vw, 3.75rem) * var(--script-scale));
+  --t-h1: calc(clamp(2.5rem, 1.6rem + 2.4vw, 3.75rem) * var(--script-scale));
+  --t-h2: calc(clamp(1.5rem, 1.2rem + 0.9vw, 2rem) * var(--script-scale));
+  --t-h3: calc(clamp(1.25rem, 1.1rem + 0.5vw, 1.5rem) * var(--script-scale));
+  --t-body-l: calc(clamp(1rem, 0.95rem + 0.25vw, 1.125rem) * var(--script-scale));
   --t-body: calc(1rem * var(--script-scale));
-  --t-meta: calc(0.8125rem * var(--script-scale));
-  --f-display-latin: var(--font-grotesk), 'Segoe UI', system-ui, sans-serif;
-  --f-display-arabic: var(--font-reem), var(--font-plex), 'Noto Kufi Arabic', sans-serif;
-  --f-body: var(--font-plex), system-ui, -apple-system, 'Segoe UI', Tahoma, 'Noto Sans Arabic', sans-serif;
+  --t-meta: calc(0.875rem * var(--script-scale));
+  --t-pill: calc(1.25rem * var(--script-scale));
+  --f-display-latin: var(--font-sans-flex), var(--font-plex), 'Segoe UI', system-ui, sans-serif;
+  --f-display-arabic: var(--font-plex), 'Noto Sans Arabic', sans-serif;
+  --f-body: var(--font-sans-flex), var(--font-plex), system-ui, -apple-system, 'Segoe UI', Tahoma, 'Noto Sans Arabic', sans-serif;
   --f-mono: var(--font-plex-mono), var(--font-plex), ui-monospace, 'SFMono-Regular', monospace;
   --scene-progress: 0;
 
@@ -109,6 +112,7 @@
   color: var(--c-ink);
   font-family: var(--f-body);
   font-size: var(--t-body);
+  font-weight: var(--w-body);
   line-height: var(--leading-body);
   overflow-x: clip;
 }
@@ -119,7 +123,10 @@
 .corridor[dir='rtl'] {
   --dir: -1;
   --script-scale: 1.08;
-  --leading-body: 1.85; /* descenders and diacritics need the room */
+  /* The Latin 1.1 / 1.2 clip Arabic ascenders and descenders (spec §3.2). */
+  --leading-display: 1.25;
+  --leading-body: 1.5;
+  --w-body: 400;
   --measure: 60ch;
 }
 
@@ -129,26 +136,40 @@
 
 .corridor :where(h1, h2, h3, h4) {
   color: var(--c-ink);
-  font-weight: 500;
-  line-height: 1.06;
+  font-weight: 300;
+  line-height: var(--leading-display);
   text-wrap: balance;
   margin: 0;
 }
 
-/* Display type is script-dependent: Reem Kufi is a genuine display Arabic — a
-   modern Kufic, architectural rather than a bolded text face — and Space
-   Grotesk is its Latin counterpart. This is the pairing that gives the Arabic
-   version a STRONGER hero than the English one, which is the correct
-   priority for this audience (§3.2). */
 .corridor .display {
   font-family: var(--f-display-latin);
-  font-weight: 500;
+  font-weight: 300;
+  letter-spacing: -0.01em;
 }
 
 .corridor[dir='rtl'] .display,
 .corridor :lang(ar) .display {
   font-family: var(--f-display-arabic);
-  line-height: 1.24; /* Kufic ascenders sit high; 1.06 clips them */
+  letter-spacing: normal;
+  line-height: var(--leading-display);
+}
+
+/* The one kind of label above a heading this page allows (spec §4.1). */
+.corridor .eyebrow {
+  margin: 0;
+  color: var(--c-accent);
+  font-size: var(--t-meta);
+  font-weight: 500;
+  line-height: var(--leading-body);
+  letter-spacing: 0.02em;
+  text-transform: uppercase;
+}
+
+.corridor[dir='rtl'] .eyebrow,
+.corridor :lang(ar) .eyebrow {
+  letter-spacing: normal;
+  text-transform: none;
 }
 
 /*
@@ -457,40 +478,72 @@
   align-items: center;
   justify-content: center;
   gap: 0.5rem;
-  min-block-size: 2.875rem;
-  padding-inline: 1.5rem;
+  min-block-size: 3rem;
+  min-inline-size: 11.25rem;
+  padding-inline: 2rem;
   border: 1px solid transparent;
-  border-radius: var(--r-tile);
-  font-size: var(--t-body);
-  font-weight: 600;
+  border-radius: var(--r-pill);
+  font-size: var(--t-pill);
+  font-weight: 300;
+  line-height: 1;
+  white-space: nowrap;
   cursor: pointer;
   transition:
-    background-color var(--d-micro) var(--e-out),
-    border-color var(--d-micro) var(--e-out),
-    color var(--d-micro) var(--e-out),
-    translate var(--d-micro) var(--e-snap);
+    background-color var(--dur-fast) var(--ease-entrance),
+    border-color var(--dur-fast) var(--ease-entrance),
+    color var(--dur-fast) var(--ease-entrance);
 }
 
-/* The ONE phosphor button on the page — §3.1's spending rule in practice. */
 .corridor .btn--primary {
   background-color: var(--c-accent);
-  color: var(--c-ground);
+  border-color: var(--c-accent-deep);
+  color: var(--c-on-accent);
 }
 
 .corridor .btn--primary:hover {
   background-color: var(--c-accent-deep);
-  translate: 0 -1px;
+}
+
+.corridor .btn--secondary {
+  background-color: var(--c-lime);
+  border-color: var(--c-lime-edge);
+  color: var(--c-ink);
+}
+
+.corridor .btn--secondary:hover {
+  background-color: var(--c-lime-edge);
 }
 
 .corridor .btn--ghost {
+  background-color: transparent;
   border-color: var(--c-line);
   color: var(--c-ink);
-  background-color: transparent;
 }
 
 .corridor .btn--ghost:hover {
   border-color: var(--c-ink-subtle);
-  background-color: var(--c-panel-deep);
+}
+
+.corridor .chip {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.5rem;
+  padding: 0.75rem 1.25rem;
+  border: 1px solid var(--c-line);
+  border-radius: var(--r-chip);
+  background-color: var(--c-glass-soft);
+  backdrop-filter: blur(var(--glass-blur));
+  color: var(--c-ink);
+  font-size: var(--t-meta);
+  font-weight: 300;
+  line-height: var(--leading-body);
+}
+
+@media (min-width: 1000px) {
+  .corridor .chip {
+    padding: 1rem 2rem;
+    font-size: var(--t-body);
+  }
 }
 
 .corridor .link {
