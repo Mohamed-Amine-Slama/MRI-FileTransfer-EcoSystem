@@ -408,4 +408,19 @@ to `main` until 3 is complete.
 | Sticky stacking, Lenis, and a pinned track fight over ScrollTrigger measurement. | One `ScrollTrigger.refresh()` after fonts and after panel measurement; e2e covers pin/release. |
 | Google Sans Flex licence doesn't permit self-hosting. | Checked at vendoring time; fallback Figtree (OFL). |
 | Arabic word reveals at 60px lift feel heavy on long lines. | `display` variant lift is a token; reduce for `:lang(ar)` if review says so. |
-| Uncommitted work already on this branch touches the same files. | Owner commits or stashes it before implementation starts, so the re-theme diff is reviewable on its own. |
+| Uncommitted work already on this branch touches the same files. | Owner commits or stashes it before implementation starts, so the re-theme diff is reviewable on its own. (Resolved: committed as `e8cb921`.) |
+
+## 15. Corrections made while planning
+
+Found while writing the implementation plans (`docs/superpowers/plans/2026-09-10-retheme-{1,2,3}-*.md`), each against the code as it stands. Where this list and an earlier section disagree, this list wins.
+
+1. **Ink alphas.** §3.1's `--c-ink-subtle` 50% and `--c-ink-muted` 40% cannot meet §3.1's own ≥ 4.5:1 rule (3.9:1 and 2.8:1 on white). They are **62%** and **45%**; `--c-ink-muted` is for text ≥ 24px and decoration only, and the old `dim` utility folds into `subtle`, because it carried small text.
+2. **Hero chips are four keys** — `heroChipUpload`, `heroChipConsent`, `heroChipBytes`, `heroChipBooking` — not one `heroChips`: every `SiteCopy` value is a string.
+3. **`/seq/hero/b/` stays.** S05's consent thumbnails load three of its frames. Only `/seq/hero/a/`, `ScrubCanvas`, `SliceCounter` and the `slice` sound cue are deleted.
+4. **Two helix posters** (`poster-ltr.avif`, `poster-rtl.avif`), not one mirrored with `scaleX(-1)`: mirroring turns the helix left-handed. RTL negates the roll instead.
+5. **A forced `?tier=` is not demoted** by the runtime frame-rate check, so review and the e2e suite (software WebGL in CI) can hold a tier. Real visitors are still demoted.
+6. **S09's doctors card is one link** (the whole card), with its topics as body text — links cannot nest, so it has no link list.
+7. **S03's eyebrow is the route** (`corridorRoute`, "From X to Y"), not a new label.
+8. **Stacked panels sit in a `.stack-group`** around S04–S07. A sticky element stays stuck until its parent ends; without the group, S08–S10 would scroll underneath S07. Anchors aim at a panel's flow position, because a stuck panel reports where it is painted.
+9. **The pin moves from S02 to S09.** S02 carried the page's one pin; it becomes three static cards, keeping §6.4's one-pin rule.
+10. **Build order detail.** Each motion component is introduced in the task that first mounts it (WordReveal/BlurIn with the hero; ScrollLitText with S03; StackPanel with S04; HorizontalTrack with S09), so every task ends with something the e2e suite can see.
