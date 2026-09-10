@@ -59,13 +59,33 @@ test.describe('with JavaScript disabled (§12 L1, §9)', () => {
       await expect(page.locator('h1')).toBeVisible();
       await expect(page.getByTestId('landing-signup')).toBeVisible();
 
-      // All eight answers are in the DOM at load, for SEO and for this case.
-      await expect(page.locator('details')).toHaveCount(8);
+      /*
+       * All eight answers are in the DOM at load, for SEO and for this case.
+       * Scoped to the FAQ: the language and appearance controls in the chrome
+       * are `<details>` too — deliberately, so they open before hydration —
+       * and a bare `details` selector counted those as questions.
+       */
+      await expect(page.locator('.faq details')).toHaveCount(8);
       for (const answer of await page.locator('.faq-answer p').all()) {
         await expect(answer).not.toBeEmpty();
       }
     });
   }
+
+  test('opens the language switcher with no script running', async ({ page }) => {
+    /*
+     * The reason the chrome controls are `<details>` rather than a JS menu.
+     * A reader who cannot read the current page is the one who most needs the
+     * language switcher, and asking them to wait for a bundle first is the
+     * wrong order.
+     */
+    await page.goto('/ar');
+    const control = page.locator('.control').first();
+    await control.locator('summary').click();
+    await expect(control).toHaveAttribute('open', '');
+    // Real links to the prerendered locale routes, so they work with no script.
+    await expect(control.locator('a[hreflang="fr"]')).toHaveAttribute('href', '/fr');
+  });
 
   test('states the reference-only limit with no script running (§1.4)', async ({ page }) => {
     await page.goto('/ar');
@@ -278,7 +298,18 @@ test.describe('the upload demo (§Scene 04, §12 L6)', () => {
   test('is operable with the keyboard alone and announces its state', async ({ page }) => {
     await page.goto('/ar?tier=B');
 
+    /*
+     * Wait for the element to exist before reaching for it.
+     *
+     * The server renders Tier C — the safe tier, whose upload scene is three
+     * static states — and detection promotes to A or B after mount, which
+     * swaps that subtree for the interactive demo. Grabbing `upload-cut` and
+     * scrolling to it in the same breath caught the swap in progress and
+     * failed with "element is not attached to the DOM", reproducibly against
+     * the container and intermittently everywhere else.
+     */
     const cut = page.getByTestId('upload-cut');
+    await expect(cut).toBeAttached({ timeout: 15_000 });
     await cut.scrollIntoViewIfNeeded();
     /*
      * The simulation starts when the scene is seen, and the button is disabled
@@ -310,7 +341,11 @@ test.describe('the upload demo (§Scene 04, §12 L6)', () => {
     });
 
     await page.goto('/ar?tier=B');
-    await page.getByTestId('upload-cut').scrollIntoViewIfNeeded();
+    // Same reason as above: the demo replaces Tier C's static states on
+    // promotion, so it has to exist before it can be scrolled to.
+    const demo = page.getByTestId('upload-cut');
+    await expect(demo).toBeAttached({ timeout: 15_000 });
+    await demo.scrollIntoViewIfNeeded();
     await page.waitForTimeout(3000);
 
     expect(uploads).toEqual([]);

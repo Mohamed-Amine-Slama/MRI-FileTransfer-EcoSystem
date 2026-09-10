@@ -435,6 +435,7 @@ const ar = {
   themeLight: 'فاتح',
   themeDark: 'داكن',
   themeSystem: 'حسب النظام',
+  themeAppliesToApp: 'ينطبق على صفحات المنصّة. هذه الصفحة داكنة دائمًا.',
   themeDescription: 'يتبع خيار «حسب النظام» إعدادات جهازك.',
 
   // sidebar sections
@@ -1019,6 +1020,7 @@ const fr: Dictionary = {
   themeLight: 'Clair',
   themeDark: 'Sombre',
   themeSystem: 'Système',
+  themeAppliesToApp: "S'applique aux pages de la plateforme. Cette page reste sombre.",
   themeDescription: "L'option « Système » suit les réglages de votre appareil.",
 
   // sidebar sections
@@ -1622,6 +1624,7 @@ const en: Dictionary = {
   themeLight: 'Light',
   themeDark: 'Dark',
   themeSystem: 'System',
+  themeAppliesToApp: 'Applies to the platform pages. This page stays dark.',
   themeDescription: 'The System option follows your device settings.',
 
   // sidebar sections

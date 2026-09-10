@@ -98,6 +98,31 @@ export async function initScroll(tier: Tier): Promise<ScrollSystem | null> {
   let pendingHash: string | null = null;
   let pendingUntil = 0;
 
+  /**
+   * Move focus to the scene that was navigated to.
+   *
+   * Called from BOTH arrival paths, and that is the point rather than
+   * belt-and-braces: a refresh landing mid-journey re-aims with an immediate
+   * scroll, which cancels the animation in flight — and with it the
+   * `onComplete` that would otherwise have been the only thing moving focus.
+   * A keyboard user was left scrolled to Scene 08 with focus still on the nav
+   * link, so the next Tab took them back to the top of the page.
+   *
+   * A `<section>` is not focusable, so it is made focusable for the duration
+   * and released on blur — leaving `tabindex="-1"` on eleven sections
+   * permanently would put them in nobody's way, but it would also be eleven
+   * attributes nobody can explain later.
+   */
+  const focusTarget = (target: HTMLElement): void => {
+    if (document.activeElement === target) return;
+    const hadTabIndex = target.hasAttribute('tabindex');
+    if (!hadTabIndex) target.setAttribute('tabindex', '-1');
+    target.focus({ preventScroll: true });
+    if (!hadTabIndex) {
+      target.addEventListener('blur', () => target.removeAttribute('tabindex'), { once: true });
+    }
+  };
+
   /** Aim at a hash, and keep aiming while the layout is still settling. */
   const aim = (id: string, immediate: boolean): void => {
     const target = document.getElementById(id);
@@ -106,7 +131,7 @@ export async function initScroll(tier: Tier): Promise<ScrollSystem | null> {
     // Long enough to cover font loading and pin creation on a slow connection;
     // short enough that it can never surprise someone who has moved on.
     pendingUntil = performance.now() + 4000;
-    lenis.scrollTo(target, { immediate, force: true });
+    lenis.scrollTo(target, { immediate, force: true, onComplete: () => focusTarget(target) });
   };
 
   const realign = (): void => {
@@ -120,6 +145,7 @@ export async function initScroll(tier: Tier): Promise<ScrollSystem | null> {
     // Immediate: this is a correction, not a journey. Animating it a second
     // time would read as the page drifting on its own.
     lenis.scrollTo(target, { immediate: true, force: true });
+    focusTarget(target);
   };
 
   ScrollTrigger.addEventListener('refresh', realign);
@@ -164,26 +190,7 @@ export async function initScroll(tier: Tier): Promise<ScrollSystem | null> {
        * person using it has already waited long enough.
        */
       immediate: id === 'main',
-      onComplete: () => {
-        /*
-         * Focus follows the jump, or a keyboard user is scrolled somewhere
-         * their focus ring is not and the next Tab takes them back to the top
-         * of the page.
-         *
-         * A `<section>` is not focusable, so it is made focusable for the
-         * duration and then released — leaving `tabindex="-1"` on eleven
-         * sections permanently would put them in nobody's way, but it would
-         * also be eleven attributes nobody can explain later.
-         */
-        const hadTabIndex = target.hasAttribute('tabindex');
-        if (!hadTabIndex) target.setAttribute('tabindex', '-1');
-        target.focus({ preventScroll: true });
-        if (!hadTabIndex) {
-          target.addEventListener('blur', () => target.removeAttribute('tabindex'), {
-            once: true,
-          });
-        }
-      },
+      onComplete: () => focusTarget(target),
     });
     // Keep the URL honest without triggering a second, native jump.
     history.pushState(null, '', `#${id}`);

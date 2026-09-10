@@ -77,6 +77,40 @@ export function S01Hero(): React.JSX.Element {
             />
             <ScrubCanvas triggerRef={sectionRef} />
 
+            {/*
+              The workstation HUD — §2.3: "Study the HUD: corner metadata
+              overlays, the windowing readout, the reticle. That chrome is your
+              navigation." It is four spans and an SVG, and it is the detail a
+              referring doctor recognises before they have read a word.
+
+              The values are the phantom's own, and deliberately readable as
+              synthetic: the UID root is this repository's non-registered arc.
+            */}
+            <span className="hero-hud hero-hud--tl" aria-hidden="true">
+              SYNTHETIC^PHANTOM
+              <br />
+              1.3.6.1.4.1.99999.1
+            </span>
+            <span className="hero-hud hero-hud--tr" aria-hidden="true">
+              W 400 / L 40
+              <br />
+              SL 3.0 mm
+            </span>
+            <span className="hero-hud hero-hud--bl" aria-hidden="true">
+              AX · SOFT TISSUE
+            </span>
+
+            <svg className="hero-reticle" viewBox="0 0 100 100" aria-hidden="true">
+              <circle cx="50" cy="50" r="34" />
+              <circle cx="50" cy="50" r="1.2" />
+              {/* Four ticks, not a full crosshair: a crosshair through the
+                  headline would read as a strike-through. */}
+              <line x1="50" y1="8" x2="50" y2="20" />
+              <line x1="50" y1="80" x2="50" y2="92" />
+              <line x1="8" y1="50" x2="20" y2="50" />
+              <line x1="80" y1="50" x2="92" y2="50" />
+            </svg>
+
             <div className="hero-copy shell">
               <HeadlineReveal
                 id="hero-headline"

@@ -71,7 +71,6 @@ export function S08Security(): React.JSX.Element {
     <section id="security" className="scene" aria-labelledby="security-title">
       <div className="shell">
         <FocalReveal plane={1}>
-          <p className="eyebrow">{t.securityEyebrow}</p>
           <h2 id="security-title" className="display t-h1 measure">
             {t.securityTitle}
           </h2>
@@ -94,7 +93,7 @@ export function S08Security(): React.JSX.Element {
                     it would make a technical readout look like marketing.
                     `dir="ltr"` so the identifier does not reorder under RTL.
                   */}
-                  <dt className="phosphor" dir="ltr">
+                  <dt dir="ltr">
                     {row.term}
                   </dt>
                   <dd className="ash">{t[row.descKey]}</dd>

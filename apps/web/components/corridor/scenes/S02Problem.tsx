@@ -71,7 +71,6 @@ export function S02Problem(): React.JSX.Element {
   return (
     <section ref={sectionRef} id="problem" className="scene" aria-labelledby="problem-title">
       <WindowingWipe className="shell">
-        <p className="eyebrow">{t.problemEyebrow}</p>
         <h2 id="problem-title" className="display t-h1 measure">
           {t.problemTitle}
         </h2>

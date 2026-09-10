@@ -48,11 +48,12 @@ Same legend as `pre-launch-checklist.md`, and for the same reason:
 | **L4** Sequence within budget; degrades to poster silently | ✅ | `node scripts/render-slices.mjs` — tier a 242.6 KB (budget 260), tier b 81.2 KB (budget 120). §7.1's instruction was followed on the overage: frame count came down 48 → 36, quality did not. |
 | **L4** Scrub at 6× on a throttled connection shows a stepping approximation, never a blank frame | 🏠 | Bisect load order is unit-tested (`tier.test.ts`) and `ScrubCanvas` draws the nearest *loaded* frame rather than the requested one. The 6× throttled scrub itself was not performed. |
 | **L5** `FocalReveal`, depth planes, windowing wipe, horizontal problem-scroll, consent stamp, two-doors | ✅ | `components/corridor/motion/` and `scenes/`. One pinned element on the page (§6.4), in Scene 02. |
-| **L5** CLS ≤0.03 across a scripted scroll | ⬜ | Not measured. Every image carries explicit `width`/`height` and every below-fold scene carries `contain-intrinsic-size`, which are the two things that cause it — but that is an argument, not a measurement. |
+| **L5** CLS ≤0.03 across a scripted scroll | ⬜ | Not measured, and there is a known shift to measure: Scene 02's pin inserts a spacer when ScrollTrigger initialises, moving everything below it once. Every image carries explicit `width`/`height`, so images contribute nothing — but that is an argument, not a measurement. |
 | **L6** Interactive simulation, local, keyboard operable, `aria-live` | ✅ | `e2e/corridor.spec.ts` — operated by `focus()` + `Enter` only, asserts the interruption and the resume are announced through `[role=status][aria-live=polite]`, and that no non-GET request is made while it runs. |
+| **L5** §2.2 channel 1 — 5 parallax z-planes with continuous focal falloff | ✅ | `FocalReveal` runs two tweens on two nested elements: a scrubbed `y` translation whose rate scales with the plane (the parallax), and a one-shot focus pull on arrival. It first shipped with only the second, so the page had depth for 620 ms and was flat afterwards — which is §3.5's "elements that fly in once and then sit there", the default the brief rules out. Measured in the container: one plane's translate runs +44 → −42.6 → −22 px across its passage. |
 | **L7** Cursor light, WebGL handoff, sound, haptics | ✅ | `CursorLight.tsx`, `webgl-handoff.ts` (raw WebGL2, one fullscreen pass, lazily imported, Tier A only), `lib/site/sound.ts` (five synthesised cues, 0 KB of assets), `lib/site/haptics.ts` (two moments, and the type system limits it to two). |
 | **L7** Sound off by default; state persists; Tier B stands on its own | ✅ | `e2e/corridor.spec.ts` asserts sound is unchecked and unstored on load. Tier B completeness is asserted structurally (all eleven scenes, interactive demo retained); whether it *feels* complete is a judgement §12 asks a person to make. |
-| **L8** Subset fonts, `content-visibility`, layer audit, CSP nonces, cache headers, OG per locale | ◐ | Fonts subset ✅ (the three added faces). `content-visibility: auto` ✅. OG per locale ✅ (`scripts/render-og.mjs`). Layer audit ⬜. CSP nonces ⬜ — `next.config.mjs` documents at length why a nonce cannot be adopted without forcing dynamic rendering app-wide; that predates this work and is unchanged. Cache headers ⬜ — owned by the edge, which is unconfigured. |
+| **L8** Subset fonts, `content-visibility`, layer audit, CSP nonces, cache headers, OG per locale | ◐ | Fonts subset ✅ (the three added faces). OG per locale ✅ (`scripts/render-og.mjs`). `content-visibility` ❌ **removed deliberately** — see the deviations table. Layer audit ⬜. CSP nonces ⬜ — `next.config.mjs` documents at length why a nonce cannot be adopted without forcing dynamic rendering app-wide; that predates this work and is unchanged. Cache headers ⬜ — owned by the edge, which is unconfigured. |
 | **L8** All §8.1 budgets green in CI; axe zero violations | ⬜ | See §3. Two budgets fail and no Lighthouse CI job exists. Axe was not run. |
 | **L9** Five real users — two Libyan doctors, two patients, one Tunisian specialist | 🔒 | Not possible from here. §12's gate is that 4 of 5 describe the product correctly and unprompted after 20 seconds. |
 
@@ -93,6 +94,10 @@ Each of these is argued in full at the head of the file that makes it.
 | 3.2 r5 | Split Arabic by grapheme cluster | Split Arabic by **word** | Correct cluster boundaries do not fix the problem: each `<span>` starts a new text run, so a joining script renders in isolated forms whatever the boundaries are. Rule 5's own escape hatch ("animate Arabic by word or line instead") is the only correct reading. `lib/site/split.ts`. |
 | Scene 02 | Photograph the CD, phone and calendar | Drawn as hairline SVG | §7.3 bans stock photography, and a photograph of a disc with a handwritten name has to be either staged or real. ~600 bytes each, no request, and in the same vocabulary as the plates holding them. |
 | Scene 04 | 180 KB video fallback for Tier B | Interactive demo on Tier B too | The demo is ~2 KB of state machine, not cinema. Spending 180 KB to replace something cheaper that already works is backwards; Tier C still gets the three static states. |
+| 3.1 | Palette hexes `#06080B` / `#0C1116` (blue-black) | Same ramp at hue ~30° | §3.1's prose and its hexes disagree: it asks for "warm-dark rather than blue-dark, so it does not read as generic tech" and then specifies blue-black. Built as written, the page was a near-black screen with one bright cyan accent — the most common dark-site treatment there is, and the thing the prose warned against. The accents (phosphor, sand, clay, alert) are unchanged; only the room around them moved. Body copy also moved to `--c-bone-soft` (~11:1) because sustained reading at 14.6:1 on near-black is what makes a dark page tiring. |
+| — | An eyebrow label above each of nine headings | One standfirst | Mine, not the brief's. A tracked mono label above every heading is the single most recognisable tell of a generated page, and eight of the nine were a noun repeating the heading beneath them. The one that was an actual sentence became a standfirst; the rest are gone, along with their copy in three languages. |
+| — | `text-transform: uppercase` on every mono element | Removed | It made sentences shout and it falsified the records the page shows: log keys are `granted_to`, a digest is `9f2c…a41e`, a locale tag is `en`. A doctor who reads real logs sees the difference, and this page's argument is that its details are real. |
+| 8.2 t3 | `content-visibility: auto` on every below-fold scene | Removed | It is incompatible with the scroll choreography, and the failure is silent. It collapses off-screen sections to a `contain-intrinsic-size` placeholder, so every ScrollTrigger below the fold is created against a page height that is never real — reveals fire at the wrong scroll position, or never. Scene 09 rendered as an empty black band on Tier A for exactly this reason, and Tier C was unaffected, so every automated test passed while two scenes were invisible. `e2e/corridor.spec.ts` now asserts that every reveal resolves. |
 | Scene 06 | 90 KB AVIF screenshot of the viewer | Live markup in the app's light tokens | §9 forbids text baked into images, and the banner has to be readable in the reader's own language. ~1 KB instead of 90. **Still an illustration, not the real screen** — see the open items. |
 | 6.2/10 | Whole app under `app/[locale]/` | Marketing routes only | ~40 signed-in screens already live at unprefixed paths, with an e2e suite and a §4.3 ratchet test referencing them. Moving them is a routing migration, not a landing page. |
 
@@ -178,7 +183,11 @@ Grouped by who can close them.
   This is what turns the two failing budgets above into a merge block.
 - ⬜ **axe** for the zero-violations claim (§12 L8).
 - ⬜ **Stylelint** for the physical-property ban in raw CSS (§12 L2).
-- ⬜ **CLS measured across a scripted scroll** (§12 L5).
+- ⬜ **CLS measured across a scripted scroll** (§12 L5). Note that Scene 02's
+  pin inserts a spacer when ScrollTrigger initialises, which moves everything
+  below it once; `lib/site/scroll.ts` re-aims in-page anchors and deep links
+  after each refresh so that shift cannot land someone on the wrong scene, but
+  the shift itself is real and is what this measurement would quantify.
 
 ### Deliberately not done
 
@@ -195,7 +204,33 @@ Grouped by who can close them.
 
 ---
 
-## 5. Running the asset pipeline
+## 5. The container
+
+`apps/web/Dockerfile` had no `COPY` for `public/`. `output: 'standalone'` does
+not include it, so nothing under it existed in the image — invisible in
+development, because `next dev` serves `public/` from the source tree.
+
+Two things were 404ing in the container and nowhere else:
+
+- `/theme-init.js`, the pre-paint theme script. Without it `data-theme` is only
+  applied after hydration, so every container-served page load flashed white at
+  a user who had chosen dark — the one failure that script exists to prevent.
+  This predates the landing page.
+- `/seq`, `/map`, `/grain`, `/og` — the hero sequence, poster, corridor map,
+  grain tile and share cards. The hero would have rendered as an empty plate.
+
+One `COPY` line fixes both. Rebuild and recreate with:
+
+```bash
+docker compose --profile apps build web
+docker compose --profile apps up -d --force-recreate web
+```
+
+The full e2e suite passes against the container, not only against
+`next start` — which is where the tier-promotion race in the upload demo
+surfaced.
+
+## 6. Running the asset pipeline
 
 All output is committed; a deploy needs none of this.
 
@@ -210,7 +245,7 @@ bash apps/web/scripts/fetch-fonts.sh                    # re-download the three 
 Each is deterministic. `render-corridor-map.mjs` caches its Natural Earth
 source under `apps/web/.map-cache/` (gitignored).
 
-## 6. Reviewing it locally
+## 7. Reviewing it locally
 
 ```bash
 pnpm --filter @mir/web build && pnpm --filter @mir/web start

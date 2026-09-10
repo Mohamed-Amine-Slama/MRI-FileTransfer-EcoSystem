@@ -1,6 +1,6 @@
 'use client';
 
-import { useEffect, useRef, useState } from 'react';
+import { Fragment, useEffect, useRef, useState } from 'react';
 import { useSite } from '../../../lib/site/site-provider';
 import { splitForAnimation } from '../../../lib/site/split';
 import { useGsapScope } from '../../../lib/site/use-gsap';
@@ -83,21 +83,64 @@ export function HeadlineReveal({
     [animates, split, locale],
   );
 
+  const words = split ? groupIntoWords(splitForAnimation(text, locale)) : null;
+
   return (
     <h1 ref={ref} id={id} className={`display t-hero ${className}`.trim()} aria-label={text}>
-      {split
-        ? splitForAnimation(text, locale).map((unit, index) =>
-            unit.space ? (
-              // Whitespace stays a bare text node. Wrapping it in an
-              // inline-block would collapse it and close the word gap.
-              <span key={`s${index}`}> </span>
-            ) : (
-              <span key={`u${index}`} data-unit className="inline-block">
-                {unit.text}
+      {words === null
+        ? text
+        : words.map((word, wordIndex) => (
+            /*
+             * Each word is one unbreakable box, and the animated units live
+             * INSIDE it. The space between words is a SIBLING of that box.
+             *
+             * Both halves were learned the hard way at 1440px. Without the
+             * box, every grapheme was its own inline-block and the browser was
+             * entitled to wrap between any two letters: "Their scan arrive / s
+             * before they do." With the space inside the box, it sat at the
+             * edge of an inline-block and was trimmed away entirely:
+             * "Theirscanarrives beforetheydo."
+             *
+             * A real text node between the boxes is also what a reader copies
+             * to their clipboard, which forty spans otherwise are not.
+             */
+            <Fragment key={`w${wordIndex}`}>
+              <span className="headline-word">
+                {word.map((unit, unitIndex) => (
+                  <span key={`u${unitIndex}`} data-unit className="inline-block">
+                    {unit}
+                  </span>
+                ))}
               </span>
-            ),
-          )
-        : text}
+              {wordIndex < words.length - 1 ? ' ' : null}
+            </Fragment>
+          ))}
     </h1>
   );
+}
+
+/**
+ * Regroup the flat unit list into words.
+ *
+ * `splitForAnimation` returns graphemes for Latin and whole words for a
+ * joining script, with whitespace marked. Both shapes collapse to the same
+ * thing here: a list of words, each a list of animatable units. Arabic words
+ * simply contain one unit each, which is exactly the constraint that made them
+ * words in the first place (see lib/site/split.ts).
+ */
+function groupIntoWords(units: { text: string; space: boolean }[]): string[][] {
+  const words: string[][] = [];
+  let current: string[] = [];
+
+  for (const unit of units) {
+    if (unit.space) {
+      if (current.length > 0) words.push(current);
+      current = [];
+      continue;
+    }
+    current.push(unit.text);
+  }
+  if (current.length > 0) words.push(current);
+
+  return words;
 }

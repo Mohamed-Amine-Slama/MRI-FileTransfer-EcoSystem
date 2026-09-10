@@ -80,7 +80,7 @@ export function Corridor({
         <WebGLHandoff />
         <S00Load />
 
-        <CorridorChrome />
+        <CorridorChrome hrefFor={hrefFor} />
 
         {/*
           The page's one `main` landmark. PublicChrome supplies a landmark for

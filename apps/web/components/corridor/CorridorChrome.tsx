@@ -2,7 +2,9 @@
 
 import Link from 'next/link';
 import { useEffect, useState } from 'react';
+import type { UiLocale } from '@mir/contracts';
 import { useSite } from '../../lib/site/site-provider';
+import { LocaleControl, ThemeControl } from './CorridorControls';
 
 /**
  * The navigation chrome — Landing-Page-Specs §Scene 01 and §2.2.
@@ -18,7 +20,11 @@ import { useSite } from '../../lib/site/site-provider';
  * That transition is a class toggle driven by one IntersectionObserver rather
  * than a scroll handler, so it costs nothing per frame.
  */
-export function CorridorChrome(): React.JSX.Element {
+export function CorridorChrome({
+  hrefFor,
+}: {
+  hrefFor: (locale: UiLocale) => string;
+}): React.JSX.Element {
   const { t } = useSite();
   const [detached, setDetached] = useState(false);
   const [menuOpen, setMenuOpen] = useState(false);
@@ -55,14 +61,22 @@ export function CorridorChrome(): React.JSX.Element {
 
         <nav className="chrome-nav" aria-label={t.navQuestions}>
           {links.map((link) => (
-            <a key={link.href} href={link.href} className="chrome-link mono">
+            <a key={link.href} href={link.href} className="chrome-link">
               {link.label}
             </a>
           ))}
         </nav>
 
         <div className="chrome-actions">
-          <Link href="/login" className="chrome-link mono chrome-signin">
+          {/*
+            The two controls a visitor looks for in a header, back where they
+            look for them. The language one especially: the reader who most
+            needs it is the one who cannot read the current page.
+          */}
+          <LocaleControl hrefFor={hrefFor} />
+          <ThemeControl />
+
+          <Link href="/login" className="chrome-link chrome-signin">
             {t.navSignIn}
           </Link>
 
@@ -94,13 +108,13 @@ export function CorridorChrome(): React.JSX.Element {
           <a
             key={link.href}
             href={link.href}
-            className="chrome-link mono"
+            className="chrome-link"
             onClick={() => setMenuOpen(false)}
           >
             {link.label}
           </a>
         ))}
-        <Link href="/login" className="chrome-link mono" onClick={() => setMenuOpen(false)}>
+        <Link href="/login" className="chrome-link" onClick={() => setMenuOpen(false)}>
           {t.navSignIn}
         </Link>
       </div>

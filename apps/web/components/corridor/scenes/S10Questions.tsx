@@ -40,7 +40,6 @@ export function S10Questions(): React.JSX.Element {
     <section id="questions" className="scene" aria-labelledby="questions-title">
       <div className="shell">
         <FocalReveal plane={1}>
-          <p className="eyebrow">{t.faqEyebrow}</p>
           <h2 id="questions-title" className="display t-h1 measure">
             {t.faqTitle}
           </h2>
