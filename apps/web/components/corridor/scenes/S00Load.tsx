@@ -8,7 +8,7 @@ import { liftCurtain } from '../../../lib/site/curtain';
  * Scene 00 — Load. Landing-Page-Specs §Scene 00.
  *
  * "Buy the 400 ms the fonts need, and set the tone before a single word is
- * read." A phosphor hairline draws across the viewport at 40% height, then
+ * read." A teal hairline draws across the mint curtain at 40% height, then
  * becomes the top edge of the hero plate.
  *
  * ---------------------------------------------------------------------------
