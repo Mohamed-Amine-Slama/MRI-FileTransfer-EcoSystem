@@ -139,8 +139,13 @@
   color: var(--c-ink);
   font-weight: 300;
   line-height: var(--leading-display);
-  text-wrap: balance;
   margin: 0;
+}
+
+@supports (text-wrap: balance) {
+  .corridor :where(h1, h2, h3, h4) {
+    text-wrap: balance;
+  }
 }
 
 .corridor .display {
@@ -483,6 +488,7 @@
   border: 1px solid var(--c-line);
   border-radius: var(--r-chip);
   background-color: var(--c-glass-soft);
+  -webkit-backdrop-filter: blur(var(--glass-blur));
   backdrop-filter: blur(var(--glass-blur));
   color: var(--c-ink);
   font-size: var(--t-meta);
@@ -696,6 +702,7 @@
 
 .corridor .chrome[data-detached='true'] {
   background-color: var(--c-glass);
+  -webkit-backdrop-filter: blur(var(--glass-blur));
   backdrop-filter: blur(var(--glass-blur));
   border-block-end-color: var(--c-line);
 }
@@ -1005,6 +1012,12 @@
   block-size: 100%;
   object-fit: cover;
   opacity: 0.92;
+  -webkit-mask-image: radial-gradient(
+    ellipse 58% 54% at 50% 50%,
+    rgb(0 0 0 / 0.16),
+    rgb(0 0 0 / 0.6) 52%,
+    #000 100%
+  );
   mask-image: radial-gradient(
     ellipse 58% 54% at 50% 50%,
     rgb(0 0 0 / 0.16),
