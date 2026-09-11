@@ -19,7 +19,7 @@ IBM Plex is in `LICENSE.txt`, and for Google Sans Flex in
 | File | Family | Role | Bytes | Coverage |
 |---|---|---|---|---|
 | `IBMPlexSansArabic-{Regular,Medium,SemiBold,Bold}.woff2` | IBM Plex Sans Arabic | Application + landing body, both scripts | ~72–76 KB each | full |
-| `IBMPlexSansArabic-Light.woff2` | IBM Plex Sans Arabic | Arabic **display** (weight 300) — landing only; the app never requests 300 | ~75 KB | full |
+| `IBMPlexSansArabic-Light.woff2` | IBM Plex Sans Arabic | Arabic **display** (weight 300), declared in `components/corridor/fonts.ts` — landing only, not preloaded | ~75 KB | full |
 | `GoogleSansFlex-latin.woff2` | Google Sans Flex (variable, wght 300–500) | Latin display + body — landing only | ~49.6 KB | Latin subset |
 | `IBMPlexMono-Regular-latin.woff2` | IBM Plex Mono | Data, metadata, DICOM-style readouts — landing only | 14.7 KB | Latin subset |
 
@@ -33,11 +33,18 @@ IBM Plex Mono — are the Google Fonts **Latin subset** builds fetched by
 fetched as a **complete** file instead, from IBM's own release — like the four
 base Plex Sans Arabic weights below, and unlike the two Latin faces above.
 
-The IBM Plex Sans Arabic files predate this page, are shared with the whole
-signed-in application, and carry both scripts in one file by design (D4: one
-family for both scripts, so Arabic and French render with the same voice).
-Re-subsetting them is a change to the application's typography, not to the
-landing page, so it is deliberately out of scope here.
+The four base IBM Plex Sans Arabic weights (declared in `app/layout.tsx`)
+predate this page, are shared with the whole signed-in application, and carry
+both scripts in one file by design (D4: one family for both scripts, so
+Arabic and French render with the same voice). Re-subsetting them is a change
+to the application's typography, not to the landing page, so it is
+deliberately out of scope here.
+
+Light is the exception among the "full, both-script" builds: although it
+carries the same complete file layout as the four base weights, it is
+declared in `components/corridor/fonts.ts` with the other landing-only faces
+and kept off the preload list, because §3.2 requires every display face to be
+`preload: false` and the signed-in application never requests weight 300.
 
 ## Refreshing
 

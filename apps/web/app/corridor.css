@@ -102,7 +102,7 @@
   --t-meta: calc(0.875rem * var(--script-scale));
   --t-pill: calc(1.25rem * var(--script-scale));
   --f-display-latin: var(--font-sans-flex), var(--font-plex), 'Segoe UI', system-ui, sans-serif;
-  --f-display-arabic: var(--font-plex), 'Noto Sans Arabic', sans-serif;
+  --f-display-arabic: var(--font-plex-arabic-light), var(--font-plex), 'Noto Sans Arabic', sans-serif;
   --f-body: var(--font-sans-flex), var(--font-plex), system-ui, -apple-system, 'Segoe UI', Tahoma, 'Noto Sans Arabic', sans-serif;
   --f-mono: var(--font-plex-mono), var(--font-plex), ui-monospace, 'SFMono-Regular', monospace;
   --scene-progress: 0;
