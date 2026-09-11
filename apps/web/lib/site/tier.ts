@@ -15,8 +15,7 @@
  *   Tier C is the page. Static, correct, complete, ~34 KB of JS. It is what
  *          the HTML response contains and what renders if no script ever runs.
  *   Tier B adds the slice sequence at half resolution and two depth planes.
- *   Tier A adds the full sequence, five planes, the cursor light, the WebGL
- *          handoff, sound and haptics.
+ *   Tier A adds the full helix, five planes, sound and haptics.
  *
  * The layout is IDENTICAL in all three. That is not a nicety — it is the
  * property that makes silent demotion possible, and §6.3 is explicit that a
@@ -187,8 +186,6 @@ export interface TierBudget {
   sequence: 'a' | 'b' | null;
   /** Parallax z-planes. */
   planes: number;
-  /** Cursor-following light and the WebGL scene handoff. */
-  atmospherics: boolean;
   /** Sound cues and haptics may be OFFERED. Both stay off until asked for. */
   expressive: boolean;
   /** The upload demo is interactive rather than three static states. */
@@ -196,7 +193,7 @@ export interface TierBudget {
 }
 
 export const TIER_BUDGET: Record<Tier, TierBudget> = {
-  A: { sequence: 'a', planes: 5, atmospherics: true, expressive: true, interactiveDemo: true },
-  B: { sequence: 'b', planes: 2, atmospherics: false, expressive: true, interactiveDemo: true },
-  C: { sequence: null, planes: 0, atmospherics: false, expressive: false, interactiveDemo: false },
+  A: { sequence: 'a', planes: 5, expressive: true, interactiveDemo: true },
+  B: { sequence: 'b', planes: 2, expressive: true, interactiveDemo: true },
+  C: { sequence: null, planes: 0, expressive: false, interactiveDemo: false },
 };

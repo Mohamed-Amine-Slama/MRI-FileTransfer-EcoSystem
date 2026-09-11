@@ -393,56 +393,6 @@
 }
 
 /* ==========================================================================
-   §3.4 Materials
-   ========================================================================== */
-
-/*
- * 1 · Grain. A 128×128 tiled noise at 3.5%, fixed to the viewport. ~1 KB, and
- * it does more to kill the flat-CSS-gradient look than anything else here.
- * `mix-blend-mode: overlay` on a fixed layer is one compositor layer for the
- * whole page, which is the cheapest form this effect has.
- */
-.corridor .grain {
-  position: fixed;
-  inset: 0;
-  z-index: 1;
-  pointer-events: none;
-  background-image: url('/grain.png');
-  background-repeat: repeat;
-  opacity: 0.035;
-  mix-blend-mode: overlay;
-}
-
-/* 2 · Scanline. Hero plate only, never the whole page. */
-.corridor .scanline::after {
-  content: '';
-  position: absolute;
-  inset: 0;
-  pointer-events: none;
-  background-image: repeating-linear-gradient(
-    to bottom,
-    rgb(233 229 220 / 0.015) 0 1px,
-    transparent 1px 2px
-  );
-}
-
-/* 4 · Phosphor bloom. One per viewport, maximum. */
-.corridor .bloom {
-  position: absolute;
-  inset-block-start: 50%;
-  inset-inline-start: 50%;
-  inline-size: 800px;
-  block-size: 800px;
-  translate: -50% -50%;
-  pointer-events: none;
-  background: radial-gradient(
-    circle closest-side,
-    rgb(36 111 101 / 0.12),
-    transparent
-  );
-}
-
-/* ==========================================================================
    §9 Focus, and the skip link
    ========================================================================== */
 
@@ -681,36 +631,6 @@
 }
 
 /* ==========================================================================
-   Atmospherics — §2.2 channels 3 and 4, Tier A only
-   ========================================================================== */
-
-.corridor .cursor-light {
-  position: fixed;
-  inset-block-start: 0;
-  inset-inline-start: 0;
-  z-index: 0;
-  inline-size: 620px;
-  block-size: 620px;
-  margin-block-start: -310px;
-  margin-inline-start: -310px;
-  pointer-events: none;
-  opacity: 0;
-  transition: opacity 400ms var(--e-out);
-  background: radial-gradient(circle closest-side, rgb(36 111 101 / 0.07), transparent);
-}
-
-.corridor .handoff-canvas {
-  position: fixed;
-  inset: 0;
-  z-index: 0;
-  inline-size: 100%;
-  block-size: 100%;
-  pointer-events: none;
-  opacity: 0;
-  transition: opacity 240ms linear;
-}
-
-/* ==========================================================================
    Scene 00 — Load
    ========================================================================== */
 
@@ -718,7 +638,7 @@
   position: fixed;
   inset: 0;
   z-index: 70;
-  background-color: var(--c-ground);
+  background-color: var(--c-panel);
   pointer-events: none;
   transition: opacity 420ms var(--e-in-out);
 }

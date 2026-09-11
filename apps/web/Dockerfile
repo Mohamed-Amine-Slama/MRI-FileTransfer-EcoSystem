@@ -119,8 +119,9 @@ COPY --from=build /app/apps/web/.next/static ./apps/web/.next/static
 #                    applied after hydration, so every container-served page
 #                    load flashed white at a user who had chosen dark — the
 #                    one failure that script exists to prevent.
-#   /seq /map /grain the landing page's hero sequence, poster, corridor map and
-#                    grain tile. The hero would have rendered as an empty plate.
+#   /seq /map /helix the landing page's consent thumbnails and viewer poster,
+#                    corridor map, and helix posters. The hero would have
+#                    rendered with no helix.
 #
 # The Dockerfile previously carried a comment saying apps/web had no public/
 # directory. That was true when it was written and stopped being true when the

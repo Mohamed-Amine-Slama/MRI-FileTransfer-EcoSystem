@@ -93,13 +93,12 @@ describe('the ?tier= override (§12 L3)', () => {
 });
 
 describe('what each tier ships', () => {
-  it('gives Tier C no sequence, no planes, and no atmospherics', () => {
+  it('gives Tier C no sequence, no planes, and nothing expressive', () => {
     // Tier C is the HTML response. If it ever grows a moving part, the "ship
     // Tier C first" guarantee (§8.2 technique 1) is gone.
     expect(TIER_BUDGET.C).toEqual({
       sequence: null,
       planes: 0,
-      atmospherics: false,
       expressive: false,
       interactiveDemo: false,
     });
@@ -110,11 +109,6 @@ describe('what each tier ships', () => {
     // It is JS, not cinema, so it survives demotion from A to B.
     expect(TIER_BUDGET.A.interactiveDemo).toBe(true);
     expect(TIER_BUDGET.B.interactiveDemo).toBe(true);
-  });
-
-  it('reserves the atmospherics for Tier A alone', () => {
-    expect(TIER_BUDGET.A.atmospherics).toBe(true);
-    expect(TIER_BUDGET.B.atmospherics).toBe(false);
   });
 });
 
