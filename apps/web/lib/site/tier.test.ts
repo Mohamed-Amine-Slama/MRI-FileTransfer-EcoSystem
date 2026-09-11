@@ -101,6 +101,7 @@ describe('what each tier ships', () => {
       planes: 0,
       expressive: false,
       interactiveDemo: false,
+      helix: null,
     });
   });
 
@@ -109,6 +110,12 @@ describe('what each tier ships', () => {
     // It is JS, not cinema, so it survives demotion from A to B.
     expect(TIER_BUDGET.A.interactiveDemo).toBe(true);
     expect(TIER_BUDGET.B.interactiveDemo).toBe(true);
+  });
+
+  it('sizes the helix per tier and gives Tier C its poster alone (spec §5.5)', () => {
+    expect(TIER_BUDGET.A.helix).toEqual({ particles: 36_000, dpr: 2 });
+    expect(TIER_BUDGET.B.helix).toEqual({ particles: 14_000, dpr: 1 });
+    expect(TIER_BUDGET.C.helix).toBeNull();
   });
 });
 

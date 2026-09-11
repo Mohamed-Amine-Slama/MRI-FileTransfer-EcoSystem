@@ -2043,3 +2043,40 @@
   padding-block-start: 1.5rem;
   border-block-start: 1px solid var(--c-line);
 }
+
+/* ---------------------------------------------------------------------------
+ * The particle helix — spec 2026-09-10 §5.
+ *
+ * The poster is the resting state on every tier; the canvas fades in over it
+ * once the renderer has drawn, and the poster fades out underneath. On
+ * `lost` or `poster` the canvas is transparent and the poster is back.
+ * ------------------------------------------------------------------------- */
+.corridor .helix {
+  position: relative;
+  pointer-events: none;
+}
+
+.corridor .helix-poster,
+.corridor .helix-canvas {
+  position: absolute;
+  inset: 0;
+  inline-size: 100%;
+  block-size: 100%;
+  transition: opacity 400ms var(--ease-entrance);
+}
+
+.corridor .helix-poster {
+  object-fit: cover;
+}
+
+.corridor .helix-canvas {
+  opacity: 0;
+}
+
+.corridor .helix:is([data-helix-state='running'], [data-helix-state='paused'], [data-helix-state='still']) .helix-canvas {
+  opacity: 1;
+}
+
+.corridor .helix:is([data-helix-state='running'], [data-helix-state='paused'], [data-helix-state='still']) .helix-poster {
+  opacity: 0;
+}

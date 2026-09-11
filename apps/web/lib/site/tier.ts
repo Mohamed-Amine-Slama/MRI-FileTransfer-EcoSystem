@@ -191,10 +191,12 @@ export interface TierBudget {
   expressive: boolean;
   /** The upload demo is interactive rather than three static states. */
   interactiveDemo: boolean;
+  /** The particle helix (spec 2026-09-10 §5.5), or null for its poster alone. */
+  helix: { readonly particles: number; readonly dpr: number } | null;
 }
 
 export const TIER_BUDGET: Record<Tier, TierBudget> = {
-  A: { sequence: 'a', planes: 5, expressive: true, interactiveDemo: true },
-  B: { sequence: 'b', planes: 2, expressive: true, interactiveDemo: true },
-  C: { sequence: null, planes: 0, expressive: false, interactiveDemo: false },
+  A: { sequence: 'a', planes: 5, expressive: true, interactiveDemo: true, helix: { particles: 36_000, dpr: 2 } },
+  B: { sequence: 'b', planes: 2, expressive: true, interactiveDemo: true, helix: { particles: 14_000, dpr: 1 } },
+  C: { sequence: null, planes: 0, expressive: false, interactiveDemo: false, helix: null },
 };
