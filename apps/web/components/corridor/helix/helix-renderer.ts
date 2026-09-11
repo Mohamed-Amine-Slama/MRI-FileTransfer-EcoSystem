@@ -85,14 +85,21 @@ export function createHelixRenderer(
   options: { count: number; mirror: boolean; preserveDrawingBuffer?: boolean },
 ): HelixRenderer | null {
   const gl = context(canvas, options.preserveDrawingBuffer === true);
-  if (gl === null) return null;
+  if (gl === null) {
+    warn('WebGL2 context unavailable', null);
+    return null;
+  }
 
   const vertex = compile(gl, gl.VERTEX_SHADER, VERTEX_SHADER);
   const fragment = compile(gl, gl.FRAGMENT_SHADER, FRAGMENT_SHADER);
   if (vertex === null || fragment === null) return null;
 
   const program = gl.createProgram();
-  if (program === null) return null;
+  if (program === null) {
+    gl.deleteShader(vertex);
+    gl.deleteShader(fragment);
+    return null;
+  }
   gl.attachShader(program, vertex);
   gl.attachShader(program, fragment);
   gl.linkProgram(program);
@@ -109,14 +116,22 @@ export function createHelixRenderer(
   performance.measure('helix:geometry', { start: started, end: performance.now() });
 
   const vao = gl.createVertexArray();
-  if (vao === null) return null;
+  if (vao === null) {
+    gl.deleteProgram(program);
+    return null;
+  }
   gl.bindVertexArray(vao);
   const buffers: WebGLBuffer[] = [];
+  let attributeFailed = false;
   const attribute = (name: (typeof ATTRIBUTES)[number], array: Float32Array, size: number): void => {
+    if (attributeFailed) return;
     const location = gl.getAttribLocation(program, name);
     if (location < 0) return;
     const buffer = gl.createBuffer();
-    if (buffer === null) return;
+    if (buffer === null) {
+      attributeFailed = true;
+      return;
+    }
     buffers.push(buffer);
     gl.bindBuffer(gl.ARRAY_BUFFER, buffer);
     gl.bufferData(gl.ARRAY_BUFFER, array, gl.STATIC_DRAW);
@@ -128,6 +143,14 @@ export function createHelixRenderer(
   attribute('aSeed', data.seed, 4);
   attribute('aScatter', data.scatter, 3);
   gl.bindVertexArray(null);
+
+  if (attributeFailed) {
+    warn('attribute buffer creation failed', null);
+    for (const buffer of buffers) gl.deleteBuffer(buffer);
+    gl.deleteVertexArray(vao);
+    gl.deleteProgram(program);
+    return null;
+  }
 
   const u = {} as Record<UniformName, WebGLUniformLocation | null>;
   for (const name of UNIFORMS) u[name] = gl.getUniformLocation(program, name);
