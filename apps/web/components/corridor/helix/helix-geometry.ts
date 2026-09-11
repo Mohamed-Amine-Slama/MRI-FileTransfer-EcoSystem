@@ -32,9 +32,25 @@ export function mulberry32(seed: number): () => number {
   };
 }
 
-/** Standard normal by Box–Muller. `1 - rand()` keeps the log's argument off zero. */
-export function gaussian(rand: () => number): number {
-  return Math.sqrt(-2 * Math.log(1 - rand())) * Math.cos(2 * Math.PI * rand());
+/**
+ * Standard normals by Box–Muller, two per draw: the sine term is kept for the
+ * next call instead of thrown away, which halves the log/sqrt/trig work in
+ * buildHelix. `1 - rand()` keeps the log's argument off zero.
+ */
+export function normals(rand: () => number): () => number {
+  let spare = 0;
+  let hasSpare = false;
+  return () => {
+    if (hasSpare) {
+      hasSpare = false;
+      return spare;
+    }
+    const r = Math.sqrt(-2 * Math.log(1 - rand()));
+    const a = 2 * Math.PI * rand();
+    spare = r * Math.sin(a);
+    hasSpare = true;
+    return r * Math.cos(a);
+  };
 }
 
 export function kindCounts(count: number): { strand: number; rung: number; dust: number } {
@@ -45,6 +61,7 @@ export function kindCounts(count: number): { strand: number; rung: number; dust:
 
 export function buildHelix({ count, seed = HELIX.seed }: { count: number; seed?: number }): HelixBuffers {
   const rand = mulberry32(seed);
+  const normal = normals(rand);
   const kind = new Float32Array(count);
   const t = new Float32Array(count);
   const seeds = new Float32Array(count * 4);
@@ -70,16 +87,16 @@ export function buildHelix({ count, seed = HELIX.seed }: { count: number; seed?:
       seeds[i * 4] = rand();
     } else {
       t[i] = rand();
-      seeds[i * 4] = gaussian(rand);
+      seeds[i * 4] = normal();
     }
-    seeds[i * 4 + 1] = gaussian(rand);
+    seeds[i * 4 + 1] = normal();
     seeds[i * 4 + 2] = rand();
     seeds[i * 4 + 3] = rand();
 
     // A uniform point in a ball: gaussian direction, cube-root radius.
-    const x = gaussian(rand);
-    const y = gaussian(rand);
-    const z = gaussian(rand);
+    const x = normal();
+    const y = normal();
+    const z = normal();
     const length = Math.hypot(x, y, z) || 1;
     const r = reach * Math.cbrt(rand());
     scatter[i * 3] = (x / length) * r;

@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest';
 import { HELIX } from './helix-config';
-import { KIND, buildHelix, kindCounts, mulberry32 } from './helix-geometry';
+import { KIND, buildHelix, kindCounts, mulberry32, normals } from './helix-geometry';
 
 describe('mulberry32', () => {
   it('stays in [0, 1) and repeats for a seed', () => {
@@ -12,6 +12,23 @@ describe('mulberry32', () => {
       expect(value).toBeLessThan(1);
       expect(b()).toBe(value);
     }
+  });
+});
+
+describe('normals', () => {
+  it('draws a standard normal distribution', () => {
+    const next = normals(mulberry32(3));
+    let sum = 0;
+    let squares = 0;
+    const n = 20_000;
+    for (let i = 0; i < n; i++) {
+      const v = next();
+      sum += v;
+      squares += v * v;
+    }
+    const mean = sum / n;
+    expect(Math.abs(mean)).toBeLessThan(0.05);
+    expect(Math.abs(squares / n - mean * mean - 1)).toBeLessThan(0.05);
   });
 });
 
