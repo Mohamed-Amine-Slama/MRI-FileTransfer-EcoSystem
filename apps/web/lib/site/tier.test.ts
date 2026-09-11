@@ -43,9 +43,9 @@ describe('tier selection (§6.3)', () => {
   });
 
   it('puts a capable phone on Tier B rather than Tier A', () => {
-    // A coarse pointer is a phone. The cursor light has nothing to follow and
-    // the thermal budget is not a desktop's, so the full path is not offered
-    // even when every other signal is good.
+    // A coarse pointer is a phone, and a phone's thermal budget is not a
+    // desktop's, so the full path is not offered even when every other
+    // signal is good.
     expect(tierFromSignals({ ...CAPABLE, coarsePointer: true })).toBe('B');
   });
 

@@ -114,8 +114,9 @@ export function readSignals(): Signals {
     /*
      * Probed rather than assumed, and the context is released immediately.
      * A WebGL context left on a throwaway canvas counts against the browser's
-     * hard limit (typically 8–16), and exhausting it makes an unrelated
-     * context — the one the handoff actually wants — fail to create.
+     * hard limit (typically 8–16), and exhausting it would make whatever
+     * WebGL2 rendering the page actually does elsewhere fail to create its
+     * own context.
      */
     webgl2: probeWebgl2(),
   };
