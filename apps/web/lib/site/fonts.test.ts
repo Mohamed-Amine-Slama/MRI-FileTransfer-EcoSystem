@@ -37,7 +37,8 @@ describe('vendored faces (§3.2)', () => {
     expect(read('app/fonts/GoogleSansFlex-OFL.txt')).toMatch(/SIL Open Font License, Version 1\.1/);
   });
 
-  it('declares a light weight for Arabic display', () => {
-    expect(read('app/layout.tsx')).toMatch(/IBMPlexSansArabic-Light\.woff2', weight: '300'/);
+  it('declares Arabic display Light 300 on the landing page only', () => {
+    expect(read('components/corridor/fonts.ts')).toMatch(/IBMPlexSansArabic-Light\.woff2',\s*weight: '300'/);
+    expect(read('app/layout.tsx')).not.toMatch(/IBMPlexSansArabic-Light/);
   });
 });

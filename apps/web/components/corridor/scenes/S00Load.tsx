@@ -2,12 +2,13 @@
 
 import { useEffect, useState } from 'react';
 import { useSite } from '../../../lib/site/site-provider';
+import { liftCurtain } from '../../../lib/site/curtain';
 
 /**
  * Scene 00 — Load. Landing-Page-Specs §Scene 00.
  *
  * "Buy the 400 ms the fonts need, and set the tone before a single word is
- * read." A phosphor hairline draws across the viewport at 40% height, then
+ * read." A teal hairline draws across the mint curtain at 40% height, then
  * becomes the top edge of the hero plate.
  *
  * ---------------------------------------------------------------------------
@@ -51,7 +52,11 @@ export function S00Load(): React.JSX.Element | null {
     } catch {
       // Storage unavailable — show it once and do not try to remember.
     }
-    if (seen) return;
+    if (seen) {
+      // A repeat visit shows no curtain, so nothing should wait for one.
+      liftCurtain();
+      return;
+    }
 
     try {
       window.sessionStorage.setItem(SESSION_KEY, '1');
@@ -66,6 +71,7 @@ export function S00Load(): React.JSX.Element | null {
 
     const finish = (): void => {
       setState('done');
+      liftCurtain();
       cue('scene');
     };
 

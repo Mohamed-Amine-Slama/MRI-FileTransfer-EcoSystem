@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { granularityFor, splitForAnimation } from './split';
+import { granularityFor, splitForAnimation, splitWords } from './split';
 
 /**
  * §3.2 rule 5 names a test string and says to run it before shipping:
@@ -68,5 +68,15 @@ describe('splitting for animation (§3.2 rule 5)', () => {
 
   it('returns nothing for empty text instead of an empty unit', () => {
     expect(splitForAnimation('', 'ar')).toEqual([]);
+  });
+});
+
+describe('splitWords', () => {
+  it('keeps Arabic words whole', () => {
+    expect(splitWords('نقل الصور الطبية عبر الحدود')).toEqual(['نقل', 'الصور', 'الطبية', 'عبر', 'الحدود']);
+  });
+
+  it('splits Latin on any run of whitespace and drops the empties', () => {
+    expect(splitWords('  The study   arrives\nfirst. ')).toEqual(['The', 'study', 'arrives', 'first.']);
   });
 });

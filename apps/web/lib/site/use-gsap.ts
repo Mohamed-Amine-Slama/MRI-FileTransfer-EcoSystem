@@ -23,7 +23,11 @@ import { loadGsap, type GsapBundle } from './gsap';
 export function useGsapScope(
   enabled: boolean,
   ref: RefObject<HTMLElement | null>,
-  setup: (bundle: GsapBundle, element: HTMLElement) => void,
+  /**
+   * May return a function; `gsap.context()` calls it on revert. Use it for
+   * anything the context cannot see — a listener registered outside GSAP.
+   */
+  setup: (bundle: GsapBundle, element: HTMLElement) => void | (() => void),
   deps: readonly unknown[],
 ): void {
   useEffect(() => {

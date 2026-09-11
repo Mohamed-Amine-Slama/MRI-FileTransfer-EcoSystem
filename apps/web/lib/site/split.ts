@@ -107,3 +107,12 @@ function splitOnSpaces(text: string): SplitUnit[] {
     .filter((part) => part !== '')
     .map((part) => ({ text: part, space: /^\s+$/.test(part) }));
 }
+
+/**
+ * Whitespace-separated words, for effects that address whole words in every
+ * script — WordReveal and ScrollLitText. A word is always one text run, so an
+ * Arabic word keeps its joined forms (see the note at the top of this file).
+ */
+export function splitWords(text: string): string[] {
+  return text.split(/\s+/).filter((word) => word !== '');
+}

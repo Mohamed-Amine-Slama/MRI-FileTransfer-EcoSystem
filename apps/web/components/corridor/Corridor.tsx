@@ -7,8 +7,6 @@ import { SiteProvider } from '../../lib/site/site-provider';
 import { CorridorChrome } from './CorridorChrome';
 import { CorridorFooter } from './CorridorFooter';
 import { CORRIDOR_FONT_CLASS } from './fonts';
-import { CursorLight } from './motion/CursorLight';
-import { WebGLHandoff } from './motion/WebGLHandoff';
 import { S00Load } from './scenes/S00Load';
 import { S01Hero } from './scenes/S01Hero';
 import { S02Problem } from './scenes/S02Problem';
@@ -75,9 +73,6 @@ export function Corridor({
           {t.skipToContent}
         </a>
 
-        <span className="grain" aria-hidden="true" />
-        <CursorLight />
-        <WebGLHandoff />
         <S00Load />
 
         <CorridorChrome hrefFor={hrefFor} />

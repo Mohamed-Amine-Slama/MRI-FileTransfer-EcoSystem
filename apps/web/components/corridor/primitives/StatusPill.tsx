@@ -3,7 +3,7 @@ import { ENTITY } from '../../../lib/site/entity';
 /**
  * The live status pill — Landing-Page-Specs §Scene 01.
  *
- * "Status pill bottom-inline-start: a live phosphor dot and 'System
+ * "Status pill bottom-inline-start: a live accent dot and 'System
  * operational', linked to your real status page. Doctors check this. It is
  * trust, not decoration."
  *

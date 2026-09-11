@@ -11,22 +11,23 @@
  *    calm, dense and precise, because clinic staff use it to move real patient
  *    data. This page has the opposite job. `.marketing` already draws that
  *    line for the rest of the public surface; `.corridor` is the same line
- *    drawn tighter, because the landing page is dark in BOTH themes while
- *    /pricing and /login follow the user's choice.
+ *    drawn tighter, because the landing page keeps one fixed light register
+ *    regardless of the app's theme toggle, while /pricing and /login follow
+ *    the user's choice.
  *
  * 2. `lib/theme/tokens.test.ts` asserts that every custom property declared on
  *    `:root` is overridden in both dark blocks, and that no dark-only token
  *    exists. That is exactly right for the application palette and exactly
- *    wrong for this one: the reading room does not have a light mode. Keeping
- *    these tokens out of `:root` keeps that test meaningful instead of forcing
- *    an exception into it.
+ *    wrong for this one: the corridor has no dark mode to override into.
+ *    Keeping these tokens out of `:root` keeps that test meaningful instead
+ *    of forcing an exception into it.
  * ---------------------------------------------------------------------------
  *
- * §3.1's spending rule, restated because it is the thing most likely to be
- * broken by a well-meant edit: PHOSPHOR IS A SIGNAL, NOT A DECORATION. It
- * marks the active slice, focus rings, one CTA, and the live status dot. If
- * more than ~3% of the viewport is phosphor, it has been overspent. Sand
- * appears exactly three times on the page.
+ * §3.1's register, restated because it is the thing most likely to be broken
+ * by a well-meant edit: a clinical, calm light register — white ground, mint
+ * panels, one teal accent (`--c-accent`), one lime highlight (`--c-lime`).
+ * The palette's contrast is asserted by `lib/site/tokens.test.ts`, which
+ * parses this rule directly.
  */
 
 /* ==========================================================================
@@ -102,7 +103,7 @@
   --t-meta: calc(0.875rem * var(--script-scale));
   --t-pill: calc(1.25rem * var(--script-scale));
   --f-display-latin: var(--font-sans-flex), var(--font-plex), 'Segoe UI', system-ui, sans-serif;
-  --f-display-arabic: var(--font-plex), 'Noto Sans Arabic', sans-serif;
+  --f-display-arabic: var(--font-plex-arabic-light), var(--font-plex), 'Noto Sans Arabic', sans-serif;
   --f-body: var(--font-sans-flex), var(--font-plex), system-ui, -apple-system, 'Segoe UI', Tahoma, 'Noto Sans Arabic', sans-serif;
   --f-mono: var(--font-plex-mono), var(--font-plex), ui-monospace, 'SFMono-Regular', monospace;
   --scene-progress: 0;
@@ -393,56 +394,6 @@
 }
 
 /* ==========================================================================
-   §3.4 Materials
-   ========================================================================== */
-
-/*
- * 1 · Grain. A 128×128 tiled noise at 3.5%, fixed to the viewport. ~1 KB, and
- * it does more to kill the flat-CSS-gradient look than anything else here.
- * `mix-blend-mode: overlay` on a fixed layer is one compositor layer for the
- * whole page, which is the cheapest form this effect has.
- */
-.corridor .grain {
-  position: fixed;
-  inset: 0;
-  z-index: 1;
-  pointer-events: none;
-  background-image: url('/grain.png');
-  background-repeat: repeat;
-  opacity: 0.035;
-  mix-blend-mode: overlay;
-}
-
-/* 2 · Scanline. Hero plate only, never the whole page. */
-.corridor .scanline::after {
-  content: '';
-  position: absolute;
-  inset: 0;
-  pointer-events: none;
-  background-image: repeating-linear-gradient(
-    to bottom,
-    rgb(233 229 220 / 0.015) 0 1px,
-    transparent 1px 2px
-  );
-}
-
-/* 4 · Phosphor bloom. One per viewport, maximum. */
-.corridor .bloom {
-  position: absolute;
-  inset-block-start: 50%;
-  inset-inline-start: 50%;
-  inline-size: 800px;
-  block-size: 800px;
-  translate: -50% -50%;
-  pointer-events: none;
-  background: radial-gradient(
-    circle closest-side,
-    rgb(36 111 101 / 0.12),
-    transparent
-  );
-}
-
-/* ==========================================================================
    §9 Focus, and the skip link
    ========================================================================== */
 
@@ -460,7 +411,7 @@
   translate: 0 -200%;
   padding: 0.75rem 1.25rem;
   background-color: var(--c-accent);
-  color: var(--c-ground);
+  color: var(--c-on-accent);
   font-weight: 600;
   border-end-end-radius: var(--r-tile);
 }
@@ -681,36 +632,6 @@
 }
 
 /* ==========================================================================
-   Atmospherics — §2.2 channels 3 and 4, Tier A only
-   ========================================================================== */
-
-.corridor .cursor-light {
-  position: fixed;
-  inset-block-start: 0;
-  inset-inline-start: 0;
-  z-index: 0;
-  inline-size: 620px;
-  block-size: 620px;
-  margin-block-start: -310px;
-  margin-inline-start: -310px;
-  pointer-events: none;
-  opacity: 0;
-  transition: opacity 400ms var(--e-out);
-  background: radial-gradient(circle closest-side, rgb(36 111 101 / 0.07), transparent);
-}
-
-.corridor .handoff-canvas {
-  position: fixed;
-  inset: 0;
-  z-index: 0;
-  inline-size: 100%;
-  block-size: 100%;
-  pointer-events: none;
-  opacity: 0;
-  transition: opacity 240ms linear;
-}
-
-/* ==========================================================================
    Scene 00 — Load
    ========================================================================== */
 
@@ -718,7 +639,7 @@
   position: fixed;
   inset: 0;
   z-index: 70;
-  background-color: var(--c-ground);
+  background-color: var(--c-panel);
   pointer-events: none;
   transition: opacity 420ms var(--e-in-out);
 }
@@ -1126,6 +1047,8 @@
   letter-spacing: -0.02em;
   /* The headline sits ON the volume, so it gets its own shadow to hold the
      baseline against whatever slice is behind it at that moment. */
+  color: var(--c-ground);
+  text-shadow: 0 2px 24px rgb(11 10 9 / 0.75);
 }
 
 .corridor[dir='rtl'] .hero-headline {
@@ -1139,12 +1062,38 @@
   text-align: center;
 }
 
+/*
+ * Interim treatment for the CT hero (Plan 1 §review): the headline and
+ * subhead sit on the dark CT plate in every tier, so they stay white with a
+ * drop shadow rather than the page's default `--c-ink`. The subhead also
+ * carries `.subtle`, which is the same specificity as `.corridor
+ * .hero-subhead` above — this selector adds the `.hero-copy` ancestor so it
+ * wins regardless of source order. Both rules are removed with the CT hero
+ * when Plan 2 replaces it.
+ */
+.corridor .hero-copy .hero-subhead {
+  color: var(--c-ground);
+  text-shadow: 0 1px 16px rgb(11 10 9 / 0.8);
+}
+
 .corridor .hero-actions {
   display: flex;
   flex-wrap: wrap;
   justify-content: center;
   gap: 0.75rem;
   margin-block-start: 2.25rem;
+}
+
+/* Same interim CT-hero treatment as above, scoped to the hero so other
+   ghost buttons on the page keep their normal ink label and hairline
+   border. Removed with the hero rebuild. */
+.corridor .hero-actions .btn--ghost {
+  color: var(--c-ground);
+  border-color: rgb(255 255 255 / 0.4);
+}
+
+.corridor .hero-actions .btn--ghost:hover {
+  border-color: var(--c-ground);
 }
 
 /* --- the workstation HUD, inside the plate ------------------------------- */
@@ -1573,7 +1522,7 @@
 .corridor .consent-switch input:checked + .consent-switch-track .consent-switch-thumb {
   /* Multiplied by --dir so the thumb travels towards the reader's "on". */
   translate: calc(20px * var(--dir)) 0;
-  background-color: var(--c-alert);
+  background-color: var(--c-ground);
 }
 
 .corridor .consent-switch input:focus-visible + .consent-switch-track {

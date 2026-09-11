@@ -49,7 +49,6 @@ export function S01Hero(): React.JSX.Element {
            * handshake for them.
            */
           label="CT · AX · 512×512"
-          scanline
           padded={false}
         >
           <div className="hero-stack">

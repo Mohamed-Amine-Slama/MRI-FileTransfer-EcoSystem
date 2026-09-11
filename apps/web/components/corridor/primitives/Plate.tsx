@@ -28,7 +28,6 @@ export function Plate({
   label,
   counter,
   flush = false,
-  scanline = false,
   padded = true,
   className = '',
   bodyClassName = '',
@@ -40,8 +39,6 @@ export function Plate({
   counter?: string;
   /** Transparent rather than surface-filled, for plates over the canvas. */
   flush?: boolean;
-  /** §3.4 material 2 — the hero plate only, never the whole page. */
-  scanline?: boolean;
   padded?: boolean;
   className?: string;
   bodyClassName?: string;
@@ -49,7 +46,6 @@ export function Plate({
 }): React.JSX.Element {
   const classes = ['plate'];
   if (flush) classes.push('plate--flush');
-  if (scanline) classes.push('scanline');
   if (className !== '') classes.push(className);
 
   return (
