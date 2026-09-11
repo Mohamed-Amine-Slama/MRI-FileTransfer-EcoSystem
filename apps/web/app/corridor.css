@@ -282,10 +282,6 @@
   padding-block: clamp(5rem, 12vh, 10rem);
 }
 
-.corridor .scene--hero {
-  padding-block: 0;
-}
-
 /*
  * A standfirst — a sentence that introduces the scene, set as prose.
  *
@@ -943,273 +939,6 @@
 @media (min-width: 1100px) {
   .corridor .control-value {
     display: inline;
-  }
-}
-
-/* ==========================================================================
-   Scene 01 — Hero
-   ========================================================================== */
-
-/*
- * The hero's job is to perform the slice mechanic before a word is read, and
- * the first build did not: a faint image at 35% behind centred text reads as a
- * stock background, not as a volume you are about to scroll into.
- *
- * What changed, and why each thing:
- *
- *   The volume is BIGGER and BRIGHTER, and a radial vignette is cut out of the
- *   middle of it rather than the whole layer being dimmed. The anatomy stays
- *   legible at the edges where nothing is written, and the centre stays clean
- *   enough to set type on. Dimming the whole plane to reach the same
- *   legibility is what made it look like a placeholder.
- *
- *   The plate carries a real workstation HUD — corner metadata, a windowing
- *   readout, a reticle. §2.3 says to study that chrome and use it as the
- *   page's own: it is the detail a referring doctor recognises, and it costs
- *   four spans.
- *
- *   The type is larger and tighter, and the hero remains CENTRED because §3.3
- *   allows exactly two centred blocks and names this as one of them.
- */
-
-.corridor .hero-frame {
-  position: relative;
-  display: flex;
-  flex-direction: column;
-  gap: 1.25rem;
-  min-block-size: 100svh;
-  padding: clamp(4.5rem, 11vh, 7rem) var(--margin) clamp(1.75rem, 5vh, 3rem);
-  max-inline-size: var(--content-max);
-  margin-inline: auto;
-}
-
-.corridor .hero-plate {
-  flex: 1;
-  overflow: hidden;
-}
-
-.corridor .hero-stack {
-  position: relative;
-  display: grid;
-  block-size: 100%;
-  min-block-size: 62svh;
-  isolation: isolate;
-}
-
-/*
- * Poster and canvas share one cell. The canvas paints over the poster once
- * frames arrive; on Tier C it never does and the poster IS the hero.
- *
- * `mask-image` is the vignette: fully opaque at the edges, falling to almost
- * nothing across the middle third. It is a mask rather than an overlay so the
- * void behind shows through rather than a black film sitting on top — an
- * overlay greys the blacks and the plate stops looking like a lit panel.
- */
-.corridor .slice-poster,
-.corridor .slice-canvas {
-  grid-area: 1 / 1;
-  inline-size: 100%;
-  block-size: 100%;
-  object-fit: cover;
-  opacity: 0.92;
-  -webkit-mask-image: radial-gradient(
-    ellipse 58% 54% at 50% 50%,
-    rgb(0 0 0 / 0.16),
-    rgb(0 0 0 / 0.6) 52%,
-    #000 100%
-  );
-  mask-image: radial-gradient(
-    ellipse 58% 54% at 50% 50%,
-    rgb(0 0 0 / 0.16),
-    rgb(0 0 0 / 0.6) 52%,
-    #000 100%
-  );
-}
-
-/* A warm floor under the volume, so the plate is lit rather than merely dark. */
-.corridor .hero-stack::after {
-  content: '';
-  grid-area: 1 / 1;
-  z-index: 1;
-  pointer-events: none;
-  background:
-    radial-gradient(ellipse 70% 60% at 50% 42%, rgb(36 111 101 / 0.07), transparent 70%),
-    radial-gradient(ellipse 90% 70% at 50% 120%, rgb(138 82 51 / 0.16), transparent 70%);
-}
-
-.corridor .hero-copy {
-  grid-area: 1 / 1;
-  z-index: 2;
-  display: flex;
-  flex-direction: column;
-  justify-content: center;
-  padding-block: clamp(2rem, 8vh, 5rem);
-}
-
-/* One of exactly two centred blocks on the page (§3.3). */
-/* One box per word: the animated letters inside it can never be split. */
-.corridor .headline-word {
-  display: inline-block;
-  white-space: nowrap;
-}
-
-.corridor .hero-headline {
-  text-align: center;
-  margin-inline: auto;
-  max-inline-size: 13ch;
-  letter-spacing: -0.02em;
-  /* The headline sits ON the volume, so it gets its own shadow to hold the
-     baseline against whatever slice is behind it at that moment. */
-  color: var(--c-ground);
-  text-shadow: 0 2px 24px rgb(11 10 9 / 0.75);
-}
-
-.corridor[dir='rtl'] .hero-headline {
-  /* Arabic joins; negative tracking closes the joins up and thickens the word. */
-  letter-spacing: normal;
-}
-
-.corridor .hero-subhead {
-  margin-block-start: 1.5rem;
-  margin-inline: auto;
-  text-align: center;
-}
-
-/*
- * Interim treatment for the CT hero (Plan 1 §review): the headline and
- * subhead sit on the dark CT plate in every tier, so they stay white with a
- * drop shadow rather than the page's default `--c-ink`. The subhead also
- * carries `.subtle`, which is the same specificity as `.corridor
- * .hero-subhead` above — this selector adds the `.hero-copy` ancestor so it
- * wins regardless of source order. Both rules are removed with the CT hero
- * when Plan 2 replaces it.
- */
-.corridor .hero-copy .hero-subhead {
-  color: var(--c-ground);
-  text-shadow: 0 1px 16px rgb(11 10 9 / 0.8);
-}
-
-.corridor .hero-actions {
-  display: flex;
-  flex-wrap: wrap;
-  justify-content: center;
-  gap: 0.75rem;
-  margin-block-start: 2.25rem;
-}
-
-/* Same interim CT-hero treatment as above, scoped to the hero so other
-   ghost buttons on the page keep their normal ink label and hairline
-   border. Removed with the hero rebuild. */
-.corridor .hero-actions .btn--ghost {
-  color: var(--c-ground);
-  border-color: rgb(255 255 255 / 0.4);
-}
-
-.corridor .hero-actions .btn--ghost:hover {
-  border-color: var(--c-ground);
-}
-
-/* --- the workstation HUD, inside the plate ------------------------------- */
-
-.corridor .hero-hud {
-  position: absolute;
-  z-index: 3;
-  color: var(--c-ink-subtle);
-  font-family: var(--f-mono);
-  font-size: 0.6875rem;
-  line-height: 1.6;
-  pointer-events: none;
-  /* Identifiers and numbers, never reordered by the paragraph direction. */
-  direction: ltr;
-  text-align: start;
-}
-
-.corridor .hero-hud--tl {
-  inset-block-start: 1rem;
-  inset-inline-start: 1rem;
-}
-
-.corridor .hero-hud--tr {
-  inset-block-start: 1rem;
-  inset-inline-end: 1rem;
-  text-align: end;
-}
-
-.corridor .hero-hud--bl {
-  inset-block-end: 1rem;
-  inset-inline-start: 1rem;
-}
-
-/* The reticle at the volume's centre — the one on the nav is its small sibling. */
-/*
- * Centred with `inset: 0; margin: auto`, not with a 50% offset and a translate.
- *
- * `inset-inline-start: 50%` resolves to `right: 50%` under RTL, so the element
- * grows away from the centre in the opposite direction and the pull-back
- * translate doubles the error instead of correcting it — the reticle sat a
- * third of the way across the plate in Arabic and dead centre in French.
- * `margin: auto` inside a fully-inset box is direction-agnostic and needs no
- * multiplier.
- */
-.corridor .hero-reticle {
-  position: absolute;
-  z-index: 3;
-  inset: 0;
-  margin: auto;
-  inline-size: min(52vmin, 420px);
-  block-size: min(52vmin, 420px);
-  pointer-events: none;
-  opacity: 0.32;
-}
-
-.corridor .hero-reticle line,
-.corridor .hero-reticle circle {
-  stroke: var(--c-accent);
-  stroke-width: 0.75;
-  fill: none;
-  vector-effect: non-scaling-stroke;
-}
-
-.corridor .hero-rail {
-  display: flex;
-  flex-wrap: wrap;
-  align-items: center;
-  gap: 0.75rem 1.5rem;
-}
-
-.corridor .hero-trust {
-  display: none;
-}
-
-.corridor .hero-slice {
-  margin-inline-start: auto;
-}
-
-/*
- * Hidden on narrow viewports rather than repositioned. The hero rail already
- * wraps to two rows at 390px, and a centred hint underneath it collided with
- * the slice counter — two pieces of dim mono text overlapping is worse than
- * one missing hint on a device whose user does not need to be told a page
- * scrolls.
- */
-.corridor .hero-hint {
-  display: none;
-}
-
-@media (min-width: 700px) {
-  .corridor .hero-trust {
-    display: inline;
-  }
-}
-
-@media (min-width: 900px) {
-  .corridor .hero-hint {
-    display: block;
-    position: absolute;
-    inset-block-end: clamp(2rem, 6vh, 3.5rem);
-    inset-inline-start: 50%;
-    translate: -50% 0;
-    opacity: 0.5;
   }
 }
 
@@ -2092,4 +1821,153 @@
 
 .corridor .helix:is([data-helix-state='running'], [data-helix-state='paused'], [data-helix-state='still']) .helix-poster {
   opacity: 0;
+}
+
+/* ---------------------------------------------------------------------------
+ * Scene 01 · hero — spec 2026-09-10 §4.
+ * Phones: one column in DOM order. From 1000px: the reference proportions,
+ * placed absolutely on a 100lvh panel whose overflow clips the helix.
+ * ------------------------------------------------------------------------- */
+.corridor .scene--hero {
+  --hero-gutter: 1.25rem;
+  position: relative;
+  display: flex;
+  flex-direction: column;
+  gap: 2rem;
+  min-block-size: 100lvh;
+  padding: 7rem var(--hero-gutter) 3rem;
+  overflow: hidden;
+  background-color: var(--c-panel);
+  border-end-start-radius: var(--r-section);
+  border-end-end-radius: var(--r-section);
+}
+
+.corridor .hero-copy {
+  position: relative;
+  z-index: 1;
+  display: flex;
+  flex-direction: column;
+  gap: 1rem;
+}
+
+.corridor .hero-headline {
+  max-inline-size: 13em;
+}
+
+.corridor .hero-subhead {
+  max-inline-size: 31rem;
+  margin: 0;
+}
+
+.corridor .hero-helix {
+  block-size: 40lvh;
+  margin-inline: calc(var(--hero-gutter) * -1);
+}
+
+.corridor .hero-rule {
+  margin: 0;
+  border: 0;
+  border-block-start: 1px solid var(--c-line);
+}
+
+.corridor .hero-trust {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 0.75rem 1.5rem;
+}
+
+.corridor .hero-trust-line {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.75rem;
+  margin: 0;
+  color: var(--c-accent);
+}
+
+.corridor .hero-trust-rule {
+  inline-size: 3.125rem;
+  block-size: 1px;
+  background-color: currentColor;
+}
+
+.corridor .hero-chips {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.25rem;
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+
+.corridor .hero-actions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 1rem;
+}
+
+.corridor .reveal-word {
+  display: inline-block;
+  white-space: nowrap;
+}
+
+@media (min-width: 700px) {
+  .corridor .scene--hero {
+    --hero-gutter: 2.5rem;
+  }
+}
+
+@media (min-width: 1000px) {
+  .corridor .scene--hero {
+    display: block;
+    block-size: 100lvh;
+    min-block-size: 40rem;
+    padding: 0;
+  }
+
+  .corridor .hero-copy {
+    position: absolute;
+    inset-block-start: 28.5%;
+    inset-inline-start: 2.5rem;
+    inline-size: min(44.75rem, 55vw);
+    gap: 2rem;
+  }
+
+  .corridor .hero-helix {
+    position: absolute;
+    inset-block: 0;
+    inset-inline-start: 22.5rem;
+    inline-size: 71.25rem;
+    block-size: auto;
+    margin: 0;
+  }
+
+  .corridor .hero-rule-wrap {
+    position: absolute;
+    inset-block-start: 78.6%;
+    inset-inline: 2.5rem;
+  }
+
+  .corridor .hero-trust {
+    position: absolute;
+    inset-block-start: 83.6%;
+    inset-inline-start: 2.5rem;
+  }
+
+  .corridor .hero-chips-wrap {
+    position: absolute;
+    inset-block-start: 83.6%;
+    inset-inline-end: 2.5rem;
+    max-inline-size: 32rem;
+  }
+
+  .corridor .hero-chips {
+    justify-content: flex-end;
+  }
+
+  .corridor .hero-actions {
+    position: absolute;
+    inset-block-start: 89.4%;
+    inset-inline-start: 2.5rem;
+  }
 }

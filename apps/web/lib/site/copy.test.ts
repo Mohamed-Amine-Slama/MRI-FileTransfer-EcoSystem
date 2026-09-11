@@ -80,6 +80,18 @@ describe('the landing copy deck', () => {
       );
     }
   });
+
+  it('names the hero eyebrow and its four capability chips in every locale (spec §4.3)', () => {
+    const keys = ['heroEyebrow', 'heroChipUpload', 'heroChipConsent', 'heroChipBytes', 'heroChipBooking'];
+    for (const locale of UI_LOCALES) {
+      const copy = SITE_COPY[locale] as Record<string, string>;
+      for (const key of keys) expect(copy[key], `${locale}.${key}`).toBeTruthy();
+    }
+  });
+
+  it('drops the keys only the slice-scrub hero used', () => {
+    expect(Object.keys(SITE_COPY.ar)).not.toContain('heroScrollHint');
+  });
 });
 
 // ---------------------------------------------------------------------------

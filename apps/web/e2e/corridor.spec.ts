@@ -173,20 +173,44 @@ test.describe('tiering (§6.3, §12 L3)', () => {
 
   test('keeps the hero identical across tiers, so demotion is invisible', async ({ page }) => {
     // §6.3: "If a demotion causes a visible jump, the layout was
-    // tier-dependent, which is a bug." The cheapest proof is that the hero's
-    // own geometry does not move between the best tier and the worst.
-    const box = async (tier: string) => {
+    // tier-dependent, which is a bug." The headline and the helix box are the
+    // hero's two anchors; neither may move between the best tier and the worst.
+    const boxes = async (tier: string) => {
       await page.goto(`/ar?tier=${tier}`);
       await page.waitForTimeout(400);
-      return page.locator('h1').boundingBox();
+      return {
+        h1: await page.locator('h1').boundingBox(),
+        helix: await page.locator('#hero .helix').boundingBox(),
+      };
     };
 
-    const a = await box('A');
-    const c = await box('C');
-    expect(a).not.toBeNull();
-    expect(c).not.toBeNull();
-    expect(Math.abs((a?.y ?? 0) - (c?.y ?? 0))).toBeLessThan(2);
-    expect(Math.abs((a?.height ?? 0) - (c?.height ?? 0))).toBeLessThan(2);
+    const a = await boxes('A');
+    const c = await boxes('C');
+    for (const key of ['h1', 'helix'] as const) {
+      expect(a[key], key).not.toBeNull();
+      expect(c[key], key).not.toBeNull();
+      expect(Math.abs((a[key]?.y ?? 0) - (c[key]?.y ?? 0)), key).toBeLessThan(2);
+      expect(Math.abs((a[key]?.height ?? 0) - (c[key]?.height ?? 0)), key).toBeLessThan(2);
+    }
+  });
+
+  test('puts the helix on the side away from the copy, in both directions (§3.6)', async ({
+    page,
+    isMobile,
+  }) => {
+    test.skip(isMobile, 'the side-by-side layout starts at 1000px');
+    await page.setViewportSize({ width: 1440, height: 900 });
+    for (const [locale, helixToTheRight] of [
+      ['fr', true],
+      ['ar', false],
+    ] as const) {
+      await page.goto(`/${locale}?tier=C`);
+      const h1 = await page.locator('h1').boundingBox();
+      const helix = await page.locator('#hero .helix').boundingBox();
+      const h1Centre = (h1?.x ?? 0) + (h1?.width ?? 0) / 2;
+      const helixCentre = (helix?.x ?? 0) + (helix?.width ?? 0) / 2;
+      expect(helixCentre > h1Centre, locale).toBe(helixToTheRight);
+    }
   });
 });
 
@@ -216,7 +240,7 @@ test.describe('focal reveals (§3.5, §6.6, §12 L5)', () => {
     await page.goto('/ar?tier=A');
     await page.waitForTimeout(800);
 
-    const planes = page.locator('[data-plane]');
+    const planes = page.locator('[data-plane], [data-reveal]');
     const total = await planes.count();
     // If this ever finds nothing, the selector changed and the test is vacuous.
     expect(total).toBeGreaterThan(15);

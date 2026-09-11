@@ -2187,20 +2187,6 @@ node apps/web/scripts/render-helix-poster.mjs           # helix posters (needs t
 ```
 4. §3 budgets: add a line recording the measured `helix:geometry` duration from Task 5's e2e run and the two poster sizes from Task 5 Step 6.
 
-- [ ] **Step 13: Commit**
-
-```bash
-git add -A apps/web docs/landing-page-status.md
-git commit -m "$(cat <<'EOF'
-refactor(landing): retire the slice scrub, counter, Tier A frames and slice cue
-
-Co-Authored-By: Claude Opus 5 <noreply@anthropic.com>
-Claude-Session: https://claude.ai/code/session_01B3Gf7jwE6nzLE5MKh7UWHy
-EOF
-)"
-```
-
----
 
 ## Done when
 
