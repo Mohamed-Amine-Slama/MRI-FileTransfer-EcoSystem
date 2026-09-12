@@ -66,7 +66,6 @@ const ar = {
   heroStatusOperational: 'النظام يعمل',
   heroStatusUnknown: 'حالة النظام',
   heroTrustLine: 'نقل مشفّر · سجل غير قابل للتعديل',
-  heroSliceCounterLabel: 'موضع المقطع في المجلد',
 
   // -- Scene 02 · the problem ----------------------------------------------
   problemTitle: 'ثلاثة أشياء تُبطئ كل إحالة.',
@@ -242,7 +241,6 @@ const fr: SiteCopy = {
   heroStatusOperational: 'Système opérationnel',
   heroStatusUnknown: 'État du système',
   heroTrustLine: 'Transfert chiffré · Journal inaltérable',
-  heroSliceCounterLabel: 'Position de la coupe dans le volume',
 
   problemTitle: 'Trois choses ralentissent chaque orientation.',
   problemCdLabel: 'Le CD',
@@ -413,7 +411,6 @@ const en: SiteCopy = {
   heroStatusOperational: 'System operational',
   heroStatusUnknown: 'System status',
   heroTrustLine: 'Encrypted transfer · Immutable audit log',
-  heroSliceCounterLabel: 'Slice position in the volume',
 
   problemTitle: 'Three things slow every referral down.',
   problemCdLabel: 'The CD',

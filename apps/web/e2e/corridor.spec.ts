@@ -129,14 +129,6 @@ test.describe('direction (§3.6, §12 L2)', () => {
       }
     }
   });
-
-  test('does not reverse the slice counter under RTL (§3.6)', async ({ page }) => {
-    // A CT stack is not directional: scrolling down goes deeper in every
-    // language, and "001 / 180" is a fraction, not a sentence. Bidi will
-    // reorder the two digit runs unless the counter isolates them.
-    await page.goto('/ar');
-    await expect(page.locator('.slice-counter').first()).toHaveText(/^0*1\s*\/\s*180$/);
-  });
 });
 
 // ---------------------------------------------------------------------------
@@ -152,24 +144,6 @@ test.describe('tiering (§6.3, §12 L3)', () => {
       await expect(page.getByTestId('landing-signup')).toBeVisible();
     });
   }
-
-  test('Tier C loads no slice sequence at all', async ({ page }) => {
-    /*
-     * The whole tier architecture rests on this. Tier C is where a
-     * reduced-motion preference and a save-data header land, and it must cost
-     * them nothing beyond the poster — §6.3: "poster only", not "fewer frames".
-     */
-    const frames: string[] = [];
-    page.on('request', (r) => {
-      if (/\/seq\/hero\/[ab]\/\d+\.avif$/.test(r.url())) frames.push(r.url());
-    });
-
-    await page.goto('/ar?tier=C');
-    await page.evaluate(() => window.scrollTo(0, document.body.scrollHeight));
-    await page.waitForTimeout(1500);
-
-    expect(frames, 'Tier C requested sequence frames').toEqual([]);
-  });
 
   test('keeps the hero identical across tiers, so demotion is invisible', async ({ page }) => {
     // §6.3: "If a demotion causes a visible jump, the layout was

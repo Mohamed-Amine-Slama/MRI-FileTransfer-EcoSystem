@@ -91,6 +91,7 @@ describe('the landing copy deck', () => {
 
   it('drops the keys only the slice-scrub hero used', () => {
     expect(Object.keys(SITE_COPY.ar)).not.toContain('heroScrollHint');
+    expect(Object.keys(SITE_COPY.ar)).not.toContain('heroSliceCounterLabel');
   });
 });
 

@@ -14,7 +14,7 @@
  * So:
  *   Tier C is the page. Static, correct, complete, ~34 KB of JS. It is what
  *          the HTML response contains and what renders if no script ever runs.
- *   Tier B adds the slice sequence at half resolution and two depth planes.
+ *   Tier B adds the helix at 14k particles and two depth planes.
  *   Tier A adds the full helix, five planes, sound and haptics.
  *
  * The layout is IDENTICAL in all three. That is not a nicety — it is the
@@ -63,7 +63,7 @@ export function tierFromSignals(s: Signals): Tier {
    *   reducedMotion  a vestibular condition. §6.8: none, not "smaller".
    *   saveData       "I am paying for these bytes."
    *   2g / slow-2g   the cinema would arrive after they had gone.
-   *   downlink       measured, and below the point where the sequence helps.
+   *   downlink       measured, and below the point where the experience helps.
    *   memory ≤ 2 GB  the device would drop frames rendering it.
    */
   if (s.reducedMotion) return 'C';
@@ -171,10 +171,6 @@ export function demoted(from: Tier): Tier {
  * the measurement that catches it.
  */
 export const DEMOTION = {
-  /** ms to load the first 8 sequence frames, above which the tier was wrong. */
-  firstFramesMs: 1200,
-  /** How many frames to time before deciding. */
-  sampleFrames: 8,
   /** Sustained fps below this over the window means the device cannot keep up. */
   minFps: 45,
   /** Window over which frame rate is averaged, in ms. */
@@ -183,8 +179,6 @@ export const DEMOTION = {
 
 /** What each tier actually ships — §6.3's table, as data. */
 export interface TierBudget {
-  /** Which rendered sequence directory to load, or null for the poster alone. */
-  sequence: 'a' | 'b' | null;
   /** Parallax z-planes. */
   planes: number;
   /** Sound cues and haptics may be OFFERED. Both stay off until asked for. */
@@ -196,7 +190,7 @@ export interface TierBudget {
 }
 
 export const TIER_BUDGET: Record<Tier, TierBudget> = {
-  A: { sequence: 'a', planes: 5, expressive: true, interactiveDemo: true, helix: { particles: 36_000, dpr: 2 } },
-  B: { sequence: 'b', planes: 2, expressive: true, interactiveDemo: true, helix: { particles: 14_000, dpr: 1 } },
-  C: { sequence: null, planes: 0, expressive: false, interactiveDemo: false, helix: null },
+  A: { planes: 5, expressive: true, interactiveDemo: true, helix: { particles: 36_000, dpr: 2 } },
+  B: { planes: 2, expressive: true, interactiveDemo: true, helix: { particles: 14_000, dpr: 1 } },
+  C: { planes: 0, expressive: false, interactiveDemo: false, helix: null },
 };

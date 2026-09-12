@@ -384,12 +384,6 @@
   pointer-events: none;
 }
 
-/* Same reasoning, for the page-wide counter and the closing 180 / 180. */
-.corridor .slice-counter,
-.corridor .close-counter {
-  unicode-bidi: plaintext;
-}
-
 .corridor .plate-body {
   padding: clamp(1.25rem, 3vw, 2.5rem);
 }
@@ -1664,11 +1658,6 @@
   color: var(--c-ground);
   border-radius: var(--r-card);
   text-align: center;
-}
-
-.corridor .close-counter {
-  color: var(--c-lime);
-  letter-spacing: 0.2em;
 }
 
 .corridor .close-line {

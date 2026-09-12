@@ -2,7 +2,7 @@ import { readdirSync } from 'node:fs';
 import { dirname, join, resolve } from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { describe, expect, it } from 'vitest';
-import { SEQUENCE, bisectOrder, framePath } from './sequence';
+import { SEQUENCE, framePath } from './sequence';
 import {
   TIER_BUDGET,
   demoted,
@@ -93,11 +93,10 @@ describe('the ?tier= override (§12 L3)', () => {
 });
 
 describe('what each tier ships', () => {
-  it('gives Tier C no sequence, no planes, and nothing expressive', () => {
+  it('gives Tier C no planes, nothing expressive, and no helix', () => {
     // Tier C is the HTML response. If it ever grows a moving part, the "ship
     // Tier C first" guarantee (§8.2 technique 1) is gone.
     expect(TIER_BUDGET.C).toEqual({
-      sequence: null,
       planes: 0,
       expressive: false,
       interactiveDemo: false,
@@ -119,48 +118,28 @@ describe('what each tier ships', () => {
   });
 });
 
-describe('the slice sequence on disk (§6.5)', () => {
-  it.each(['a', 'b'] as const)('has exactly the frames tier %s claims', (dir) => {
-    const files = readdirSync(join(WEB_ROOT, 'public', 'seq', 'hero', dir));
-    expect(files.filter((f) => f.endsWith('.avif'))).toHaveLength(SEQUENCE.frames[dir]);
+describe('the phantom imagery on disk (§6.5)', () => {
+  it('has exactly the Tier B frames the consent thumbnails ask for', () => {
+    const files = readdirSync(join(WEB_ROOT, 'public', 'seq', 'hero', 'b'));
+    expect(files.filter((f) => f.endsWith('.avif'))).toHaveLength(SEQUENCE.frames.b);
   });
 
-  it('names every frame the way the player asks for it', () => {
-    const files = new Set(readdirSync(join(WEB_ROOT, 'public', 'seq', 'hero', 'a')));
-    for (let i = 0; i < SEQUENCE.frames.a; i++) {
-      expect(files.has(framePath('a', i).split('/').pop() ?? ''), `frame ${i}`).toBe(true);
+  it('names every frame the way the thumbnails ask for it', () => {
+    const files = new Set(readdirSync(join(WEB_ROOT, 'public', 'seq', 'hero', 'b')));
+    for (let i = 0; i < SEQUENCE.frames.b; i++) {
+      expect(files.has(framePath('b', i).split('/').pop() ?? ''), `frame ${i}`).toBe(true);
     }
   });
 
-  it('ships the poster Tier C renders instead of the canvas', () => {
+  it('no longer ships the Tier A scrub sequence', () => {
+    expect(readdirSync(join(WEB_ROOT, 'public', 'seq', 'hero'))).not.toContain('a');
+  });
+
+  it('ships the poster the viewer scene shows', () => {
     expect(readdirSync(join(WEB_ROOT, 'public', 'seq', 'hero'))).toContain('poster.avif');
   });
 
   it('records where the imagery came from (§7.1, §14)', () => {
-    // A dataset with no recorded provenance is the one thing §7.3 will not
-    // permit, even when the answer is "it is a phantom and there is no dataset".
     expect(readdirSync(join(WEB_ROOT, 'public', 'seq', 'hero'))).toContain('SOURCE.md');
-  });
-});
-
-describe('bisect load order (§6.5)', () => {
-  it('loads the ends first, so any scroll position has a nearby frame', () => {
-    expect(bisectOrder(9).slice(0, 3)).toEqual([0, 8, 4]);
-  });
-
-  it('covers every frame exactly once', () => {
-    for (const n of [1, 2, 3, 24, 36, 48]) {
-      const order = bisectOrder(n);
-      expect(new Set(order).size, `n=${n}`).toBe(n);
-      expect([...order].sort((x, y) => x - y), `n=${n}`).toEqual(
-        Array.from({ length: n }, (_, i) => i),
-      );
-    }
-  });
-
-  it('survives degenerate counts rather than looping forever', () => {
-    expect(bisectOrder(0)).toEqual([]);
-    expect(bisectOrder(1)).toEqual([0]);
-    expect(bisectOrder(2)).toEqual([0, 1]);
   });
 });
