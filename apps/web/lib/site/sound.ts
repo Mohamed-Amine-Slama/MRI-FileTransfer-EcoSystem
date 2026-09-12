@@ -2,7 +2,7 @@
  * Sound — Landing-Page-Specs §2.2 channel 5.
  *
  * ---------------------------------------------------------------------------
- * FIVE CUES, ZERO BYTES.
+ * FOUR CUES, ZERO BYTES.
  *
  * §2.2 allows four sounds: scene arrival, consent stamp,
  * upload complete, CTA press. It also budgets the page at 2.5 MB on the best
@@ -10,8 +10,8 @@
  * to cut when money is short.
  *
  * All three pressures point the same way, so these are SYNTHESISED with
- * WebAudio oscillators rather than loaded as files. Five short cues as audio
- * assets is ~60–120 KB and five more requests; as ~40 lines of code it is
+ * WebAudio oscillators rather than loaded as files. Four short cues as audio
+ * assets is ~60–120 KB and four more requests; as ~40 lines of code it is
  * nothing, needs no licence, no sound designer, and no CDN origin the CSP
  * would have to permit.
  *
