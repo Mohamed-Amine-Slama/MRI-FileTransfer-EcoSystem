@@ -214,7 +214,14 @@ test.describe('focal reveals (§3.5, §6.6, §12 L5)', () => {
     await page.goto('/ar?tier=A');
     await page.waitForTimeout(800);
 
-    const planes = page.locator('[data-plane], [data-reveal]');
+    /*
+     * `[data-unit]` covers `WordReveal`'s word spans (components/corridor/
+     * motion/WordReveal.tsx), which animate from `opacity: 0` under a tween
+     * that only plays once the load curtain lifts — exactly the failure mode
+     * this guard exists to catch, on the page's most important element (the
+     * hero's own headline), and previously uncovered by this selector.
+     */
+    const planes = page.locator('[data-plane], [data-reveal], [data-unit]');
     const total = await planes.count();
     // If this ever finds nothing, the selector changed and the test is vacuous.
     expect(total).toBeGreaterThan(15);
@@ -532,6 +539,35 @@ test.describe('the helix (spec §5)', () => {
     const helix = page.locator('#hero .helix');
     await expect(helix).toHaveAttribute('data-helix-state', 'running', { timeout: 20_000 });
 
+    /*
+     * `data-helix-state` flips to `running` the instant the render loop
+     * starts, but `.helix-poster` still has 400ms left on its crossfade
+     * (app/corridor.css) at that moment. Screenshotting immediately compares
+     * a frame with the poster still fading over the canvas against one
+     * without it — the two frames would differ because the poster faded, not
+     * because the canvas drew anything. Waiting for the crossfade to finish
+     * isolates the comparison to the canvas alone.
+     */
+    await expect(helix.locator('.helix-poster')).toHaveCSS('opacity', '0');
+
+    /*
+     * A direct "is the canvas blank" readback was tried here and removed.
+     * `canvas.getContext('webgl2')` cannot be reused for it — a second
+     * context request on the same canvas returns the first context rather
+     * than a fresh one for reading — and drawing the live canvas into a 2D
+     * canvas via `drawImage` is not reliable either: `preserveDrawingBuffer`
+     * is false for the live renderer (only the `?helix-still` capture sets it
+     * true), so the drawing buffer's content outside the exact task that
+     * rendered it is undefined by spec, and `page.evaluate` never runs in
+     * that task — it round-trips over CDP. This was not theoretical: with
+     * that check in place, this test failed with "painted no visible
+     * pixels" on a run whose own failure screenshot (Playwright's
+     * `helix.screenshot()`, which captures the actually-composited page)
+     * plainly showed the helix's green particles on screen. So the
+     * before/after diff below, on a wait anchored to the poster's crossfade
+     * actually finishing, is the reliable version of this assertion.
+     */
+
     // Two frames apart must differ: a stalled loop or a blank canvas would not.
     const first = await helix.screenshot();
     await page.waitForTimeout(600);
@@ -539,14 +575,17 @@ test.describe('the helix (spec §5)', () => {
     expect(first.equals(second), 'the helix did not move in 600 ms').toBe(false);
   });
 
-  test('builds its particle buffers inside the frame budget (spec §10)', async ({ page, isMobile }) => {
+  test("does not regress past this environment's measured geometry range", async ({ page, isMobile }) => {
     test.skip(isMobile, 'Tier A is a desktop tier');
     await page.goto('/fr?tier=A');
     await expect(page.locator('#hero .helix')).toHaveAttribute('data-helix-state', 'running', {
       timeout: 20_000,
     });
+    // Namespaced per host (spec fix §2): the hero is `#hero`, so its mark is
+    // `helix:geometry:hero`. A second HelixCanvas (Plan 3's close scene) gets
+    // its own `helix:geometry:close` and cannot collide with this one.
     const ms = await page.evaluate(
-      () => performance.getEntriesByName('helix:geometry')[0]?.duration ?? Number.POSITIVE_INFINITY,
+      () => performance.getEntriesByName('helix:geometry:hero')[0]?.duration ?? Number.POSITIVE_INFINITY,
     );
     // The spec's target is <= 10 ms on a real device. Measured here — WSL2 +
     // SwiftShader software WebGL2 + Docker, ~8 GB RAM, machine otherwise idle
@@ -573,7 +612,9 @@ test.describe('the helix (spec §5)', () => {
     await expect(helix.locator('canvas')).toHaveCount(0);
   });
 
-  test('falls back to its poster when the browser has no WebGL2', async ({ page }) => {
+  test('falls back to its poster when the browser has no WebGL2, and never fetches the renderer chunk', async ({
+    page,
+  }) => {
     await page.addInitScript(() => {
       const original = HTMLCanvasElement.prototype.getContext;
       HTMLCanvasElement.prototype.getContext = function (
@@ -585,17 +626,52 @@ test.describe('the helix (spec §5)', () => {
         return (original as (...args: unknown[]) => unknown).call(this, type, ...rest);
       } as typeof original;
     });
+
+    /*
+     * Fix §1 makes `HelixCanvas` probe WebGL2 on a throwaway canvas (which
+     * this stub also defeats) and skip `import('./helix-renderer')` entirely
+     * when it is absent — so the old assertion here, polling `helix:build` to
+     * length 1, can now never resolve and would hang for its full 15s
+     * timeout. What actually matters is provable over the network instead:
+     * the renderer chunk must never even be requested.
+     *
+     * Matched by content, not URL — webpack assigns the chunk a hashed
+     * filename, not a stable one. `uPointerStrength` is a uniform name used
+     * unconditionally in every frame's draw call (helix-renderer.ts), so it
+     * survives production minification (unlike the dev-only `warn(...)`
+     * strings in the same file), and it appears nowhere outside the
+     * `import('./helix-renderer')` boundary: helix-shaders.ts and
+     * helix-geometry.ts are only ever reached through helix-renderer.ts,
+     * and helix-config.ts — which HelixCanvas.tsx does import eagerly — does
+     * not declare it.
+     */
+    let rendererChunkFetched = false;
+    page.on('response', (response) => {
+      if (!/_next\/static\/.*\.js(?:\?|$)/.test(response.url())) return;
+      response
+        .text()
+        .then((body) => {
+          if (body.includes('uPointerStrength')) rendererChunkFetched = true;
+        })
+        .catch(() => {
+          // Aborted or redirected response — irrelevant to this check.
+        });
+    });
+
     await page.goto('/fr?tier=A');
 
-    // Wait until the renderer was actually attempted, or this proves nothing.
-    await expect
-      .poll(() => page.evaluate(() => performance.getEntriesByName('helix:build').length), {
-        timeout: 15_000,
-      })
-      .toBe(1);
     const helix = page.locator('#hero .helix');
     await expect(helix).toHaveAttribute('data-helix-state', 'poster');
+    /*
+     * Long enough to cover the idle callback's own timeout and the entrance's
+     * assemble window this scene would otherwise use — if the gate leaked,
+     * this is the window where `poster` would flip to `loading` or `running`.
+     */
+    await page.waitForTimeout(3000);
+    await expect(helix).toHaveAttribute('data-helix-state', 'poster');
     await expect(helix.locator('.helix-poster')).toHaveCSS('opacity', '1');
+
+    expect(rendererChunkFetched, 'the helix-renderer chunk was requested despite no WebGL2').toBe(false);
   });
 
   test('ships a poster per direction', async ({ request }) => {

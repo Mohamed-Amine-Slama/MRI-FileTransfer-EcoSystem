@@ -4,10 +4,12 @@
  * ---------------------------------------------------------------------------
  * FOUR CUES, ZERO BYTES.
  *
- * §2.2 allows four sounds: scene arrival, consent stamp,
- * upload complete, CTA press. It also budgets the page at 2.5 MB on the best
- * tier and 450 KB on the worst, and §15 lists sound design as the first thing
- * to cut when money is short.
+ * §2.2 allows five sounds. The fifth was a tick tied to the slice-scrub
+ * interaction, which this page no longer has — it left with the interaction
+ * it accompanied, not by an omission here. What remains, correctly, is four:
+ * scene arrival, consent stamp, upload complete, CTA press. §2.2 also budgets
+ * the page at 2.5 MB on the best tier and 450 KB on the worst, and §15 lists
+ * sound design as the first thing to cut when money is short.
  *
  * All three pressures point the same way, so these are SYNTHESISED with
  * WebAudio oscillators rather than loaded as files. Four short cues as audio
