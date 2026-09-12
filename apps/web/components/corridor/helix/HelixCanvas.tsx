@@ -26,6 +26,41 @@ type Factory = (typeof import('./helix-renderer'))['createHelixRenderer'];
 
 const OFFSCREEN: readonly [number, number] = [-1e4, -1e4];
 
+/*
+ * WebGL2 support, probed once per page and cached — spec §5.5/§8: a browser
+ * without it must never even request the renderer chunk.
+ *
+ * `budget.helix` alone is not proof a real context exists: `tier.ts` only
+ * gates `webgl2` into its own detection, and a forced `?tier=` (used all over
+ * this suite, and reachable by anyone) bypasses detection entirely, so Tier A
+ * or B's non-null budget can still land here on a browser with none.
+ *
+ * Probed on a THROWAWAY canvas, never the real one — a second `getContext`
+ * call on the same canvas returns the first context and silently ignores new
+ * attributes, which would leave `preserveDrawingBuffer` wrong for a
+ * `?helix-still` capture. Memoised at module scope so two `HelixCanvas`
+ * instances (Plan 3 mounts a second, in the close scene) probe once, not
+ * twice.
+ */
+let webgl2Support: boolean | null = null;
+
+function supportsWebgl2(): boolean {
+  if (webgl2Support === null) webgl2Support = probeWebgl2();
+  return webgl2Support;
+}
+
+function probeWebgl2(): boolean {
+  try {
+    const canvas = document.createElement('canvas');
+    const gl = canvas.getContext('webgl2');
+    if (gl === null) return false;
+    gl.getExtension('WEBGL_lose_context')?.loseContext();
+    return true;
+  } catch {
+    return false;
+  }
+}
+
 export function HelixCanvas({
   hostRef,
   entrance,
@@ -53,6 +88,10 @@ export function HelixCanvas({
 
     const still = new URLSearchParams(window.location.search).has('helix-still');
     const mirror = dir === 'rtl';
+    // Namespaces the performance measures per host — the hero is `#hero`, the
+    // close scene (Plan 3) will be `#close`, and two unlabelled instances
+    // would collide on the same `helix:build` / `helix:geometry` marks.
+    const label = host.id !== '' ? host.id : 'helix';
     let disposed = false;
     let factory: Factory | null = null;
     let renderer: HelixRenderer | null = null;
@@ -118,8 +157,8 @@ export function HelixCanvas({
     const create = (): void => {
       if (factory === null) return;
       const started = performance.now();
-      renderer = factory(canvas, { count: helix.particles, mirror, preserveDrawingBuffer: still });
-      performance.measure('helix:build', { start: started, end: performance.now() });
+      renderer = factory(canvas, { count: helix.particles, mirror, preserveDrawingBuffer: still, label });
+      performance.measure(`helix:build:${label}`, { start: started, end: performance.now() });
       if (renderer === null) {
         setState('poster');
         return;
@@ -133,8 +172,18 @@ export function HelixCanvas({
 
     const intersection = new IntersectionObserver(([entry]) => {
       visible = entry?.isIntersecting === true;
-      if (visible) run();
-      else if (renderer !== null && !still) halt('paused');
+      if (visible) {
+        /*
+         * The renderer is built lazily and only while its host is on screen
+         * (spec §5.4/§8) — a decoration has no business paying for its own
+         * geometry and GL setup before anyone can see it. The idle callback
+         * may have resolved the factory while the host was still off screen,
+         * in which case nothing has been built yet and this first sighting
+         * is what builds it.
+         */
+        if (renderer === null && factory !== null) create();
+        else run();
+      } else if (renderer !== null && !still) halt('paused');
     });
     intersection.observe(host);
 
@@ -183,18 +232,29 @@ export function HelixCanvas({
           })
         : () => {};
 
-    setState('loading');
-    const cancelIdle = whenIdle(() => {
-      import('./helix-renderer')
-        .then((module) => {
-          if (disposed) return;
-          factory = module.createHelixRenderer;
-          create();
-        })
-        .catch(() => {
-          if (!disposed) setState('poster');
-        });
-    });
+    /*
+     * A browser without WebGL2 must never import the renderer chunk (spec
+     * §5.5/§8) — `state` simply stays at its initial `'poster'` and the idle
+     * callback below is never scheduled.
+     */
+    let cancelIdle: () => void = () => {};
+    if (supportsWebgl2()) {
+      setState('loading');
+      cancelIdle = whenIdle(() => {
+        import('./helix-renderer')
+          .then((module) => {
+            if (disposed) return;
+            factory = module.createHelixRenderer;
+            // Build only once the host is on screen — or immediately for a
+            // still capture, whose page is genuinely visible but may not yet
+            // have had its first IntersectionObserver callback land.
+            if (visible || still) create();
+          })
+          .catch(() => {
+            if (!disposed) setState('poster');
+          });
+      });
+    }
 
     return () => {
       disposed = true;

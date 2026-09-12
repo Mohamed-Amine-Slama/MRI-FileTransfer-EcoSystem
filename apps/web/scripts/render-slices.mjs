@@ -1,10 +1,9 @@
 #!/usr/bin/env node
 /**
- * Renders the hero slice sequence — Landing-Page-Specs §7.1.
+ * Renders the phantom CT imagery the landing page still uses — Landing-Page-Specs §7.1.
  *
- * The landing page's signature mechanic is scroll-as-slice: the hero is a
- * volume, and scrolling scrubs through it. This script produces that volume as
- * two AVIF sequences (one per delivery tier) plus a poster frame.
+ * S05's consent thumbnails sample three of the Tier B frames this script
+ * writes, and S06's viewer scene shows the poster frame it also writes.
  *
  * ---------------------------------------------------------------------------
  * WHY A PHANTOM AND NOT THE DICOM FIXTURES
@@ -46,14 +45,10 @@ const WEB_ROOT = dirname(dirname(fileURLToPath(import.meta.url)));
 const OUT = join(WEB_ROOT, 'public', 'seq', 'hero');
 
 /**
- * §7.1 budget: tier a under 260 KB total, tier b under 120 KB. Frame count is
- * the lever, quality is not — a 32-frame sequence at good quality beats a
- * 48-frame mush, and at scrub speed nobody sees the difference.
- *
- * §4's suggested 48 frames came to 326 KB at this quality, so the count came
- * down to 36 rather than the quality coming down to meet it. That is §7.1's
- * own instruction, and 36 frames over a ~1.6 viewport scrub is a slice every
- * ~30 px of travel — finer than the eye resolves at scrub speed.
+ * §7.1 budget: 120 KB for the Tier B frame set — the only sequence this
+ * script still renders, now that Tier A's is retired. Frame count is the
+ * lever, quality is not: a leaner sequence at good quality beats a fuller
+ * one that has had to skimp on it.
  */
 const TIERS = {
   b: { width: 800, height: 450, frames: 24, quality: 42, budget: 120_000 },

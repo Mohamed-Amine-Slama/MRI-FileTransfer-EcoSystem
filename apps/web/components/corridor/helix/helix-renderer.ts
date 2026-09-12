@@ -82,8 +82,9 @@ function compile(gl: WebGL2RenderingContext, type: number, source: string): WebG
 
 export function createHelixRenderer(
   canvas: HTMLCanvasElement,
-  options: { count: number; mirror: boolean; preserveDrawingBuffer?: boolean },
+  options: { count: number; mirror: boolean; preserveDrawingBuffer?: boolean; label?: string },
 ): HelixRenderer | null {
+  const label = options.label ?? 'helix';
   const gl = context(canvas, options.preserveDrawingBuffer === true);
   if (gl === null) {
     warn('WebGL2 context unavailable', null);
@@ -92,7 +93,14 @@ export function createHelixRenderer(
 
   const vertex = compile(gl, gl.VERTEX_SHADER, VERTEX_SHADER);
   const fragment = compile(gl, gl.FRAGMENT_SHADER, FRAGMENT_SHADER);
-  if (vertex === null || fragment === null) return null;
+  if (vertex === null || fragment === null) {
+    // Whichever of the two DID compile is a real GL object and leaks if not
+    // freed here — this is the only return path that does not fall through
+    // to the vertex/fragment deletion a few lines below.
+    if (vertex !== null) gl.deleteShader(vertex);
+    if (fragment !== null) gl.deleteShader(fragment);
+    return null;
+  }
 
   const program = gl.createProgram();
   if (program === null) {
@@ -113,7 +121,11 @@ export function createHelixRenderer(
 
   const started = performance.now();
   const data = buildHelix({ count: options.count });
-  performance.measure('helix:geometry', { start: started, end: performance.now() });
+  performance.measure(`helix:geometry:${label}`, { start: started, end: performance.now() });
+  // Captured so the closures below never retain `data` itself — at Tier A
+  // that object is ~1.3 MB of typed arrays, needed only to get them onto the
+  // GPU, not to keep around for the life of the renderer.
+  const count = data.count;
 
   const vao = gl.createVertexArray();
   if (vao === null) {
@@ -204,7 +216,7 @@ export function createHelixRenderer(
       gl.uniform1f(u.uPointerStrength, frame.pointerStrength);
       gl.clear(gl.COLOR_BUFFER_BIT);
       gl.bindVertexArray(vao);
-      gl.drawArrays(gl.POINTS, 0, data.count);
+      gl.drawArrays(gl.POINTS, 0, count);
       gl.bindVertexArray(null);
     },
     dispose() {

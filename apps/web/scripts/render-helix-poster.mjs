@@ -11,6 +11,10 @@
  * Needs the app running:
  *   pnpm --filter @mir/web build && pnpm --filter @mir/web start
  *   node apps/web/scripts/render-helix-poster.mjs [baseUrl]
+ *
+ * Pass the real base URL as the first argument. The default below, :3001, is
+ * a Docker container running an old image in this environment — pointing
+ * this script at it silently re-renders posters from stale code.
  */
 import { mkdirSync, writeFileSync } from 'node:fs';
 import { dirname, join } from 'node:path';
@@ -46,6 +50,7 @@ for (const [dir, path] of TARGETS) {
 
   const png = Buffer.from(dataUrl.slice(dataUrl.indexOf(',') + 1), 'base64');
   const { width, height } = await sharp(png).metadata();
+  // quality: 30 — 42 produced 72.5 KB / 74.0 KB, over the 60 KB BUDGET below.
   const avif = await sharp(png).avif({ quality: 30, effort: 6 }).toBuffer();
   writeFileSync(join(OUT, `poster-${dir}.avif`), avif);
 
