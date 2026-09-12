@@ -56,7 +56,6 @@ const OUT = join(WEB_ROOT, 'public', 'seq', 'hero');
  * ~30 px of travel — finer than the eye resolves at scrub speed.
  */
 const TIERS = {
-  a: { width: 1280, height: 720, frames: 36, quality: 44, budget: 260_000 },
   b: { width: 800, height: 450, frames: 24, quality: 42, budget: 120_000 },
 };
 
@@ -262,7 +261,7 @@ async function main() {
    * sequence: it is a still that someone may look at for the length of their
    * whole visit, not a frame that flicks past in 30 ms.
    */
-  const poster = await encode(0, TIERS.a, 58);
+  const poster = await encode(0, { width: 1280, height: 720 }, 58);
   writeFileSync(join(OUT, 'poster.avif'), poster);
   console.log(`poster: ${(poster.length / 1024).toFixed(1)} KB`);
 

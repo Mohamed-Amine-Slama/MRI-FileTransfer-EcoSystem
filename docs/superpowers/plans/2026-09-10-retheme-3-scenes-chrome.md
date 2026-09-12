@@ -2599,17 +2599,7 @@ In `e2e/theme.spec.ts`, replace the comment paragraph that begins "The landing p
 Run: `pnpm --filter @mir/web typecheck && pnpm --filter @mir/web build && pnpm --filter @mir/web exec playwright test e2e/corridor.spec.ts e2e/theme.spec.ts e2e/public-surface.spec.ts`
 Expected: PASS on both projects (the language switcher opens with no script; the anchor test clicks `.chrome-link[href="#security"]`; the theme toggle works from the header).
 
-- [ ] **Step 5: Commit**
 
-```bash
-git add apps/web/components/corridor/CorridorChrome.tsx apps/web/app/corridor.css apps/web/e2e/theme.spec.ts
-git commit -m "$(cat <<'EOF'
-feat(landing): floating glass header with the MIR tile and a register pill
-
-Co-Authored-By: Claude Opus 5 <noreply@anthropic.com>
-Claude-Session: https://claude.ai/code/session_01B3Gf7jwE6nzLE5MKh7UWHy
-EOF
-)"
 ```
 
 ---
@@ -2714,20 +2704,6 @@ In `docs/landing-page-status.md`:
 3. §3: re-measure and record — the `/[locale]` route's "First Load JS" from the `pnpm --filter @mir/web build` output table (compare with the previous figure in §3 and state the difference), the two poster sizes, the corridor map size, and the `helix:geometry` duration. Re-run LCP and CLS with the method §3 already documents for the 3 Mbit profile and record both figures. If LCP is ≥ 2.0 s or CLS is above 0, stop and report it rather than committing — that is a spec §10 failure, not a doc update.
 4. §4 open items, under "Needs a device or a network": add "Helix GPU frame time at Tier A on integrated graphics (spec §10 target ≤ 2 ms) — SwiftShader in CI proves correctness, not speed." Under "Needs a person": add "Owner's visual sign-off of the light re-theme against the reference captures."
 
-- [ ] **Step 7: Commit**
-
-```bash
-git add -A apps/web docs/landing-page-status.md
-git commit -m "$(cat <<'EOF'
-refactor(landing): remove FocalReveal and Plate; status doc for the light re-theme
-
-Co-Authored-By: Claude Opus 5 <noreply@anthropic.com>
-Claude-Session: https://claude.ai/code/session_01B3Gf7jwE6nzLE5MKh7UWHy
-EOF
-)"
-```
-
----
 
 ## Done when
 

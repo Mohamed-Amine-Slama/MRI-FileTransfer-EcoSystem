@@ -4,7 +4,7 @@
  * ---------------------------------------------------------------------------
  * FIVE CUES, ZERO BYTES.
  *
- * §2.2 allows exactly five sounds: slice tick, scene arrival, consent stamp,
+ * §2.2 allows four sounds: scene arrival, consent stamp,
  * upload complete, CTA press. It also budgets the page at 2.5 MB on the best
  * tier and 450 KB on the worst, and §15 lists sound design as the first thing
  * to cut when money is short.
@@ -31,7 +31,7 @@
  *   - Off entirely under Tier C.
  */
 
-export type Cue = 'slice' | 'scene' | 'stamp' | 'complete' | 'press';
+export type Cue = 'scene' | 'stamp' | 'complete' | 'press';
 
 const STORAGE_KEY = 'mir.site.sound';
 
@@ -100,14 +100,9 @@ interface CueSpec {
 }
 
 /**
- * The five cues.
- *
- * `slice` is the only one that can repeat, so it is the quietest and shortest
- * by an order of magnitude — it punctuates a scrub, and anything longer turns
- * into a drone the moment somebody flicks the page.
+ * The four cues.
  */
 const CUES: Record<Cue, CueSpec> = {
-  slice: { partials: [2400], type: 'sine', attack: 0.001, decay: 0.02, gain: 0.18 },
   scene: { partials: [420, 630], type: 'sine', attack: 0.006, decay: 0.34, gain: 0.5 },
   stamp: {
     partials: [140],

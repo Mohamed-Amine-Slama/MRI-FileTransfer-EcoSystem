@@ -3,7 +3,6 @@
 import Link from 'next/link';
 import { useSite } from '../../../lib/site/site-provider';
 import { FocalReveal } from '../motion/FocalReveal';
-import { SLICE_TOTAL } from '../primitives/SliceCounter';
 
 /**
  * Scene 11 — Close. Landing-Page-Specs §Scene 11.
@@ -30,10 +29,6 @@ export function S11Close(): React.JSX.Element {
       <div className="shell">
         <FocalReveal plane={1}>
           <div className="close-plate">
-            <span className="mono close-counter" aria-hidden="true">
-              {SLICE_TOTAL} / {SLICE_TOTAL}
-            </span>
-
             {/*
               Centred — one of exactly two places on the page where text is
               centred (§3.3), the hero statement being the other. Centred body

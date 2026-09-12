@@ -15,7 +15,7 @@ import { SITE_COPY, SITE_TEMPLATES, type SiteCopy } from './copy';
 import { dirOf, directionOf } from './dir';
 import { initScroll, whenIdle, type ScrollSystem } from './scroll';
 import { setSoundEnabled, soundEnabled, closeSound, playCue, type Cue } from './sound';
-import { DEMOTION, TIER_BUDGET, demoted, detectTier, type Tier, type TierBudget } from './tier';
+import { DEMOTION, TIER_BUDGET, demoted, detectTier, tierOverride, type Tier, type TierBudget } from './tier';
 
 /**
  * The landing page's one context — Landing-Page-Specs §6.3, §6.4, §6.8.
@@ -86,7 +86,12 @@ export function SiteProvider({
   // race and skip a level.
   const tierRef = useRef<Tier>('C');
 
+  // A tier forced with `?tier=` is held: that is what forcing it is for
+  // (§12 L3). Runtime demotion still protects every real visitor.
+  const pinnedRef = useRef(false);
+
   const demote = useCallback((why: string): void => {
+    if (pinnedRef.current) return;
     const next = demoted(tierRef.current);
     if (next === tierRef.current) return;
     tierRef.current = next;
@@ -113,6 +118,7 @@ export function SiteProvider({
     setReducedMotionState(stored);
     setSoundState(soundEnabled());
 
+    pinnedRef.current = tierOverride(window.location.search) !== null;
     const detected = stored ? 'C' : detectTier();
     tierRef.current = detected;
     setTier(detected);

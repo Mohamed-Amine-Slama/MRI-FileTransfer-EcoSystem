@@ -129,14 +129,6 @@ test.describe('direction (§3.6, §12 L2)', () => {
       }
     }
   });
-
-  test('does not reverse the slice counter under RTL (§3.6)', async ({ page }) => {
-    // A CT stack is not directional: scrolling down goes deeper in every
-    // language, and "001 / 180" is a fraction, not a sentence. Bidi will
-    // reorder the two digit runs unless the counter isolates them.
-    await page.goto('/ar');
-    await expect(page.locator('.slice-counter').first()).toHaveText(/^0*1\s*\/\s*180$/);
-  });
 });
 
 // ---------------------------------------------------------------------------
@@ -153,40 +145,46 @@ test.describe('tiering (§6.3, §12 L3)', () => {
     });
   }
 
-  test('Tier C loads no slice sequence at all', async ({ page }) => {
-    /*
-     * The whole tier architecture rests on this. Tier C is where a
-     * reduced-motion preference and a save-data header land, and it must cost
-     * them nothing beyond the poster — §6.3: "poster only", not "fewer frames".
-     */
-    const frames: string[] = [];
-    page.on('request', (r) => {
-      if (/\/seq\/hero\/[ab]\/\d+\.avif$/.test(r.url())) frames.push(r.url());
-    });
-
-    await page.goto('/ar?tier=C');
-    await page.evaluate(() => window.scrollTo(0, document.body.scrollHeight));
-    await page.waitForTimeout(1500);
-
-    expect(frames, 'Tier C requested sequence frames').toEqual([]);
-  });
-
   test('keeps the hero identical across tiers, so demotion is invisible', async ({ page }) => {
     // §6.3: "If a demotion causes a visible jump, the layout was
-    // tier-dependent, which is a bug." The cheapest proof is that the hero's
-    // own geometry does not move between the best tier and the worst.
-    const box = async (tier: string) => {
+    // tier-dependent, which is a bug." The headline and the helix box are the
+    // hero's two anchors; neither may move between the best tier and the worst.
+    const boxes = async (tier: string) => {
       await page.goto(`/ar?tier=${tier}`);
       await page.waitForTimeout(400);
-      return page.locator('h1').boundingBox();
+      return {
+        h1: await page.locator('h1').boundingBox(),
+        helix: await page.locator('#hero .helix').boundingBox(),
+      };
     };
 
-    const a = await box('A');
-    const c = await box('C');
-    expect(a).not.toBeNull();
-    expect(c).not.toBeNull();
-    expect(Math.abs((a?.y ?? 0) - (c?.y ?? 0))).toBeLessThan(2);
-    expect(Math.abs((a?.height ?? 0) - (c?.height ?? 0))).toBeLessThan(2);
+    const a = await boxes('A');
+    const c = await boxes('C');
+    for (const key of ['h1', 'helix'] as const) {
+      expect(a[key], key).not.toBeNull();
+      expect(c[key], key).not.toBeNull();
+      expect(Math.abs((a[key]?.y ?? 0) - (c[key]?.y ?? 0)), key).toBeLessThan(2);
+      expect(Math.abs((a[key]?.height ?? 0) - (c[key]?.height ?? 0)), key).toBeLessThan(2);
+    }
+  });
+
+  test('puts the helix on the side away from the copy, in both directions (§3.6)', async ({
+    page,
+    isMobile,
+  }) => {
+    test.skip(isMobile, 'the side-by-side layout starts at 1000px');
+    await page.setViewportSize({ width: 1440, height: 900 });
+    for (const [locale, helixToTheRight] of [
+      ['fr', true],
+      ['ar', false],
+    ] as const) {
+      await page.goto(`/${locale}?tier=C`);
+      const h1 = await page.locator('h1').boundingBox();
+      const helix = await page.locator('#hero .helix').boundingBox();
+      const h1Centre = (h1?.x ?? 0) + (h1?.width ?? 0) / 2;
+      const helixCentre = (helix?.x ?? 0) + (helix?.width ?? 0) / 2;
+      expect(helixCentre > h1Centre, locale).toBe(helixToTheRight);
+    }
   });
 });
 
@@ -216,7 +214,7 @@ test.describe('focal reveals (§3.5, §6.6, §12 L5)', () => {
     await page.goto('/ar?tier=A');
     await page.waitForTimeout(800);
 
-    const planes = page.locator('[data-plane]');
+    const planes = page.locator('[data-plane], [data-reveal]');
     const total = await planes.count();
     // If this ever finds nothing, the selector changed and the test is vacuous.
     expect(total).toBeGreaterThan(15);
@@ -517,6 +515,94 @@ test.describe('locale routes (§10)', () => {
     for (const path of ['/schedule', '/appointments', '/zz']) {
       const response = await page.goto(path);
       expect(response?.status(), path).toBe(404);
+    }
+  });
+});
+
+// ---------------------------------------------------------------------------
+// The particle helix — spec 2026-09-10 §5
+// ---------------------------------------------------------------------------
+
+test.describe('the helix (spec §5)', () => {
+  test('runs on Tier A and keeps drawing', async ({ page, isMobile }) => {
+    test.skip(isMobile, 'Tier A is a desktop tier');
+    await page.setViewportSize({ width: 1440, height: 900 });
+    await page.goto('/fr?tier=A');
+
+    const helix = page.locator('#hero .helix');
+    await expect(helix).toHaveAttribute('data-helix-state', 'running', { timeout: 20_000 });
+
+    // Two frames apart must differ: a stalled loop or a blank canvas would not.
+    const first = await helix.screenshot();
+    await page.waitForTimeout(600);
+    const second = await helix.screenshot();
+    expect(first.equals(second), 'the helix did not move in 600 ms').toBe(false);
+  });
+
+  test('builds its particle buffers inside the frame budget (spec §10)', async ({ page, isMobile }) => {
+    test.skip(isMobile, 'Tier A is a desktop tier');
+    await page.goto('/fr?tier=A');
+    await expect(page.locator('#hero .helix')).toHaveAttribute('data-helix-state', 'running', {
+      timeout: 20_000,
+    });
+    const ms = await page.evaluate(
+      () => performance.getEntriesByName('helix:geometry')[0]?.duration ?? Number.POSITIVE_INFINITY,
+    );
+    // The spec's target is <= 10 ms on a real device. Measured here — WSL2 +
+    // SwiftShader software WebGL2 + Docker, ~8 GB RAM, machine otherwise idle
+    // (load average ~2 over 5 runs) — the range was 21.1-32.3 ms, median
+    // 29.4 ms. 40 ms is a regression tripwire for THIS environment, not the
+    // spec budget; a real-device measurement is still owed.
+    expect(ms).toBeLessThan(40);
+  });
+
+  test('is only its poster on Tier C — no canvas at all', async ({ page }) => {
+    await page.goto('/fr?tier=C');
+    const helix = page.locator('#hero .helix');
+    await expect(helix).toHaveAttribute('data-helix-state', 'poster');
+    await expect(helix.locator('canvas')).toHaveCount(0);
+    await expect(helix.locator('.helix-poster')).toBeVisible();
+  });
+
+  test('is only its poster for a reader who asked for reduced motion (§6.8)', async ({ page }) => {
+    await page.emulateMedia({ reducedMotion: 'reduce' });
+    await page.goto('/fr');
+    const helix = page.locator('#hero .helix');
+    await page.waitForTimeout(2500);
+    await expect(helix).toHaveAttribute('data-helix-state', 'poster');
+    await expect(helix.locator('canvas')).toHaveCount(0);
+  });
+
+  test('falls back to its poster when the browser has no WebGL2', async ({ page }) => {
+    await page.addInitScript(() => {
+      const original = HTMLCanvasElement.prototype.getContext;
+      HTMLCanvasElement.prototype.getContext = function (
+        this: HTMLCanvasElement,
+        type: string,
+        ...rest: unknown[]
+      ) {
+        if (type === 'webgl2') return null;
+        return (original as (...args: unknown[]) => unknown).call(this, type, ...rest);
+      } as typeof original;
+    });
+    await page.goto('/fr?tier=A');
+
+    // Wait until the renderer was actually attempted, or this proves nothing.
+    await expect
+      .poll(() => page.evaluate(() => performance.getEntriesByName('helix:build').length), {
+        timeout: 15_000,
+      })
+      .toBe(1);
+    const helix = page.locator('#hero .helix');
+    await expect(helix).toHaveAttribute('data-helix-state', 'poster');
+    await expect(helix.locator('.helix-poster')).toHaveCSS('opacity', '1');
+  });
+
+  test('ships a poster per direction', async ({ request }) => {
+    for (const dir of ['ltr', 'rtl']) {
+      const response = await request.get(`/helix/poster-${dir}.avif`);
+      expect(response.status(), dir).toBe(200);
+      expect(response.headers()['content-type'], dir).toContain('image/avif');
     }
   });
 });

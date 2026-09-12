@@ -56,13 +56,16 @@ const ar = {
 
   // -- Scene 01 · hero ------------------------------------------------------
   heroHeadline: 'الصورة تصل قبل المريض.',
+  heroEyebrow: 'نقل التصوير الطبي عبر الحدود',
+  heroChipUpload: 'رفع يُستأنف',
+  heroChipConsent: 'موافقة لطبيب مسمّى',
+  heroChipBytes: 'بايتات DICOM الأصلية',
+  heroChipBooking: 'موعد بتوقيت البلدين',
   heroCtaPrimary: 'سجّل عيادتك',
   heroCtaSecondary: 'شاهد كيف يعمل',
   heroStatusOperational: 'النظام يعمل',
   heroStatusUnknown: 'حالة النظام',
   heroTrustLine: 'نقل مشفّر · سجل غير قابل للتعديل',
-  heroScrollHint: 'مرّر للأسفل عبر المقاطع',
-  heroSliceCounterLabel: 'موضع المقطع في المجلد',
 
   // -- Scene 02 · the problem ----------------------------------------------
   problemTitle: 'ثلاثة أشياء تُبطئ كل إحالة.',
@@ -228,13 +231,16 @@ const fr: SiteCopy = {
   loadingSkip: 'Appuyez pour passer',
 
   heroHeadline: "L'examen arrive avant le patient.",
+  heroEyebrow: "Transfert d'imagerie transfrontalier",
+  heroChipUpload: 'Téléversement qui reprend',
+  heroChipConsent: 'Consentement nominatif',
+  heroChipBytes: "Octets DICOM d'origine",
+  heroChipBooking: 'Rendez-vous sur deux fuseaux',
   heroCtaPrimary: 'Inscrire votre cabinet',
   heroCtaSecondary: 'Voir comment ça marche',
   heroStatusOperational: 'Système opérationnel',
   heroStatusUnknown: 'État du système',
   heroTrustLine: 'Transfert chiffré · Journal inaltérable',
-  heroScrollHint: 'Faites défiler à travers les coupes',
-  heroSliceCounterLabel: 'Position de la coupe dans le volume',
 
   problemTitle: 'Trois choses ralentissent chaque orientation.',
   problemCdLabel: 'Le CD',
@@ -395,13 +401,16 @@ const en: SiteCopy = {
   loadingSkip: 'Press to skip',
 
   heroHeadline: 'Their scan arrives before they do.',
+  heroEyebrow: 'Cross-border medical imaging transfer',
+  heroChipUpload: 'Uploads that resume',
+  heroChipConsent: 'Named-doctor consent',
+  heroChipBytes: 'Original DICOM bytes',
+  heroChipBooking: 'Two-timezone booking',
   heroCtaPrimary: 'Register your clinic',
   heroCtaSecondary: 'See how it works',
   heroStatusOperational: 'System operational',
   heroStatusUnknown: 'System status',
   heroTrustLine: 'Encrypted transfer · Immutable audit log',
-  heroScrollHint: 'Scroll through the slices',
-  heroSliceCounterLabel: 'Slice position in the volume',
 
   problemTitle: 'Three things slow every referral down.',
   problemCdLabel: 'The CD',

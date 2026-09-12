@@ -73,12 +73,12 @@ apps/web/
 ├── components/corridor/
 │   ├── Corridor.tsx              composition; lang/dir live here
 │   ├── scenes/S00…S11            eleven scenes, one file each
-│   ├── motion/                   ScrubCanvas, FocalReveal, WindowingWipe,
-│   │                             HeadlineReveal
-│   └── primitives/               Plate, SliceCounter, StatusPill
+│   ├── motion/                   FocalReveal, WindowingWipe, WordReveal, BlurIn
+│   ├── helix/                    HelixCanvas, renderer, shaders, geometry, config
+│   └── primitives/               Plate, StatusPill
 ├── lib/site/                     tier, scroll, gsap, split, sound, haptics,
 │                                 copy, entity, corridor-labels
-└── scripts/                      render-slices,
+└── scripts/                      render-slices, render-helix-poster,
                                   render-corridor-map, render-og, fetch-fonts
 ```
 
@@ -99,6 +99,9 @@ Each of these is argued in full at the head of the file that makes it.
 | Scene 06 | 90 KB AVIF screenshot of the viewer | Live markup in the app's light tokens | §9 forbids text baked into images, and the banner has to be readable in the reader's own language. ~1 KB instead of 90. **Still an illustration, not the real screen** — see the open items. |
 | 6.2/10 | Whole app under `app/[locale]/` | Marketing routes only | ~40 signed-in screens already live at unprefixed paths, with an e2e suite and a §4.3 ratchet test referencing them. Moving them is a routing migration, not a landing page. |
 | 2–3 | Dark reading room: void ground, phosphor accents, grain, cursor light, WebGL caustic | Light clinical register (spec 2026-09-10) | The owner re-directed the page to a light mint/teal/lime register built around a particle helix. The grain tile, the cursor light and the phosphor handoff pass were dark-room effects — on white they read as dirt — and are removed with their assets. The palette's contrast is now asserted by `lib/site/tokens.test.ts`. |
+| Scene 01 | CT slice sequence scrubbed by scroll, DICOM HUD, 001/180 counter | Particle DNA helix, raw WebGL2 (spec 2026-09-10 §4–5) | The owner's re-direction. One program, one draw call, positions computed on the GPU from seeded attributes; A 36k / B 14k particles, C the poster. No three.js: the same argument §6.1's handoff deviation made. The Tier A frame set (36 AVIFs) is deleted; the Tier B set stays because S05's consent thumbnails use three of its frames. |
+| — | One helix poster, mirrored in RTL | Two posters, `poster-{ltr,rtl}.avif` | Mirroring with `scaleX(-1)` turns a right-handed helix left-handed. The live render leans the other way by negating its roll; the posters are rendered the same way, by the real renderer (`scripts/render-helix-poster.mjs`). |
+| §12 L3 | `?tier=` forces a tier | …and holds it | A forced tier was still demoted by the frame-rate check, so under software WebGL a forced Tier A fell to C mid-test. Real visitors are still demoted; a forced tier is not. |
 
 ---
 
@@ -116,6 +119,8 @@ that profile has not been used, so treat these as floor values.
 | First-load JS (gz) | ≤110 KB block | **~315 KB** | ❌ |
 | LCP / CLS / INP | 2.0 s / 0.03 / 200 ms | not measured | ⬜ |
 | Lighthouse mobile / a11y | ≥92 / 100 | not measured | ⬜ |
+| `helix:geometry` build (spec §10, per idle sample) | ≤10 ms on a real device | **21.1, 21.5, 29.4, 30.3, 32.3 ms** (min 21.1, median 29.4) — WSL2 + software WebGL2 (SwiftShader) + Docker, ~8 GB RAM; not a real device | 🏠 |
+| Helix posters (`poster-ltr.avif` / `poster-rtl.avif`) | — | **56.9 KB** / **57.6 KB**, both 1140×900, AVIF quality 30 | ✅ |
 
 **Both failures are the application shell, not this page.** Of the 699 KB that
 Tier C transfers:
@@ -175,6 +180,11 @@ Grouped by who can close them.
   has failure modes no automated tool catches.
 - 🔒 **Samsung Internet** (§13) — "not optional", substantial North African
   share, and regularly the browser that breaks.
+- 🔒 **A real-device `helix:geometry` measurement** (spec §10). The only
+  measurement so far is 21.1–32.3 ms (median 29.4) on WSL2 + software WebGL2
+  (SwiftShader) + Docker — a proxy for a real GPU, not evidence about one. If
+  a real device exceeds the spec's 10 ms budget, the remedy is to chunk the
+  particle-buffer build across frames (spec §10) rather than build it in one.
 
 ### Needs a tool this repository does not have
 
@@ -234,7 +244,8 @@ surfaced.
 All output is committed; a deploy needs none of this.
 
 ```bash
-node apps/web/scripts/render-slices.mjs                 # hero sequence + poster + SOURCE.md
+node apps/web/scripts/render-slices.mjs                 # Tier B frames + viewer poster + SOURCE.md
+node apps/web/scripts/render-helix-poster.mjs           # helix posters (needs the app running on :3001)
 node apps/web/scripts/render-corridor-map.mjs ly-tn LY TN   # §Scene 03 map + route module
 node apps/web/scripts/render-og.mjs                     # §10 OG cards (needs Playwright)
 bash apps/web/scripts/fetch-fonts.sh                    # re-download the vendored landing faces + OFL
