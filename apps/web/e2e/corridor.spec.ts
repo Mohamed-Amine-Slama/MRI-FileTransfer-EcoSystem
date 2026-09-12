@@ -544,3 +544,88 @@ test.describe('locale routes (§10)', () => {
     }
   });
 });
+
+// ---------------------------------------------------------------------------
+// The particle helix — spec 2026-09-10 §5
+// ---------------------------------------------------------------------------
+
+test.describe('the helix (spec §5)', () => {
+  test('runs on Tier A and keeps drawing', async ({ page, isMobile }) => {
+    test.skip(isMobile, 'Tier A is a desktop tier');
+    await page.setViewportSize({ width: 1440, height: 900 });
+    await page.goto('/fr?tier=A');
+
+    const helix = page.locator('#hero .helix');
+    await expect(helix).toHaveAttribute('data-helix-state', 'running', { timeout: 20_000 });
+
+    // Two frames apart must differ: a stalled loop or a blank canvas would not.
+    const first = await helix.screenshot();
+    await page.waitForTimeout(600);
+    const second = await helix.screenshot();
+    expect(first.equals(second), 'the helix did not move in 600 ms').toBe(false);
+  });
+
+  test('builds its particle buffers inside the frame budget (spec §10)', async ({ page, isMobile }) => {
+    test.skip(isMobile, 'Tier A is a desktop tier');
+    await page.goto('/fr?tier=A');
+    await expect(page.locator('#hero .helix')).toHaveAttribute('data-helix-state', 'running', {
+      timeout: 20_000,
+    });
+    const ms = await page.evaluate(
+      () => performance.getEntriesByName('helix:geometry')[0]?.duration ?? Number.POSITIVE_INFINITY,
+    );
+    // The spec's budget is 10 ms on a real device; 25 ms is the tripwire on a
+    // shared CI machine, and the measured figure goes in the status doc.
+    expect(ms).toBeLessThan(25);
+  });
+
+  test('is only its poster on Tier C — no canvas at all', async ({ page }) => {
+    await page.goto('/fr?tier=C');
+    const helix = page.locator('#hero .helix');
+    await expect(helix).toHaveAttribute('data-helix-state', 'poster');
+    await expect(helix.locator('canvas')).toHaveCount(0);
+    await expect(helix.locator('.helix-poster')).toBeVisible();
+  });
+
+  test('is only its poster for a reader who asked for reduced motion (§6.8)', async ({ page }) => {
+    await page.emulateMedia({ reducedMotion: 'reduce' });
+    await page.goto('/fr');
+    const helix = page.locator('#hero .helix');
+    await page.waitForTimeout(2500);
+    await expect(helix).toHaveAttribute('data-helix-state', 'poster');
+    await expect(helix.locator('canvas')).toHaveCount(0);
+  });
+
+  test('falls back to its poster when the browser has no WebGL2', async ({ page }) => {
+    await page.addInitScript(() => {
+      const original = HTMLCanvasElement.prototype.getContext;
+      HTMLCanvasElement.prototype.getContext = function (
+        this: HTMLCanvasElement,
+        type: string,
+        ...rest: unknown[]
+      ) {
+        if (type === 'webgl2') return null;
+        return (original as (...args: unknown[]) => unknown).call(this, type, ...rest);
+      } as typeof original;
+    });
+    await page.goto('/fr?tier=A');
+
+    // Wait until the renderer was actually attempted, or this proves nothing.
+    await expect
+      .poll(() => page.evaluate(() => performance.getEntriesByName('helix:build').length), {
+        timeout: 15_000,
+      })
+      .toBe(1);
+    const helix = page.locator('#hero .helix');
+    await expect(helix).toHaveAttribute('data-helix-state', 'poster');
+    await expect(helix.locator('.helix-poster')).toHaveCSS('opacity', '1');
+  });
+
+  test('ships a poster per direction', async ({ request }) => {
+    for (const dir of ['ltr', 'rtl']) {
+      const response = await request.get(`/helix/poster-${dir}.avif`);
+      expect(response.status(), dir).toBe(200);
+      expect(response.headers()['content-type'], dir).toContain('image/avif');
+    }
+  });
+});

@@ -17,6 +17,10 @@ export default defineConfig({
     baseURL: `http://127.0.0.1:${PORT}`,
     trace: 'on-first-retry',
     screenshot: 'only-on-failure',
+    // Headless Chromium has no GPU. SwiftShader gives it a software WebGL2 so
+    // the helix actually renders in CI; recent Chrome requires the explicit
+    // "unsafe" opt-in for it.
+    launchOptions: { args: ['--use-angle=swiftshader', '--enable-unsafe-swiftshader'] },
   },
 
   projects: [
