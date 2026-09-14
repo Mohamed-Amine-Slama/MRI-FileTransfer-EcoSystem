@@ -2135,3 +2135,77 @@
   padding: 1rem clamp(1.25rem, 3vw, 2rem) 1.25rem;
   border-block-start: 1px solid var(--c-line);
 }
+
+/* ---------------------------------------------------------------------------
+ * Stacked panels — spec §3.3. Sticky only once measured (.is-stacking).
+ * ------------------------------------------------------------------------- */
+.corridor .stack-panel {
+  --panel-bg: var(--c-panel);
+  position: relative;
+  margin-block-start: calc(var(--r-section) * -1);
+  border-start-start-radius: var(--r-section);
+  border-start-end-radius: var(--r-section);
+  background-color: var(--panel-bg);
+  box-shadow: 0 -16px 40px -32px rgb(0 0 0 / 0.25);
+}
+
+.corridor .stack-panel--deep {
+  --panel-bg: var(--c-panel-deep);
+}
+
+.corridor .stack-panel--white {
+  --panel-bg: var(--c-ground);
+}
+
+.corridor .stack-panel.is-stacking {
+  position: sticky;
+  inset-block-start: min(0px, calc(100lvh - var(--panel-h, 100lvh)));
+}
+
+.corridor .stack-group > .stack-panel:last-child {
+  border-end-start-radius: var(--r-section);
+  border-end-end-radius: var(--r-section);
+}
+
+/* ---------------------------------------------------------------------------
+ * Demo card — the white working surface (replaces Plate).
+ * ------------------------------------------------------------------------- */
+.corridor .demo-card {
+  position: relative;
+  overflow: hidden;
+  border: 1px solid var(--c-line);
+  border-radius: var(--r-card);
+  background-color: var(--c-ground);
+  box-shadow:
+    0 1px 2px rgb(0 0 0 / 0.04),
+    0 24px 48px -32px rgb(0 0 0 / 0.18);
+}
+
+.corridor .demo-card-head {
+  display: flex;
+  justify-content: space-between;
+  gap: 1rem;
+  padding: 0.875rem 1.5rem;
+  border-block-end: 1px solid var(--c-line);
+  color: var(--c-ink-subtle);
+  font-family: var(--f-mono);
+  font-size: 0.75rem;
+}
+
+.corridor .demo-card-counter {
+  font-variant-numeric: tabular-nums;
+  unicode-bidi: plaintext;
+}
+
+.corridor .demo-card-body {
+  padding: clamp(1.25rem, 3vw, 2rem);
+}
+
+.corridor .upload-stage {
+  margin-block-start: clamp(2rem, 5vh, 3rem);
+}
+
+.corridor .consent-switch-thumb {
+  background-color: var(--c-ground);
+  box-shadow: 0 1px 2px rgb(0 0 0 / 0.25);
+}
