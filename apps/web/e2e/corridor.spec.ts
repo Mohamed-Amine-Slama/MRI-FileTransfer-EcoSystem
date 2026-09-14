@@ -742,6 +742,17 @@ test.describe('the helix (spec §5)', () => {
     await expect(close).toHaveAttribute('data-helix-state', 'running', { timeout: 20_000 });
     await expect(page.locator('#hero .helix')).toHaveAttribute('data-helix-state', 'paused');
     await expect(page.getByTestId('landing-close-signup')).toBeVisible();
+
+    // `HelixCanvas`'s `hostRef` inside S11Close points at an unlabelled inner
+    // `<div>`, not the `#close` section itself — the label must resolve
+    // through the nearest id'd ancestor, not fall back to the generic
+    // `helix` label the way an unlabelled instance would.
+    const [closeMeasures, genericMeasures] = await page.evaluate(() => [
+      performance.getEntriesByName('helix:build:close').length,
+      performance.getEntriesByName('helix:build:helix').length,
+    ]);
+    expect(closeMeasures).toBeGreaterThanOrEqual(1);
+    expect(genericMeasures).toBe(0);
   });
 });
 
