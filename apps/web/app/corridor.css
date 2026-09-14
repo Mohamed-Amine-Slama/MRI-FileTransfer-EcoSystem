@@ -1445,92 +1445,52 @@
   }
 }
 
-/* ==========================================================================
-   Scene 09 — Two doors
-   ========================================================================== */
-
-.corridor .doors-title {
-  margin-block-end: 1.5rem;
+/* ---------------------------------------------------------------------------
+ * Horizontal track — the page's one pin. Native swipe row when not pinned.
+ * ------------------------------------------------------------------------- */
+.corridor .track-viewport {
+  overflow-x: auto;
+  overscroll-behavior-x: contain;
+  scroll-snap-type: x mandatory;
+  scrollbar-color: var(--c-line) transparent;
+  scrollbar-width: thin;
 }
 
-.corridor .doors {
-  display: grid;
-  border: 1px solid var(--c-line);
-  border-radius: var(--r-card);
-  overflow: hidden;
+.corridor .track-viewport.is-pinned {
+  overflow: clip;
+  scroll-snap-type: none;
 }
 
-.corridor .door {
+.corridor .track {
   display: flex;
-  flex-direction: column;
-  gap: 0.75rem;
-  padding: clamp(1.75rem, 5vw, 3.5rem);
-  color: var(--c-ink);
-  background-color: var(--c-panel);
-  transition: background-color var(--d-scene) var(--e-out), flex-grow var(--d-scene) var(--e-out);
+  gap: 0.625rem;
+  inline-size: max-content;
+  padding-inline: var(--margin);
+  padding-block-end: 0.75rem;
 }
 
-.corridor .door + .door {
-  border-block-start: 1px solid var(--c-line);
+.corridor .track > * {
+  flex: 0 0 auto;
+  scroll-snap-align: start;
+}
+
+/* ---------------------------------------------------------------------------
+ * Scene 09 · doors.
+ * ------------------------------------------------------------------------- */
+.corridor .doors-track .card {
+  inline-size: min(84vw, 28rem);
+  min-block-size: 28rem;
 }
 
 .corridor .door-body {
-  max-inline-size: 42ch;
-}
-
-.corridor .door-cta {
-  display: inline-flex;
-  align-items: center;
-  margin-block-start: 1rem;
-  padding-block-end: 2px;
-  color: var(--c-ink);
-  border-block-end: 1px solid var(--c-line);
-  transition: border-color var(--d-micro) var(--e-out);
-}
-
-.corridor .door:hover .door-cta,
-.corridor .door:focus-visible .door-cta {
-  border-block-end-color: var(--c-accent);
-}
-
-/* §3.6: arrows mirror. One glyph in the markup, flipped by the multiplier. */
-.corridor .door-arrow {
-  display: inline-block;
-  scale: var(--dir) 1;
-  transition: translate var(--d-micro) var(--e-out);
-}
-
-.corridor .door:hover .door-arrow,
-.corridor .door:focus-visible .door-arrow {
-  translate: calc(4px * var(--dir)) 0;
+  max-inline-size: 36ch;
+  margin: 0;
 }
 
 @media (min-width: 900px) {
-  .corridor .doors {
-    grid-auto-flow: column;
-    grid-auto-columns: 1fr;
-  }
-
-  .corridor .door + .door {
-    border-block-start: 0;
-    border-inline-start: 1px solid var(--c-line);
-  }
-
-  /*
-   * The preview. §Scene 09 permits this hover because it is meaningful — the
-   * chosen side expands and the other dims, which shows the consequence of the
-   * choice before it is made. `:focus-within` gives a keyboard user the same
-   * preview; a hover-only affordance would make it a reward for owning a mouse.
-   */
-  .corridor .doors:hover .door,
-  .corridor .doors:focus-within .door {
-    opacity: 0.55;
-  }
-
-  .corridor .doors .door:hover,
-  .corridor .doors .door:focus-within {
-    opacity: 1;
-    background-color: var(--c-panel-deep);
+  .corridor .doors-track .card {
+    inline-size: 44vw;
+    min-block-size: min(36rem, 72vh);
   }
 }
 

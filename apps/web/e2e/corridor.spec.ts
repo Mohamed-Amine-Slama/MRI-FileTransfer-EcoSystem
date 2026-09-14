@@ -286,7 +286,7 @@ test.describe('focal reveals (§3.5, §6.6, §12 L5)', () => {
      * Polled rather than asserted once, because there is one legitimate shift
      * to tolerate: `ScrollTrigger.refresh()` runs when `document.fonts.ready`
      * settles (§6.4 requires it, since Arabic and Latin have different content
-     * heights), and refreshing recomputes the pinned Scene 02 spacer, which
+     * heights), and refreshing recomputes the pinned Scene 09 spacer, which
      * moves everything below it by a few pixels. That is a one-time settle and
      * it resolves; a snap-back does not.
      */
@@ -724,5 +724,48 @@ test.describe('the helix (spec §5)', () => {
       expect(response.status(), dir).toBe(200);
       expect(response.headers()['content-type'], dir).toContain('image/avif');
     }
+  });
+});
+
+// ---------------------------------------------------------------------------
+// Scene 09 — the door track, the page's one pin (§6.4)
+// ---------------------------------------------------------------------------
+
+test.describe('the door track (spec §7.2)', () => {
+  test('pins while its cards travel toward the reader, then lets go', async ({ page, isMobile }) => {
+    test.skip(isMobile, 'the pinned track needs a fine pointer and 900px');
+    await page.setViewportSize({ width: 1440, height: 900 });
+    await page.goto('/fr?tier=A');
+    await expect(page.locator('#doors .track-viewport')).toHaveClass(/is-pinned/, { timeout: 15_000 });
+
+    const top = await page.evaluate(
+      () => (document.getElementById('doors')?.getBoundingClientRect().top ?? 0) + window.scrollY,
+    );
+    await page.evaluate((y) => window.scrollTo(0, y - 10), top);
+    await page.waitForTimeout(800);
+    await page.mouse.move(720, 450);
+    await page.mouse.wheel(0, 400);
+    await page.waitForTimeout(1500);
+
+    const pinned = await page.locator('#doors').boundingBox();
+    expect(Math.abs(pinned?.y ?? 99), 'the section is held at the top').toBeLessThan(2);
+    const x = await page
+      .locator('#doors .track')
+      .evaluate((el) => new DOMMatrix(getComputedStyle(el).transform).m41);
+    expect(x, 'the cards moved toward the reader\'s forward (leftward in fr)').toBeLessThan(-50);
+
+    await page.mouse.wheel(0, 2500);
+    await page.waitForTimeout(1500);
+    const released = await page.locator('#doors').boundingBox();
+    expect(released?.y ?? 0, 'released after its travel').toBeLessThan(-100);
+  });
+
+  test('is a native swipe row when motion is reduced', async ({ page }) => {
+    await page.emulateMedia({ reducedMotion: 'reduce' });
+    await page.goto('/fr');
+    const viewport = page.locator('#doors .track-viewport');
+    await expect(viewport).not.toHaveClass(/is-pinned/);
+    await expect(viewport).toHaveCSS('overflow-x', 'auto');
+    await expect(page.getByTestId('door-doctors')).toBeVisible();
   });
 });
