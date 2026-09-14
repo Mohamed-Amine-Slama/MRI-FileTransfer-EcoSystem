@@ -1579,68 +1579,6 @@
 }
 
 /* ==========================================================================
-   Scene 11 — Close
-   ========================================================================== */
-
-.corridor .scene--close {
-  padding-block-end: clamp(4rem, 10vh, 7rem);
-}
-
-/*
- * The inversion. The only large light surface in the document after the
- * viewer panel, and the last thing seen.
- */
-.corridor .close-plate {
-  position: relative;
-  padding: clamp(3rem, 10vh, 7rem) clamp(1.5rem, 6vw, 5rem);
-  background-color: var(--c-ink);
-  color: var(--c-ground);
-  border-radius: var(--r-card);
-  text-align: center;
-}
-
-.corridor .close-line {
-  margin-block-start: 1.5rem;
-  margin-inline: auto;
-  max-inline-size: 22ch;
-  color: var(--c-ground);
-}
-
-.corridor .close-actions {
-  display: flex;
-  flex-wrap: wrap;
-  justify-content: center;
-  gap: 0.75rem;
-  margin-block-start: 2.5rem;
-}
-
-.corridor .btn--invert {
-  background-color: var(--c-ground);
-  color: var(--c-ink);
-}
-
-.corridor .btn--invert:hover {
-  background-color: var(--c-lime);
-  translate: 0 -1px;
-}
-
-.corridor .btn--invert-ghost {
-  border-color: rgb(255 255 255 / 0.4);
-  color: var(--c-ground);
-}
-
-.corridor .btn--invert-ghost:hover {
-  border-color: var(--c-ground);
-}
-
-/* The inverted plate needs its own focus colour: phosphor on bone fails
-   contrast, and an invisible focus ring on the page's one remaining call to
-   action is the worst place to have one. */
-.corridor .close-plate :focus-visible {
-  outline-color: var(--c-alert);
-}
-
-/* ==========================================================================
    Footer
    ========================================================================== */
 
@@ -2218,4 +2156,74 @@
 
 .corridor .consent-switch-thumb {
   box-shadow: 0 1px 2px rgb(0 0 0 / 0.25);
+}
+
+/* ---------------------------------------------------------------------------
+ * Logo tile and mark.
+ * ------------------------------------------------------------------------- */
+.corridor .logo-tile {
+  display: inline-grid;
+  place-items: center;
+  flex: 0 0 auto;
+  inline-size: 2.625rem;
+  block-size: 2.625rem;
+  border-radius: var(--r-tile);
+  background-color: var(--c-accent);
+  color: var(--c-lime);
+}
+
+.corridor .mir-mark {
+  inline-size: 1.5rem;
+  block-size: 1.5rem;
+  fill: none;
+  stroke: currentColor;
+  stroke-width: 1.4;
+  stroke-linecap: round;
+}
+
+/* ---------------------------------------------------------------------------
+ * Scene 11 · close — the helix returns beside a white card.
+ * ------------------------------------------------------------------------- */
+.corridor .scene--close {
+  padding-block: clamp(4rem, 10vh, 7rem);
+}
+
+.corridor .close-stage {
+  display: grid;
+  gap: 2rem;
+  align-items: center;
+}
+
+.corridor .close-helix {
+  block-size: 40vh;
+}
+
+.corridor .close-card {
+  padding: clamp(2rem, 4vw, 3rem);
+  border: 1px solid var(--c-line);
+  border-radius: var(--r-card);
+  background-color: var(--c-glass-strong);
+  backdrop-filter: blur(var(--glass-blur));
+}
+
+.corridor .close-line {
+  margin-block: 1.5rem 2.5rem;
+}
+
+.corridor .close-actions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 1rem;
+}
+
+@media (min-width: 1000px) {
+  .corridor .close-stage {
+    grid-template-columns: 1fr 1fr;
+    min-block-size: min(46rem, 90vh);
+  }
+
+  .corridor .close-helix {
+    block-size: 100%;
+    min-block-size: 36rem;
+  }
 }

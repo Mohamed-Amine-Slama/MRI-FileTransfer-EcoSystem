@@ -1,60 +1,52 @@
 'use client';
 
 import Link from 'next/link';
+import { useRef } from 'react';
 import { useSite } from '../../../lib/site/site-provider';
-import { FocalReveal } from '../motion/FocalReveal';
+import { HelixCanvas } from '../helix/HelixCanvas';
+import { BlurIn } from '../motion/BlurIn';
+import { StackPanel } from '../motion/StackPanel';
+import { MirMark } from '../primitives/MirMark';
 
 /**
- * Scene 11 — Close. Landing-Page-Specs §Scene 11.
+ * Scene 11 — Close. Spec 2026-09-10 §7.2.
  *
- * "One action."
- *
- * The slice counter, which has been running all page, reaches 180/180 here:
- * the volume completes. That is the reward for the mechanic the hero
- * introduced, and it is the reason the counter was worth having — a progress
- * bar that fills has told you nothing; a stack that ENDS has.
- *
- * THE INVERSION. Everything on this page has been dark; this plate is bone,
- * the only large light surface in the document. It is the last thing seen and
- * it is the brightest, which is how a close should work.
- *
- * The copy returns to the hero line and completes it (§Scene 11), and the
- * page's one remaining action sits under it.
+ * The helix comes back, already assembled, on the inline-start half of a mint
+ * panel; the page's last sentence and its two routes out sit on a white card
+ * beside it. Each helix instance animates only while it is on screen, so the
+ * hero's has paused by the time this one runs.
  */
 export function S11Close(): React.JSX.Element {
+  const stageRef = useRef<HTMLDivElement>(null);
   const { t, cue } = useSite();
 
   return (
-    <section id="close" className="scene scene--close" aria-labelledby="close-title">
-      <div className="shell">
-        <FocalReveal plane={1}>
-          <div className="close-plate">
-            {/*
-              Centred — one of exactly two places on the page where text is
-              centred (§3.3), the hero statement being the other. Centred body
-              copy anywhere else is one of the fastest ways to make a page look
-              templated.
-            */}
-            <h2 id="close-title" className="display t-h1 close-line">
-              {t.closeLine}
-            </h2>
+    <StackPanel id="close" labelledBy="close-title" tone="mint" className="scene--close">
+      <div ref={stageRef} className="shell close-stage">
+        <HelixCanvas hostRef={stageRef} entrance="none" posterLoading="lazy" className="close-helix" />
 
-            <div className="close-actions">
-              <Link
-                href="/signup"
-                className="btn btn--invert"
-                data-testid="landing-close-signup"
-                onPointerDown={() => cue('press')}
-              >
-                {t.closeCta}
-              </Link>
-              <Link href="/pricing" className="btn btn--invert-ghost" data-testid="landing-pricing">
-                {t.closeSecondary}
-              </Link>
-            </div>
+        <BlurIn className="close-card">
+          <span className="logo-tile" aria-hidden="true">
+            <MirMark />
+          </span>
+          <h2 id="close-title" className="display t-h1 close-line">
+            {t.closeLine}
+          </h2>
+          <div className="close-actions">
+            <Link
+              href="/signup"
+              className="btn btn--primary"
+              data-testid="landing-close-signup"
+              onPointerDown={() => cue('press')}
+            >
+              {t.closeCta}
+            </Link>
+            <Link href="/pricing" className="btn btn--secondary" data-testid="landing-pricing">
+              {t.closeSecondary}
+            </Link>
           </div>
-        </FocalReveal>
+        </BlurIn>
       </div>
-    </section>
+    </StackPanel>
   );
 }

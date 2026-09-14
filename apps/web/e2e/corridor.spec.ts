@@ -725,6 +725,24 @@ test.describe('the helix (spec §5)', () => {
       expect(response.headers()['content-type'], dir).toContain('image/avif');
     }
   });
+
+  test('returns at the close, already assembled, and only one helix animates at a time', async ({
+    page,
+    isMobile,
+  }) => {
+    test.skip(isMobile, 'Tier A is a desktop tier');
+    await page.setViewportSize({ width: 1440, height: 900 });
+    await page.goto('/fr?tier=A');
+    await expect(page.locator('#hero .helix')).toHaveAttribute('data-helix-state', 'running', {
+      timeout: 20_000,
+    });
+
+    await page.evaluate(() => window.scrollTo(0, document.body.scrollHeight));
+    const close = page.locator('#close .helix');
+    await expect(close).toHaveAttribute('data-helix-state', 'running', { timeout: 20_000 });
+    await expect(page.locator('#hero .helix')).toHaveAttribute('data-helix-state', 'paused');
+    await expect(page.getByTestId('landing-close-signup')).toBeVisible();
+  });
 });
 
 // ---------------------------------------------------------------------------
