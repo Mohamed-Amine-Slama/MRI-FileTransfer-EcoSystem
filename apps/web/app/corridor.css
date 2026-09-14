@@ -1494,30 +1494,37 @@
   }
 }
 
-/* ==========================================================================
-   Scene 10 — Questions
-   ========================================================================== */
-
+/* ---------------------------------------------------------------------------
+ * Scene 10 · questions — glass accordion on native <details>.
+ * ------------------------------------------------------------------------- */
 .corridor .faq {
+  display: flex;
+  flex-direction: column;
+  gap: 0.5rem;
   margin-block-start: clamp(2rem, 5vh, 3rem);
-  border-block-start: 1px solid var(--c-line);
 }
 
 .corridor .faq-item {
-  border-block-end: 1px solid var(--c-line);
+  border: 1px solid var(--c-line);
+  border-radius: var(--r-card);
+  background-color: var(--c-glass-soft);
+  backdrop-filter: blur(var(--glass-blur));
+  transition: background-color var(--dur-normal) var(--ease-entrance);
+}
+
+.corridor .faq-item[open] {
+  background-color: var(--c-panel);
 }
 
 .corridor .faq-question {
   display: flex;
-  align-items: baseline;
+  align-items: center;
   gap: 1rem;
-  padding-block: 1.25rem;
+  padding: 1.25rem 1.5rem;
   cursor: pointer;
   list-style: none;
 }
 
-/* The default disclosure triangle is a physical-direction glyph that does not
-   flip reliably under RTL, so it is replaced entirely. */
 .corridor .faq-question::-webkit-details-marker {
   display: none;
 }
@@ -1529,36 +1536,46 @@
 .corridor .faq-marker {
   position: relative;
   flex: 0 0 auto;
-  inline-size: 14px;
-  block-size: 14px;
+  inline-size: 2.5rem;
+  block-size: 2.5rem;
   margin-inline-start: auto;
-  align-self: center;
+  border: 1px solid var(--c-line);
+  border-radius: 50%;
+  transition:
+    rotate var(--dur-normal) var(--ease-entrance),
+    background-color var(--dur-normal) var(--ease-entrance),
+    border-color var(--dur-normal) var(--ease-entrance);
 }
 
 .corridor .faq-marker::before,
 .corridor .faq-marker::after {
   content: '';
   position: absolute;
-  inset-block-start: 50%;
-  inset-inline-start: 0;
-  inline-size: 14px;
+  inset: 0;
+  margin: auto;
+  inline-size: 0.875rem;
   block-size: 1px;
-  background-color: var(--c-ink-subtle);
-  transition: rotate var(--d-micro) var(--e-out);
+  background-color: var(--c-ink);
 }
 
 .corridor .faq-marker::after {
   rotate: 90deg;
 }
 
-.corridor .faq-item[open] .faq-marker::after {
-  rotate: 0deg;
+.corridor .faq-item[open] .faq-marker {
+  rotate: 45deg;
+  background-color: var(--c-lime);
+  border-color: var(--c-lime-edge);
 }
 
 .corridor .faq-answer {
   padding-block-end: 1.5rem;
-  /* Aligned under the question text, past the index column. */
-  padding-inline-start: calc(1rem + 2ch);
+  padding-inline: calc(1.5rem + 2ch + 1rem) 1.5rem;
+}
+
+.corridor .faq-answer p {
+  margin: 0;
+  line-height: 1.5;
 }
 
 /* ==========================================================================
