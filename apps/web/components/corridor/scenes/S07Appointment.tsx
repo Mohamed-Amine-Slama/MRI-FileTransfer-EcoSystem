@@ -4,8 +4,10 @@ import { useEffect, useState } from 'react';
 import { countryTimeZone, timeInCountry } from '../../../lib/corridor/time-zone';
 import { corridorLabels } from '../../../lib/site/corridor-labels';
 import { useSite } from '../../../lib/site/site-provider';
-import { FocalReveal } from '../motion/FocalReveal';
-import { Plate } from '../primitives/Plate';
+import { BlurIn } from '../motion/BlurIn';
+import { StackPanel } from '../motion/StackPanel';
+import { WordReveal } from '../motion/WordReveal';
+import { DemoCard } from '../primitives/DemoCard';
 
 /**
  * Scene 07 — The appointment. Landing-Page-Specs §Scene 07.
@@ -31,22 +33,17 @@ export function S07Appointment(): React.JSX.Element {
   const corridor = corridorLabels(locale);
 
   return (
-    <section id="appointment" className="scene" aria-labelledby="appointment-title">
+    <StackPanel id="appointment" labelledBy="appointment-title" tone="mint">
       <div className="shell">
-        <FocalReveal plane={1}>
-          <h2 id="appointment-title" className="display t-h1 measure">
-            {t.appointmentTitle}
-          </h2>
-          <p className="t-body-l subtle measure appointment-body">{t.appointmentBody}</p>
-        </FocalReveal>
+        <WordReveal as="h2" id="appointment-title" variant="display" text={t.appointmentTitle} className="display t-h1 measure" />
+        <p className="t-body-l subtle measure appointment-body">{t.appointmentBody}</p>
 
-        <FocalReveal plane={2}>
-          <Plate label="SCHEDULE" counter="2 TZ">
+        <BlurIn className="appointment-stage">
+          <DemoCard label="SCHEDULE" counter="2 TZ">
             <div className="appointment-clocks">
               <Clock country={corridor.sourceCountry} name={corridor.source} />
               <Clock country={corridor.destinationCountry} name={corridor.destination} />
             </div>
-
             <div className="appointment-slot">
               <span className="mono subtle">{t.appointmentSlotLabel}</span>
               <p className="t-h3 appointment-slot-time">
@@ -54,12 +51,11 @@ export function S07Appointment(): React.JSX.Element {
               </p>
               <p className="mono accent">{t.appointmentConfirmLine}</p>
             </div>
-
             <p className="subtle appointment-payment measure">{t.appointmentPaymentNote}</p>
-          </Plate>
-        </FocalReveal>
+          </DemoCard>
+        </BlurIn>
       </div>
-    </section>
+    </StackPanel>
   );
 }
 
@@ -92,7 +88,7 @@ function Clock({ country, name }: { country: string; name: string }): React.JSX.
         §3.6: clocks do NOT mirror under RTL. A clock face is not directional,
         and neither is 10:30 — the digits stay in logical order in every script.
       */}
-      <span className="clock-time mono" dir="ltr">
+      <span className="clock-time" dir="ltr">
         {now ?? '--:--'}
       </span>
       <span className="mono subtle clock-zone">{countryTimeZone(country)}</span>
