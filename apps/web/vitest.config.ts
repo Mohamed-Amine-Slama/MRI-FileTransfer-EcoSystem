@@ -1,6 +1,8 @@
 import { defineConfig } from 'vitest/config';
 
 export default defineConfig({
+  // The app's tsconfig preserves JSX for Next; tests run in Node and need it compiled.
+  esbuild: { jsx: 'automatic' },
   test: {
     globals: true,
     environment: 'node',

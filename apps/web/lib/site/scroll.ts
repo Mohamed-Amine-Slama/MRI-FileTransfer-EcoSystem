@@ -113,6 +113,22 @@ export async function initScroll(tier: Tier): Promise<ScrollSystem | null> {
    * permanently would put them in nobody's way, but it would also be eleven
    * attributes nobody can explain later.
    */
+  /**
+   * Where an element sits in the document's flow, even while it is stuck.
+   *
+   * A stacked panel (StackPanel) is `position: sticky`; while stuck, its box
+   * is where it is PAINTED, not where it LIVES, so aiming at it from further
+   * down the page scrolled nowhere. Sticky is switched off for one
+   * synchronous layout to measure it; nothing paints in between.
+   */
+  const flowTop = (target: HTMLElement): number => {
+    const sticky = getComputedStyle(target).position === 'sticky';
+    if (sticky) target.style.position = 'relative';
+    const top = target.getBoundingClientRect().top + window.scrollY;
+    if (sticky) target.style.position = '';
+    return top;
+  };
+
   const focusTarget = (target: HTMLElement): void => {
     if (document.activeElement === target) return;
     const hadTabIndex = target.hasAttribute('tabindex');
@@ -131,7 +147,7 @@ export async function initScroll(tier: Tier): Promise<ScrollSystem | null> {
     // Long enough to cover font loading and pin creation on a slow connection;
     // short enough that it can never surprise someone who has moved on.
     pendingUntil = performance.now() + 4000;
-    lenis.scrollTo(target, { immediate, force: true, onComplete: () => focusTarget(target) });
+    lenis.scrollTo(flowTop(target), { immediate, force: true, onComplete: () => focusTarget(target) });
   };
 
   const realign = (): void => {
@@ -144,7 +160,7 @@ export async function initScroll(tier: Tier): Promise<ScrollSystem | null> {
     if (target === null) return;
     // Immediate: this is a correction, not a journey. Animating it a second
     // time would read as the page drifting on its own.
-    lenis.scrollTo(target, { immediate: true, force: true });
+    lenis.scrollTo(flowTop(target), { immediate: true, force: true });
     focusTarget(target);
   };
 
@@ -183,7 +199,7 @@ export async function initScroll(tier: Tier): Promise<ScrollSystem | null> {
     pendingHash = id;
     pendingUntil = performance.now() + 4000;
 
-    lenis.scrollTo(target, {
+    lenis.scrollTo(flowTop(target), {
       /*
        * The skip link must not be a scenic route. Everything else gets the
        * page's own easing; `#main` is an accessibility affordance and the

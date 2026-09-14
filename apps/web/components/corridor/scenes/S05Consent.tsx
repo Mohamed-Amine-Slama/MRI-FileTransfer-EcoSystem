@@ -6,8 +6,10 @@ import { haptic } from '../../../lib/site/haptics';
 import { framePath } from '../../../lib/site/sequence';
 import { useSite } from '../../../lib/site/site-provider';
 import { useGsapScope } from '../../../lib/site/use-gsap';
-import { FocalReveal } from '../motion/FocalReveal';
-import { Plate } from '../primitives/Plate';
+import { BlurIn } from '../motion/BlurIn';
+import { StackPanel } from '../motion/StackPanel';
+import { WordReveal } from '../motion/WordReveal';
+import { DemoCard } from '../primitives/DemoCard';
 
 /**
  * Scene 05 — Consent. Landing-Page-Specs §Scene 05.
@@ -28,7 +30,7 @@ import { Plate } from '../primitives/Plate';
  * record whose subject is nobody.
  */
 export function S05Consent(): React.JSX.Element {
-  const sectionRef = useRef<HTMLElement>(null);
+  const sceneRef = useRef<HTMLDivElement>(null);
   const stampRef = useRef<HTMLSpanElement>(null);
   const { t, tpl, locale, budget, cue } = useSite();
   const [revoked, setRevoked] = useState(false);
@@ -47,8 +49,8 @@ export function S05Consent(): React.JSX.Element {
    */
   useGsapScope(
     budget.planes > 0,
-    sectionRef,
-    ({ gsap }, section) => {
+    sceneRef,
+    ({ gsap }, scene) => {
       const stamp = stampRef.current;
       if (stamp === null) return;
 
@@ -61,7 +63,7 @@ export function S05Consent(): React.JSX.Element {
           rotate: -7,
           duration: 0.42,
           ease: 'expo.out',
-          scrollTrigger: { trigger: section, start: 'top 55%', once: true },
+          scrollTrigger: { trigger: scene, start: 'top 55%', once: true },
           onStart: () => {
             stamp.style.willChange = 'transform, opacity';
           },
@@ -77,43 +79,30 @@ export function S05Consent(): React.JSX.Element {
   );
 
   return (
-    <section ref={sectionRef} id="consent" className="scene" aria-labelledby="consent-title">
-      <div className="shell">
-        <FocalReveal plane={1}>
-          <h2 id="consent-title" className="display t-h1 measure">
-            {t.consentTitle}
-          </h2>
-          <p className="t-body-l subtle measure consent-body">{t.consentBody}</p>
-        </FocalReveal>
+    <StackPanel id="consent" labelledBy="consent-title" tone="deep">
+      <div ref={sceneRef} className="shell">
+        <WordReveal as="h2" id="consent-title" variant="display" text={t.consentTitle} className="display t-h1 measure" />
+        <p className="t-body-l subtle measure consent-body">{t.consentBody}</p>
 
         <div className="consent-grid">
-          <FocalReveal plane={2}>
-            <Plate label="CONSENT · cross_border_transfer" className="consent-document">
+          <BlurIn>
+            <DemoCard label="CONSENT · cross_border_transfer" className="consent-document">
               <h3 className="t-h3 consent-doc-title">{t.consentDocumentTitle}</h3>
               <p className="subtle consent-doc-body measure">{t.consentDocumentBody}</p>
-
               <p className="consent-recipient">
                 <span className="mono subtle">{t.consentGrantedTo}</span>{' '}
                 <span className="ink">{tpl.consentRecipient(corridor.destination)}</span>
               </p>
               <p className="mono subtle consent-redaction-note">{t.consentRecipientRedacted}</p>
-
               <span ref={stampRef} className="consent-stamp mono" aria-hidden="true">
                 GRANTED
               </span>
-            </Plate>
-          </FocalReveal>
+            </DemoCard>
+          </BlurIn>
 
-          <FocalReveal plane={3}>
+          <BlurIn delay={0.08}>
             <EvidenceBlock revoked={revoked} />
-
             <div className="consent-revoke">
-              {/*
-                A real checkbox with a real label, not a styled div: §9 requires
-                the whole page to be keyboard-operable, and this control is the
-                argument of the scene. The switch role comes free with the
-                native input and its checked state is announced correctly.
-              */}
               <label className="consent-switch">
                 <input
                   type="checkbox"
@@ -131,16 +120,14 @@ export function S05Consent(): React.JSX.Element {
               </label>
               <p className="t-meta subtle consent-revoke-hint">{t.consentRevokeHint}</p>
             </div>
-
             <Thumbnails revoked={revoked} />
-
             <p className="sr-only" role="status" aria-live="polite">
               {revoked ? t.consentAnnounceRevoked : t.consentAnnounceRestored}
             </p>
-          </FocalReveal>
+          </BlurIn>
         </div>
       </div>
-    </section>
+    </StackPanel>
   );
 }
 

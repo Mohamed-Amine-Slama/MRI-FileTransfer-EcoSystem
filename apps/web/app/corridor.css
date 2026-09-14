@@ -940,31 +940,6 @@
    Scene 02 — The problem
    ========================================================================== */
 
-.corridor .problem-viewport {
-  margin-block-start: clamp(2.5rem, 6vh, 4rem);
-  /* The track is wider than the viewport on desktop and scrubs sideways.
-     `clip` rather than `hidden` so the pinned section cannot become its own
-     scroll container and swallow the page's scroll. */
-  overflow: clip;
-}
-
-.corridor .problem-track {
-  display: flex;
-  flex-direction: column;
-  gap: 1.5rem;
-}
-
-.corridor .problem-plate {
-  flex: 0 0 auto;
-}
-
-.corridor .problem-figure {
-  display: flex;
-  align-items: center;
-  gap: 1.5rem;
-  margin: 0;
-}
-
 .corridor .artefact {
   flex: 0 0 auto;
   inline-size: clamp(72px, 18vw, 120px);
@@ -986,28 +961,6 @@
   stroke: none;
 }
 
-.corridor .problem-line {
-  margin-block-start: 0.4rem;
-}
-
-@media (min-width: 900px) {
-  .corridor .problem-track {
-    flex-direction: row;
-    gap: 2rem;
-    inline-size: max-content;
-  }
-
-  .corridor .problem-plate {
-    inline-size: min(46vw, 560px);
-  }
-
-  .corridor .problem-figure {
-    flex-direction: column;
-    align-items: start;
-    gap: 2rem;
-  }
-}
-
 /* ==========================================================================
    Scene 03 — The corridor
    ========================================================================== */
@@ -1017,10 +970,6 @@
 .corridor .consent-body,
 .corridor .appointment-body {
   margin-block-start: 1.25rem;
-}
-
-.corridor .corridor-plate-wrap {
-  margin-block-start: clamp(2rem, 5vh, 3.5rem);
 }
 
 .corridor .corridor-map {
@@ -1038,27 +987,6 @@
 .corridor .corridor-route {
   position: absolute;
   inset: 0;
-}
-
-.corridor .corridor-legend {
-  display: flex;
-  flex-wrap: wrap;
-  gap: 0.5rem 2rem;
-  padding: 1rem clamp(1.25rem, 3vw, 2.5rem) 1.25rem;
-  border-block-start: 1px solid var(--c-line);
-}
-
-.corridor .legend-dot {
-  display: inline-block;
-  inline-size: 6px;
-  block-size: 6px;
-  border-radius: var(--r-pill);
-  background-color: var(--c-accent);
-  vertical-align: middle;
-}
-
-.corridor .corridor-readout {
-  margin-block-start: 1.5rem;
 }
 
 .corridor .corridor-readout-line {
@@ -1959,4 +1887,325 @@
     inset-block-start: 89.4%;
     inset-inline-start: 2.5rem;
   }
+}
+
+/* ---------------------------------------------------------------------------
+ * Card — spec 2026-09-10 §6.
+ * ------------------------------------------------------------------------- */
+.corridor .card {
+  position: relative;
+  isolation: isolate;
+  display: flex;
+  flex-direction: column;
+  gap: 1.5rem;
+  min-block-size: 22rem;
+  padding: 2rem;
+  overflow: hidden;
+  border: 1px solid var(--c-line);
+  border-radius: var(--r-card);
+  color: var(--c-ink);
+  text-decoration: none;
+}
+
+.corridor .card--lime {
+  background-color: var(--c-lime);
+  border-color: var(--c-lime-edge);
+}
+
+.corridor .card--teal {
+  background-color: var(--c-accent);
+  border-color: var(--c-accent-deep);
+  color: var(--c-on-accent);
+}
+
+.corridor .card--glass {
+  background-color: var(--c-glass-soft);
+  backdrop-filter: blur(var(--glass-blur));
+}
+
+.corridor .card--image {
+  background-color: var(--c-accent-deep);
+  border-color: transparent;
+  color: var(--c-on-accent);
+}
+
+.corridor .card-image {
+  position: absolute;
+  inset: 0;
+  z-index: -2;
+  inline-size: 100%;
+  block-size: 100%;
+  object-fit: cover;
+}
+
+.corridor .card-scrim {
+  position: absolute;
+  inset: 0;
+  z-index: -1;
+  background: linear-gradient(to bottom, rgb(5 64 56 / 0.35), rgb(5 64 56 / 0.88));
+}
+
+.corridor .card-top {
+  display: flex;
+  flex-direction: column;
+  gap: 0.75rem;
+}
+
+.corridor .card-index {
+  font-size: var(--t-body);
+  font-weight: 300;
+}
+
+.corridor .card-title {
+  color: inherit;
+  font-family: var(--f-display-latin);
+  font-size: var(--t-h2);
+  font-weight: 300;
+  line-height: var(--leading-display);
+}
+
+.corridor[dir='rtl'] .card-title {
+  font-family: var(--f-display-arabic);
+}
+
+.corridor .card-body {
+  flex: 1;
+}
+
+.corridor .card-foot {
+  display: flex;
+  align-items: flex-end;
+  justify-content: space-between;
+  gap: 1rem;
+  margin-block-start: auto;
+}
+
+.corridor .card-label {
+  font-size: var(--t-pill);
+  font-weight: 300;
+}
+
+.corridor .arrow-circle {
+  display: inline-grid;
+  place-items: center;
+  flex: 0 0 auto;
+  inline-size: 4.5rem;
+  block-size: 4.5rem;
+  border: 1px solid currentColor;
+  border-radius: 50%;
+  transition:
+    background-color var(--dur-normal) var(--ease-entrance),
+    border-color var(--dur-normal) var(--ease-entrance),
+    color var(--dur-normal) var(--ease-entrance);
+}
+
+.corridor .arrow-glyph {
+  inline-size: 1.25rem;
+  block-size: 1.25rem;
+  fill: none;
+  stroke: currentColor;
+  stroke-width: 1.2;
+  stroke-linecap: round;
+  stroke-linejoin: round;
+  transition: translate var(--dur-normal) var(--ease-entrance);
+}
+
+.corridor[dir='rtl'] .arrow-glyph {
+  scale: -1 1;
+}
+
+.corridor a.card:is(:hover, :focus-visible) .arrow-circle {
+  background-color: var(--c-lime);
+  border-color: var(--c-lime);
+  color: var(--c-ink);
+}
+
+.corridor a.card:is(:hover, :focus-visible) .arrow-glyph {
+  translate: calc(2px * var(--dir)) -2px;
+}
+
+/* ---------------------------------------------------------------------------
+ * Scene 02 · problem — three cards.
+ * ------------------------------------------------------------------------- */
+.corridor .problem-cards {
+  display: grid;
+  gap: 0.625rem;
+  margin: clamp(2.5rem, 6vh, 4rem) 0 0;
+  padding: 0;
+  list-style: none;
+}
+
+.corridor .problem-cards > li,
+.corridor .problem-card-wrap {
+  display: grid;
+}
+
+.corridor .problem-card .artefact {
+  inline-size: clamp(72px, 10vw, 112px);
+  block-size: auto;
+  color: inherit;
+}
+
+.corridor .card--teal .artefact-flaw {
+  color: var(--c-lime);
+  stroke: var(--c-lime);
+}
+
+.corridor .problem-tag {
+  display: block;
+  margin-block-start: 1rem;
+  direction: ltr;
+  text-align: start;
+  opacity: 0.75;
+}
+
+@media (min-width: 900px) {
+  .corridor .problem-cards {
+    grid-template-columns: repeat(3, 1fr);
+  }
+
+  .corridor .problem-card {
+    min-block-size: 30rem;
+  }
+}
+
+/* ---------------------------------------------------------------------------
+ * Scroll-lit words — spec §3.3. Large text only.
+ * ------------------------------------------------------------------------- */
+.corridor [data-lit] {
+  color: var(--c-ink-muted);
+  transition: color var(--dur-normal) var(--ease-entrance);
+}
+
+.corridor [data-lit='on'] {
+  color: var(--c-ink);
+}
+
+/* ---------------------------------------------------------------------------
+ * Scene 03 · corridor.
+ * ------------------------------------------------------------------------- */
+.corridor .corridor-shell {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 1.5rem;
+  text-align: center;
+}
+
+.corridor .corridor-title {
+  max-inline-size: 18em;
+}
+
+.corridor .corridor-body {
+  max-inline-size: 30em;
+  margin: 0;
+  font-weight: 300;
+  line-height: var(--leading-display);
+}
+
+.corridor .corridor-ends {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  justify-content: center;
+  gap: 0.75rem;
+  margin-block-start: 1rem;
+}
+
+.corridor .corridor-link {
+  inline-size: clamp(2rem, 8vw, 6rem);
+  block-size: 1px;
+  background-color: var(--c-accent);
+}
+
+.corridor .corridor-map-card {
+  inline-size: 100%;
+  margin-block-start: clamp(2rem, 5vh, 3rem);
+  overflow: hidden;
+  border: 1px solid var(--c-line);
+  border-radius: var(--r-card);
+  background-color: var(--c-panel);
+  text-align: start;
+}
+
+.corridor .corridor-readout {
+  display: flex;
+  flex-direction: column;
+  gap: 0.25rem;
+  padding: 1rem clamp(1.25rem, 3vw, 2rem) 1.25rem;
+  border-block-start: 1px solid var(--c-line);
+}
+
+/* ---------------------------------------------------------------------------
+ * Stacked panels — spec §3.3. Sticky only once measured (.is-stacking).
+ * ------------------------------------------------------------------------- */
+.corridor .stack-panel {
+  --panel-bg: var(--c-panel);
+  position: relative;
+  margin-block-start: calc(var(--r-section) * -1);
+  border-start-start-radius: var(--r-section);
+  border-start-end-radius: var(--r-section);
+  background-color: var(--panel-bg);
+  box-shadow: 0 -16px 40px -32px rgb(0 0 0 / 0.25);
+}
+
+.corridor .stack-panel--deep {
+  --panel-bg: var(--c-panel-deep);
+}
+
+.corridor .stack-panel--white {
+  --panel-bg: var(--c-ground);
+}
+
+.corridor .stack-panel.is-stacking {
+  position: sticky;
+  inset-block-start: min(0px, calc(100lvh - var(--panel-h, 100lvh)));
+}
+
+.corridor .stack-group > .stack-panel:last-child {
+  border-end-start-radius: var(--r-section);
+  border-end-end-radius: var(--r-section);
+}
+
+/* ---------------------------------------------------------------------------
+ * Demo card — the white working surface (replaces Plate).
+ * ------------------------------------------------------------------------- */
+.corridor .demo-card {
+  position: relative;
+  overflow: hidden;
+  border: 1px solid var(--c-line);
+  border-radius: var(--r-card);
+  background-color: var(--c-ground);
+  box-shadow:
+    0 1px 2px rgb(0 0 0 / 0.04),
+    0 24px 48px -32px rgb(0 0 0 / 0.18);
+}
+
+.corridor .demo-card-head {
+  display: flex;
+  justify-content: space-between;
+  gap: 1rem;
+  padding: 0.875rem 1.5rem;
+  border-block-end: 1px solid var(--c-line);
+  color: var(--c-ink-subtle);
+  font-family: var(--f-mono);
+  font-size: 0.75rem;
+}
+
+.corridor .demo-card-counter {
+  font-variant-numeric: tabular-nums;
+  unicode-bidi: plaintext;
+}
+
+.corridor .demo-card-body {
+  padding: clamp(1.25rem, 3vw, 2rem);
+}
+
+.corridor .upload-stage {
+  margin-block-start: clamp(2rem, 5vh, 3rem);
+}
+
+.corridor .consent-switch-thumb {
+  background-color: var(--c-ground);
+  box-shadow: 0 1px 2px rgb(0 0 0 / 0.25);
 }

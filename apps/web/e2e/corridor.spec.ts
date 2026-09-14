@@ -293,6 +293,35 @@ test.describe('focal reveals (§3.5, §6.6, §12 L5)', () => {
     await page.waitForTimeout(1500);
     await expect(security).toBeInViewport({ ratio: 0.1, timeout: 8000 });
   });
+
+  test('an anchor to a stacked panel arrives even while that panel is stuck (spec §3.3)', async ({
+    page,
+    isMobile,
+  }) => {
+    test.skip(isMobile, 'the chrome nav is a desktop control');
+    await page.setViewportSize({ width: 1440, height: 900 });
+    await page.goto('/fr?tier=A');
+    const upload = page.locator('#upload');
+    await expect(upload).toHaveClass(/is-stacking/, { timeout: 15_000 });
+
+    // Park the reader inside the consent panel, with the upload panel stuck behind it.
+    await page.evaluate(() => {
+      const consent = document.getElementById('consent');
+      if (consent === null) return;
+      consent.style.position = 'relative';
+      const top = consent.getBoundingClientRect().top + window.scrollY;
+      consent.style.position = '';
+      window.scrollTo(0, top + 200);
+    });
+    await page.waitForTimeout(800);
+
+    await page.locator('.chrome-link[href="#upload"]').first().click();
+    await expect
+      .poll(async () => Math.abs((await upload.boundingBox())?.y ?? 999), { timeout: 10_000 })
+      .toBeLessThan(4);
+    // …and it is the upload panel on screen, not the consent panel over it.
+    expect((await page.locator('#consent').boundingBox())?.y ?? 0).toBeGreaterThan(400);
+  });
 });
 
 // ---------------------------------------------------------------------------

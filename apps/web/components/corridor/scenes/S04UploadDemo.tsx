@@ -3,8 +3,10 @@
 import { useCallback, useEffect, useReducer, useRef } from 'react';
 import { haptic } from '../../../lib/site/haptics';
 import { useSite } from '../../../lib/site/site-provider';
-import { FocalReveal } from '../motion/FocalReveal';
-import { Plate } from '../primitives/Plate';
+import { BlurIn } from '../motion/BlurIn';
+import { StackPanel } from '../motion/StackPanel';
+import { WordReveal } from '../motion/WordReveal';
+import { DemoCard } from '../primitives/DemoCard';
 
 /**
  * Scene 04 — Upload that survives. Landing-Page-Specs §Scene 04.
@@ -143,27 +145,14 @@ export function S04UploadDemo(): React.JSX.Element {
   const { t, budget } = useSite();
 
   return (
-    <section id="upload" className="scene" aria-labelledby="upload-title">
+    <StackPanel id="upload" labelledBy="upload-title" tone="mint">
       <div className="shell">
-        <FocalReveal plane={1}>
-          {/*
-            A standfirst, not a label. "The connection drops. The upload does
-            not start again." is a sentence making the scene's argument, and
-            setting it in tracked mono above the heading turned an idea into
-            furniture.
-          */}
-          <p className="standfirst measure">{t.uploadEyebrow}</p>
-          <h2 id="upload-title" className="display t-h1 measure">
-            {t.uploadTitle}
-          </h2>
-          <p className="t-body-l subtle measure upload-body">{t.uploadBody}</p>
-        </FocalReveal>
-
-        <FocalReveal plane={2}>
-          {budget.interactiveDemo ? <InteractiveDemo /> : <StaticStates />}
-        </FocalReveal>
+        <p className="standfirst measure">{t.uploadEyebrow}</p>
+        <WordReveal as="h2" id="upload-title" variant="display" text={t.uploadTitle} className="display t-h1 measure" />
+        <p className="t-body-l subtle measure upload-body">{t.uploadBody}</p>
+        <BlurIn className="upload-stage">{budget.interactiveDemo ? <InteractiveDemo /> : <StaticStates />}</BlurIn>
       </div>
-    </section>
+    </StackPanel>
   );
 }
 
@@ -291,7 +280,7 @@ function InteractiveDemo(): React.JSX.Element {
 
   return (
     <div ref={rootRef}>
-      <Plate label="TRANSFER · SIMULATED" counter={`${state.files} / ${TOTAL_FILES}`}>
+      <DemoCard label="TRANSFER · SIMULATED" counter={`${state.files} / ${TOTAL_FILES}`}>
         <div className="upload-head">
           <span className={`mono ${state.phase === 'interrupted' ? 'alert' : 'accent'}`}>
             {
@@ -348,7 +337,7 @@ function InteractiveDemo(): React.JSX.Element {
             */
             <button
               type="button"
-              className="btn btn--ghost upload-cut"
+              className="btn btn--secondary upload-cut"
               onClick={cut}
               disabled={state.phase === 'idle'}
               data-testid="upload-cut"
@@ -377,7 +366,7 @@ function InteractiveDemo(): React.JSX.Element {
           {state.phase === 'uploading' && state.resumedAt !== null && t.uploadAnnounceResumed}
           {state.phase === 'complete' && t.uploadAnnounceComplete}
         </p>
-      </Plate>
+      </DemoCard>
     </div>
   );
 }
@@ -408,12 +397,12 @@ function StaticStates(): React.JSX.Element {
   return (
     <div className="upload-static">
       {states.map((state) => (
-        <Plate key={state.label} label="UPLOAD" counter={`${state.files} / ${TOTAL_FILES}`}>
+        <DemoCard key={state.label} label="UPLOAD" counter={`${state.files} / ${TOTAL_FILES}`}>
           <p className={`mono ${state.tone}`}>{state.label}</p>
           <div className="upload-bar" aria-hidden="true">
             <span className="upload-bar-fill" style={{ inlineSize: `${state.width}%` }} />
           </div>
-        </Plate>
+        </DemoCard>
       ))}
       <p className="mono subtle upload-static-note">{t.uploadResumedLine}</p>
     </div>

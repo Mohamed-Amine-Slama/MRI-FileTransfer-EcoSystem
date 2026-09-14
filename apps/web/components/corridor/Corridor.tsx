@@ -86,8 +86,11 @@ export function Corridor({
           <S01Hero />
           <S02Problem />
           <S03Corridor />
-          <S04UploadDemo />
-          <S05Consent />
+          {/* A sticky panel stays stuck until its parent ends; the group ends the stack. */}
+          <div className="stack-group">
+            <S04UploadDemo />
+            <S05Consent />
+          </div>
           <S06Viewer />
           <S07Appointment />
           <S08Security />
