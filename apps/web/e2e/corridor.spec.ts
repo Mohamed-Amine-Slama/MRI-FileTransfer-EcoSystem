@@ -316,9 +316,20 @@ test.describe('focal reveals (§3.5, §6.6, §12 L5)', () => {
     await page.waitForTimeout(800);
 
     await page.locator('.chrome-link[href="#upload"]').first().click();
-    await expect
-      .poll(async () => Math.abs((await upload.boundingBox())?.y ?? 999), { timeout: 10_000 })
-      .toBeLessThan(4);
+
+    /*
+     * A STUCK panel reads rect.top === 0 for its WHOLE sticky range, not only
+     * at the moment it arrives: #upload is "stuck" for roughly its own
+     * height's worth of scroll before it (correctly, per §3.3's release
+     * mechanic) lets go of the next panel underneath. Polling its bounding
+     * box alone resolves as soon as that range is entered — while Lenis's
+     * ~1.1 s scroll is still hundreds of pixels short of its target — so it
+     * is not a safe arrival signal here the way it is for a non-sticky scene.
+     * Focus only moves in `onComplete`, once the scroll has actually settled
+     * (the same signal the in-page-anchor test above waits on), so it is.
+     */
+    await expect(upload).toBeFocused({ timeout: 10_000 });
+    expect(Math.abs((await upload.boundingBox())?.y ?? 999)).toBeLessThan(4);
     // …and it is the upload panel on screen, not the consent panel over it.
     expect((await page.locator('#consent').boundingBox())?.y ?? 0).toBeGreaterThan(400);
   });
