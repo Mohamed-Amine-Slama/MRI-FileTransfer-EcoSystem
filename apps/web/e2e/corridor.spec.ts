@@ -329,9 +329,13 @@ test.describe('focal reveals (§3.5, §6.6, §12 L5)', () => {
      * (the same signal the in-page-anchor test above waits on), so it is.
      */
     await expect(upload).toBeFocused({ timeout: 10_000 });
-    expect(Math.abs((await upload.boundingBox())?.y ?? 999)).toBeLessThan(4);
+    await expect
+      .poll(async () => Math.abs((await upload.boundingBox())?.y ?? 999), { timeout: 2000 })
+      .toBeLessThan(4);
     // …and it is the upload panel on screen, not the consent panel over it.
-    expect((await page.locator('#consent').boundingBox())?.y ?? 0).toBeGreaterThan(400);
+    await expect
+      .poll(async () => (await page.locator('#consent').boundingBox())?.y ?? 0, { timeout: 2000 })
+      .toBeGreaterThan(400);
   });
 });
 

@@ -123,10 +123,12 @@ export async function initScroll(tier: Tier): Promise<ScrollSystem | null> {
    */
   const flowTop = (target: HTMLElement): number => {
     const sticky = getComputedStyle(target).position === 'sticky';
-    if (sticky) target.style.position = 'relative';
-    const top = target.getBoundingClientRect().top + window.scrollY;
-    if (sticky) target.style.position = '';
-    return top;
+    try {
+      if (sticky) target.style.position = 'relative';
+      return target.getBoundingClientRect().top + window.scrollY;
+    } finally {
+      if (sticky) target.style.position = '';
+    }
   };
 
   const focusTarget = (target: HTMLElement): void => {
