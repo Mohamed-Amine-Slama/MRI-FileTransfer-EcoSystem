@@ -1387,38 +1387,61 @@
   border-block-start: 1px solid var(--c-line);
 }
 
-/* ==========================================================================
-   Scene 08 — Security
-   ========================================================================== */
-
+/* ---------------------------------------------------------------------------
+ * Scene 08 · security — the control's name in the stat slot.
+ * ------------------------------------------------------------------------- */
 .corridor .security {
-  display: flex;
-  flex-direction: column;
-  gap: 0.6rem;
-  margin: 0;
+  display: grid;
+  gap: 2.5rem 1.5rem;
+  margin: clamp(2.5rem, 6vh, 4rem) 0 0;
 }
 
 .corridor .security-row {
-  display: grid;
-  gap: 0.15rem 1.5rem;
+  display: flex;
+  flex-direction: column;
+  gap: 0.75rem;
+  padding-inline-start: 1.5rem;
+  border-inline-start: 1px solid var(--c-accent);
 }
 
-.corridor .security-row dt {
+.corridor .security-term {
   color: var(--c-ink);
+  font-family: var(--f-display-latin);
+  font-size: clamp(2rem, 1.6rem + 1.2vw, 3rem);
+  font-weight: 300;
+  line-height: 1;
+  text-align: start;
 }
 
-.corridor .security-row dd {
+.corridor[dir='rtl'] .security-term {
+  text-align: right;
+}
+
+.corridor .security-desc {
   margin: 0;
 }
 
 .corridor .security-status {
-  margin-block-start: 1.5rem;
+  margin-block-start: 3rem;
+  padding: 1.5rem 2rem;
+  border: 1px solid var(--c-line);
+  border-radius: var(--r-card);
+  background-color: var(--c-panel);
+}
+
+.corridor .security-status p {
+  margin: 0;
 }
 
 @media (min-width: 700px) {
-  .corridor .security-row {
-    grid-template-columns: 14rem 1fr;
-    align-items: baseline;
+  .corridor .security {
+    grid-template-columns: repeat(2, 1fr);
+  }
+}
+
+@media (min-width: 1100px) {
+  .corridor .security {
+    grid-template-columns: repeat(4, 1fr);
   }
 }
 
