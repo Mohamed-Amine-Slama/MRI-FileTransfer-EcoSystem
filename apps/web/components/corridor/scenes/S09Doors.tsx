@@ -1,84 +1,54 @@
 'use client';
 
-import Link from 'next/link';
+import { useRef } from 'react';
+import { SEQUENCE } from '../../../lib/site/sequence';
 import { useSite } from '../../../lib/site/site-provider';
-import { FocalReveal } from '../motion/FocalReveal';
+import { HorizontalTrack } from '../motion/HorizontalTrack';
+import { Card } from '../primitives/Card';
 
 /**
- * Scene 09 — Two doors. Landing-Page-Specs §Scene 09.
+ * Scene 09 — Two doors. Spec 2026-09-10 §7.2.
  *
- * "Route the three audiences without three homepages."
- *
- * §1.1 sets out the three: the referring doctor, the patient or family member,
- * and the receiving specialist. The hero speaks to the first two at once,
- * because they share one emotional truth — the scan gets there before the
- * patient does. This scene is where they part company.
- *
- * The hover expansion is one of the only hover effects on the site, and §Scene
- * 09 permits it because it is MEANINGFUL: it previews the choice rather than
- * decorating it. It is implemented in CSS on `:hover` AND `:focus-within`, so
- * a keyboard user gets the same preview — a hover-only affordance would make
- * the effect a reward for owning a mouse.
+ * "Who are you?" on a teal lead card, then one card per door, travelling
+ * sideways while the section is held. Each door is ONE link — the whole card
+ * — so the doctors' topics are its body text rather than a list of links
+ * (links cannot nest). Cards are ~44vw so the row genuinely overflows and the
+ * pin travels about one viewport, not a token amount.
  */
 export function S09Doors(): React.JSX.Element {
+  const sectionRef = useRef<HTMLElement>(null);
   const { t, cue } = useSite();
 
-  const doors = [
-    {
-      key: 'doctors',
-      title: t.doorsDoctorTitle,
-      body: t.doorsDoctorBody,
-      cta: t.doorsDoctorCta,
-      href: '/signup',
-      testid: 'door-doctors',
-    },
-    {
-      key: 'patients',
-      title: t.doorsPatientTitle,
-      body: t.doorsPatientBody,
-      cta: t.doorsPatientCta,
-      href: '/pricing',
-      testid: 'door-patients',
-    },
-  ];
-
   return (
-    <section id="doors" className="scene" aria-labelledby="doors-title">
-      <div className="shell">
-        <FocalReveal plane={1}>
-          <h2 id="doors-title" className="display t-h2 doors-title">
-            {t.doorsEyebrow}
-          </h2>
-        </FocalReveal>
-
-        {/*
-          The seam. Two panels that meet on a single hairline and open from the
-          centre — on desktop a row, stacked below 900px. `plate--flush` on
-          both so the seam is the only line between them.
-        */}
-        <FocalReveal plane={2}>
-          <div className="doors">
-            {doors.map((door) => (
-              <Link
-                key={door.key}
-                href={door.href}
-                className="door"
-                data-testid={door.testid}
-                onPointerEnter={() => cue('press')}
-              >
-                <h3 className="display t-h2 door-heading">{door.title}</h3>
-                <p className="subtle door-body">{door.body}</p>
-                {/*
-                  No arrow appended. The whole panel is the link and it says
-                  what it does; a glyph after the words is decoration standing
-                  in for an affordance the surface already has.
-                */}
-                <span className="door-cta">{door.cta}</span>
-              </Link>
-            ))}
-          </div>
-        </FocalReveal>
-      </div>
+    <section ref={sectionRef} id="doors" className="scene scene--doors" aria-labelledby="doors-title">
+      <HorizontalTrack pinRef={sectionRef} className="doors-track">
+        <Card variant="teal" titleAs="h2" titleId="doors-title" title={t.doorsEyebrow} className="door-lead" />
+        <Card
+          variant="lime"
+          href="/signup"
+          testId="door-doctors"
+          index="01"
+          title={t.doorsDoctorTitle}
+          label={t.doorsDoctorCta}
+          onPointerEnter={() => cue('press')}
+          className="door"
+        >
+          <p className="door-body">{t.doorsDoctorBody}</p>
+        </Card>
+        <Card
+          variant="image"
+          href="/pricing"
+          testId="door-patients"
+          index="02"
+          title={t.doorsPatientTitle}
+          label={t.doorsPatientCta}
+          image={{ src: SEQUENCE.poster, width: SEQUENCE.width, height: SEQUENCE.height }}
+          onPointerEnter={() => cue('press')}
+          className="door"
+        >
+          <p className="door-body">{t.doorsPatientBody}</p>
+        </Card>
+      </HorizontalTrack>
     </section>
   );
 }

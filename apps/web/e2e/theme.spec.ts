@@ -48,11 +48,10 @@ test.describe('theme (§4.1)', () => {
     /*
      * `/pricing`, not `/`.
      *
-     * The landing page is a darkened reading room in BOTH themes — that
-     * contrast is a deliberate design device (Landing-Page-Specs §3.1: the
-     * product is a bright clinical tool, the marketing site is the dark room
-     * around it), so it supplies its own chrome and carries no theme control.
-     * Putting one there would be a switch that visibly does nothing.
+     * The landing page keeps its own light palette in BOTH themes — the
+     * theme applies to the signed-in application — but its header carries
+     * the appearance control, so the toggle is driven from there and the
+     * assertions are on `data-theme` alone.
      *
      * The three tests above still load `/`, because what they assert is that
      * `theme-init.js` stamps <html> before paint — which happens on every
