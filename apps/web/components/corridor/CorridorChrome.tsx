@@ -5,20 +5,21 @@ import { useEffect, useState } from 'react';
 import type { UiLocale } from '@mir/contracts';
 import { useSite } from '../../lib/site/site-provider';
 import { LocaleControl, ThemeControl } from './CorridorControls';
+import { ArrowCircle } from './primitives/Card';
+import { MirMark } from './primitives/MirMark';
 
 /**
- * The navigation chrome — Landing-Page-Specs §Scene 01 and §2.2.
+ * The landing page's own header — spec 2026-09-10 §7.3.
  *
- * "The reticle and windowing HUD from a radiology workstation become the
- * navigation chrome." So this is not a website header with a logo and five
- * links: it is the corner overlay of a reading station — a mono wordmark, four
- * section jumps, and the language control, on a rule that only appears once
- * you have left the hero.
+ * Floating 16px from the top: a white tile with the teal logo square, a glass
+ * pill of in-page links, and at the inline-end the language and appearance
+ * controls, sign-in, and a teal "register" pill with a lime arrow. The bar
+ * itself lets clicks through (`pointer-events: none`); only its pieces catch
+ * them, so the hero's helix still answers the cursor between them.
  *
- * It is `position: fixed` and transparent over the hero, gaining its
- * background and hairline once the page has scrolled past the first viewport.
- * That transition is a class toggle driven by one IntersectionObserver rather
- * than a scroll handler, so it costs nothing per frame.
+ * The language control stays first among `.control`s and stays a <details>:
+ * a reader who cannot read this page is the one who most needs to switch it,
+ * before any script has arrived.
  */
 export function CorridorChrome({
   hrefFor,
@@ -29,14 +30,12 @@ export function CorridorChrome({
   const [detached, setDetached] = useState(false);
   const [menuOpen, setMenuOpen] = useState(false);
 
+  // "Detached" once the hero is mostly off screen: the pieces gain a shadow.
   useEffect(() => {
     const hero = document.getElementById('hero');
     if (hero === null) return;
-
     const observer = new IntersectionObserver(
       ([entry]) => setDetached(entry?.isIntersecting !== true),
-      // Fires when the hero's last 15% leaves — the point at which a
-      // transparent header would start sitting on body copy.
       { threshold: 0.15 },
     );
     observer.observe(hero);
@@ -53,33 +52,32 @@ export function CorridorChrome({
   return (
     <header className="chrome" data-detached={detached}>
       <div className="chrome-inner">
-        <Link href="/" className="chrome-mark mono">
-          {/* The reticle — a workstation's crosshair, standing in for a logo. */}
-          <span className="chrome-reticle" aria-hidden="true" />
-          MIR
-        </Link>
-
-        <nav className="chrome-nav" aria-label={t.navQuestions}>
-          {links.map((link) => (
-            <a key={link.href} href={link.href} className="chrome-link">
-              {link.label}
-            </a>
-          ))}
-        </nav>
+        <div className="chrome-brand">
+          <Link href="/" className="chrome-mark">
+            <span className="logo-tile" aria-hidden="true">
+              <MirMark />
+            </span>
+            <span className="chrome-name">MIR</span>
+          </Link>
+          <nav className="chrome-nav" aria-label={t.navQuestions}>
+            {links.map((link) => (
+              <a key={link.href} href={link.href} className="chrome-link">
+                {link.label}
+              </a>
+            ))}
+          </nav>
+        </div>
 
         <div className="chrome-actions">
-          {/*
-            The two controls a visitor looks for in a header, back where they
-            look for them. The language one especially: the reader who most
-            needs it is the one who cannot read the current page.
-          */}
           <LocaleControl hrefFor={hrefFor} />
           <ThemeControl />
-
           <Link href="/login" className="chrome-link chrome-signin">
             {t.navSignIn}
           </Link>
-
+          <Link href="/signup" className="chrome-cta">
+            <span>{t.heroCtaPrimary}</span>
+            <ArrowCircle className="chrome-cta-arrow" />
+          </Link>
           <button
             type="button"
             className="chrome-toggle"
@@ -94,23 +92,9 @@ export function CorridorChrome({
         </div>
       </div>
 
-      {/*
-        Disclosed inline, not in a full-screen overlay. Four links and a
-        sign-in do not justify taking over the viewport, and an overlay on a
-        page with a pinned scroll section is a way to trap someone.
-
-        `hidden` rather than conditional rendering so the links stay in the DOM
-        for a crawler and the toggle's `aria-controls` always points at
-        something real.
-      */}
       <div id="chrome-menu" className="chrome-menu" hidden={!menuOpen}>
         {links.map((link) => (
-          <a
-            key={link.href}
-            href={link.href}
-            className="chrome-link"
-            onClick={() => setMenuOpen(false)}
-          >
+          <a key={link.href} href={link.href} className="chrome-link" onClick={() => setMenuOpen(false)}>
             {link.label}
           </a>
         ))}
