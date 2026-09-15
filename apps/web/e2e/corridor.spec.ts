@@ -530,6 +530,26 @@ test.describe('accessibility (§9)', () => {
       await page.evaluate(() => window.localStorage.getItem('mir.site.sound')),
     ).not.toBe('on');
   });
+
+  test('the mobile header menu closes on Escape and returns focus to its toggle', async ({
+    page,
+    isMobile,
+  }) => {
+    test.skip(!isMobile, 'the chrome toggle only exists below the desktop breakpoint');
+    await page.goto('/fr');
+
+    const toggle = page.locator('.chrome-toggle');
+    const menu = page.locator('#chrome-menu');
+
+    await toggle.click();
+    await expect(toggle).toHaveAttribute('aria-expanded', 'true');
+    await expect(menu).toBeVisible();
+
+    await page.keyboard.press('Escape');
+    await expect(toggle).toHaveAttribute('aria-expanded', 'false');
+    await expect(menu).toBeHidden();
+    await expect(toggle).toBeFocused();
+  });
 });
 
 // ---------------------------------------------------------------------------

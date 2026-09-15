@@ -1,7 +1,7 @@
 'use client';
 
 import Link from 'next/link';
-import { useEffect, useState } from 'react';
+import { useEffect, useRef, useState } from 'react';
 import type { UiLocale } from '@mir/contracts';
 import { useSite } from '../../lib/site/site-provider';
 import { LocaleControl, ThemeControl } from './CorridorControls';
@@ -29,6 +29,7 @@ export function CorridorChrome({
   const { t } = useSite();
   const [detached, setDetached] = useState(false);
   const [menuOpen, setMenuOpen] = useState(false);
+  const toggleRef = useRef<HTMLButtonElement>(null);
 
   // "Detached" once the hero is mostly off screen: the pieces gain a shadow.
   useEffect(() => {
@@ -41,6 +42,19 @@ export function CorridorChrome({
     observer.observe(hero);
     return () => observer.disconnect();
   }, []);
+
+  // Escape dismisses the sheet, same as any other disclosure, and hands
+  // focus back to the control that opened it rather than dropping it.
+  useEffect(() => {
+    if (!menuOpen) return;
+    const onKeydown = (event: KeyboardEvent) => {
+      if (event.key !== 'Escape') return;
+      setMenuOpen(false);
+      toggleRef.current?.focus();
+    };
+    document.addEventListener('keydown', onKeydown);
+    return () => document.removeEventListener('keydown', onKeydown);
+  }, [menuOpen]);
 
   const links = [
     { href: '#upload', label: t.navDoctors },
@@ -79,6 +93,7 @@ export function CorridorChrome({
             <ArrowCircle className="chrome-cta-arrow" />
           </Link>
           <button
+            ref={toggleRef}
             type="button"
             className="chrome-toggle"
             aria-expanded={menuOpen}

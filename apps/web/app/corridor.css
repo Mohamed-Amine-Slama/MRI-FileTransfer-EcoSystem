@@ -2166,6 +2166,14 @@
 
 .corridor .chrome-signin {
   display: none;
+  border: 1px solid var(--c-line);
+  border-radius: var(--r-tile);
+  background-color: var(--c-glass);
+  -webkit-backdrop-filter: blur(var(--glass-blur));
+  backdrop-filter: blur(var(--glass-blur));
+  transition:
+    color var(--dur-fast) var(--ease-entrance),
+    box-shadow var(--dur-normal) var(--ease-entrance);
 }
 
 .corridor .control-trigger {
@@ -2224,8 +2232,10 @@
 .corridor .chrome-menu {
   display: flex;
   flex-direction: column;
-  margin: 0.5rem var(--margin) 0;
-  padding: 0.5rem 1rem 1rem;
+  margin-block: 0.5rem 0;
+  margin-inline: var(--margin);
+  padding-block: 0.5rem 1rem;
+  padding-inline: 1rem;
   border: 1px solid var(--c-line);
   border-radius: var(--r-card);
   background-color: var(--c-glass-strong);
@@ -2237,7 +2247,7 @@
   font-size: 1rem;
 }
 
-.corridor .chrome[data-detached='true'] :is(.chrome-mark, .chrome-nav) {
+.corridor .chrome[data-detached='true'] :is(.chrome-mark, .chrome-nav, .chrome-signin) {
   box-shadow: 0 8px 24px -16px rgb(0 0 0 / 0.3);
 }
 
