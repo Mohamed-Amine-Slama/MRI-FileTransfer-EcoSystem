@@ -261,9 +261,9 @@
  * position — late, or in the worst case never.
  *
  * "Never" is what it did. Scene 09 rendered as an empty black band on Tier A,
- * because `FocalReveal`'s `fromTo` had applied its `autoAlpha: 0` start state
- * and the trigger that would clear it sat at a scroll offset the page never
- * reached. Scene 10 was caught permanently mid-blur for the same reason.
+ * because `BlurIn`'s `fromTo` had applied its `opacity: 0` start state and the
+ * trigger that would clear it sat at a scroll offset the page never reached.
+ * Scene 10 was caught permanently mid-blur for the same reason.
  * Tier C was unaffected — it runs no timelines — which is exactly why the
  * no-JS and Tier C tests all passed while two scenes were invisible.
  *
@@ -294,98 +294,6 @@
   color: var(--c-ink-subtle);
   font-size: var(--t-body-l);
   margin-block-end: 0.75rem;
-}
-
-/* ==========================================================================
-   §3.3 The plate — the one structural device
-   ========================================================================== */
-
-/*
- * Not a card. A plate: a hairline frame with corner ticks, a mono label in the
- * top-inline-start corner, and near-zero radius. It is a lightbox frame and a
- * DICOM viewport at once, and everything that would otherwise have become a
- * rounded card becomes one of these.
- *
- *   ┌─ MR · T2 · AX ────────────────────┐
- *   │                                   │
- *   │         [ content ]               │
- *   │                                   │
- *   └──────────────────────── 24 / 180 ─┘
- */
-/*
- * A plate has to read as an OBJECT sitting in the room, not as a rectangle
- * drawn on it. Three things do that, and none of them is a drop shadow with a
- * grey blur:
- *
- *   - a lit top edge. Light in this room comes from above, so the frame is a
- *     shade brighter where it faces the source and the fill falls away
- *     downward. That single gradient is most of the effect.
- *   - a fill that is not flat. 3% of vertical falloff is invisible as a
- *     gradient and obvious as depth.
- *   - a shadow that is BLACK rather than grey. On a warm near-black ground a
- *     grey shadow is lighter than the page and haloes; black just deepens.
- */
-.corridor .plate {
-  position: relative;
-  border: 1px solid var(--c-line);
-  border-radius: var(--r-card);
-  background-color: var(--c-ground);
-  box-shadow:
-    0 1px 2px rgb(0 0 0 / 0.04),
-    0 24px 48px -32px rgb(0 0 0 / 0.18);
-}
-
-.corridor .plate--flush {
-  background-color: transparent;
-  background-image: none;
-  box-shadow: none;
-}
-
-.corridor .plate-label {
-  position: absolute;
-  inset-block-start: -0.62em;
-  inset-inline-start: 1.25rem;
-  padding-inline: 0.5rem;
-  background-color: var(--c-ground);
-  color: var(--c-ink-subtle);
-  font-family: var(--f-mono);
-  font-size: 0.6875rem;
-  letter-spacing: 0.08em;
-  white-space: nowrap;
-  pointer-events: none;
-}
-
-/*
- * `unicode-bidi: plaintext` — the counters are the one place bidi gets this
- * wrong on purpose.
- *
- * "36 / 312" is two LTR digit runs separated by a neutral slash. In an RTL
- * paragraph the algorithm is entitled to order those runs right-to-left, and
- * it does: the plate read "312 / 36", quietly inverting a progress fraction
- * into a nonsense one. `plaintext` takes the direction from the content, and
- * content with no strong character resolves left-to-right — which is what a
- * fraction is in every locale.
- *
- * It is set on the TEXT rather than by flipping `direction`, because
- * `direction` also decides which physical edge `inset-inline-end` means, and
- * the counter must stay on the trailing corner of the plate in both scripts.
- */
-.corridor .plate-counter {
-  position: absolute;
-  inset-block-end: -0.62em;
-  inset-inline-end: 1.25rem;
-  padding-inline: 0.5rem;
-  background-color: var(--c-ground);
-  color: var(--c-ink-subtle);
-  font-family: var(--f-mono);
-  font-size: 0.6875rem;
-  font-variant-numeric: tabular-nums;
-  unicode-bidi: plaintext;
-  pointer-events: none;
-}
-
-.corridor .plate-body {
-  padding: clamp(1.25rem, 3vw, 2.5rem);
 }
 
 /* ==========================================================================
@@ -533,28 +441,6 @@
 }
 
 /* ==========================================================================
-   §3.4 · §6.6 Focal depth
-   ========================================================================== */
-
-/*
- * Depth is expressed as blur + scale + opacity as a function of distance from
- * the focal plane. THE RESTING STATE IS THE CORRECT STATE (§3.5): what is
- * written here is what the page looks like with no JavaScript at all, and the
- * animation only ever moves an element from a start state it sets itself.
- */
-.corridor [data-plane] {
-  transform-origin: center;
-}
-
-/*
- * §3.4 note 3, and the single detail that decides whether this page is smooth
- * or crashes Chrome on a Galaxy A-series: `will-change` is set when a
- * transition STARTS and removed when it completes, by the motion code. It is
- * never declared here, because a permanently promoted layer is a permanent
- * cost and there are ~40 of these elements on the page.
- */
-
-/* ==========================================================================
    §6.8 Reduced motion — none, not "smaller"
    ========================================================================== */
 
@@ -673,149 +559,6 @@
   position: absolute;
   inset-block-end: clamp(1rem, 4vh, 2.5rem);
   inset-inline-end: var(--margin);
-}
-
-/* ==========================================================================
-   Chrome
-   ========================================================================== */
-
-.corridor .chrome {
-  position: fixed;
-  inset-block-start: 0;
-  inset-inline: 0;
-  z-index: 50;
-  transition:
-    background-color var(--d-scene) var(--e-out),
-    border-color var(--d-scene) var(--e-out);
-  border-block-end: 1px solid transparent;
-}
-
-.corridor .chrome[data-detached='true'] {
-  background-color: var(--c-glass);
-  -webkit-backdrop-filter: blur(var(--glass-blur));
-  backdrop-filter: blur(var(--glass-blur));
-  border-block-end-color: var(--c-line);
-}
-
-.corridor .chrome-inner {
-  display: flex;
-  align-items: center;
-  gap: 1.5rem;
-  max-inline-size: var(--content-max);
-  margin-inline: auto;
-  padding: 0.9rem var(--margin);
-}
-
-.corridor .chrome-mark {
-  display: inline-flex;
-  align-items: center;
-  gap: 0.6rem;
-  color: var(--c-ink);
-  font-family: var(--f-mono);
-  font-size: 0.875rem;
-  letter-spacing: 0.18em;
-}
-
-/* The reticle — a workstation crosshair standing in for a logo. */
-.corridor .chrome-reticle {
-  position: relative;
-  inline-size: 14px;
-  block-size: 14px;
-  border: 1px solid var(--c-accent);
-  border-radius: var(--r-pill);
-}
-
-.corridor .chrome-reticle::before,
-.corridor .chrome-reticle::after {
-  content: '';
-  position: absolute;
-  background-color: var(--c-accent);
-}
-
-.corridor .chrome-reticle::before {
-  inset-block: -4px;
-  inset-inline-start: 50%;
-  inline-size: 1px;
-}
-
-.corridor .chrome-reticle::after {
-  inset-inline: -4px;
-  inset-block-start: 50%;
-  block-size: 1px;
-}
-
-.corridor .chrome-nav {
-  display: none;
-  gap: 1.5rem;
-}
-
-.corridor .chrome-link {
-  color: var(--c-ink-subtle);
-  font-size: 0.75rem;
-  transition: color var(--d-micro) var(--e-out);
-}
-
-.corridor .chrome-link:hover {
-  color: var(--c-accent);
-}
-
-.corridor .chrome-actions {
-  display: flex;
-  align-items: center;
-  gap: 1rem;
-  margin-inline-start: auto;
-}
-
-.corridor .chrome-signin {
-  display: none;
-}
-
-.corridor .chrome-toggle {
-  display: flex;
-  flex-direction: column;
-  justify-content: center;
-  gap: 5px;
-  /* 44px: the minimum touch target, on the one control a phone user needs. */
-  inline-size: 44px;
-  block-size: 44px;
-  padding-inline: 10px;
-  background: none;
-  border: 0;
-  cursor: pointer;
-}
-
-.corridor .chrome-toggle-bar {
-  display: block;
-  block-size: 1px;
-  background-color: var(--c-ink);
-}
-
-.corridor .chrome-menu {
-  display: flex;
-  flex-direction: column;
-  gap: 0.25rem;
-  padding: 0.5rem var(--margin) 1.25rem;
-  background-color: var(--c-panel);
-  border-block-start: 1px solid var(--c-line);
-}
-
-.corridor .chrome-menu .chrome-link {
-  display: flex;
-  align-items: center;
-  min-block-size: 44px;
-  font-size: 0.8125rem;
-}
-
-@media (min-width: 900px) {
-  .corridor .chrome-nav,
-  .corridor .chrome-signin {
-    display: inline-flex;
-  }
-
-  .corridor .chrome-toggle,
-  .corridor .chrome-menu {
-    display: none;
-  }
 }
 
 /* ==========================================================================
@@ -1249,10 +992,6 @@
   margin-block-start: clamp(2rem, 5vh, 3.5rem);
 }
 
-.corridor .viewer-plate {
-  overflow: hidden;
-}
-
 /*
  * The page's only large light surface.
  *
@@ -1445,119 +1184,86 @@
   }
 }
 
-/* ==========================================================================
-   Scene 09 — Two doors
-   ========================================================================== */
-
-.corridor .doors-title {
-  margin-block-end: 1.5rem;
+/* ---------------------------------------------------------------------------
+ * Horizontal track — the page's one pin. Native swipe row when not pinned.
+ * ------------------------------------------------------------------------- */
+.corridor .track-viewport {
+  overflow-x: auto;
+  overscroll-behavior-x: contain;
+  scroll-snap-type: x mandatory;
+  scrollbar-color: var(--c-line) transparent;
+  scrollbar-width: thin;
 }
 
-.corridor .doors {
-  display: grid;
-  border: 1px solid var(--c-line);
-  border-radius: var(--r-card);
-  overflow: hidden;
+.corridor .track-viewport.is-pinned {
+  overflow: clip;
+  scroll-snap-type: none;
 }
 
-.corridor .door {
+.corridor .track {
   display: flex;
-  flex-direction: column;
-  gap: 0.75rem;
-  padding: clamp(1.75rem, 5vw, 3.5rem);
-  color: var(--c-ink);
-  background-color: var(--c-panel);
-  transition: background-color var(--d-scene) var(--e-out), flex-grow var(--d-scene) var(--e-out);
+  gap: 0.625rem;
+  inline-size: max-content;
+  padding-inline: var(--margin);
+  padding-block-end: 0.75rem;
 }
 
-.corridor .door + .door {
-  border-block-start: 1px solid var(--c-line);
+.corridor .track > * {
+  flex: 0 0 auto;
+  scroll-snap-align: start;
+}
+
+/* ---------------------------------------------------------------------------
+ * Scene 09 · doors.
+ * ------------------------------------------------------------------------- */
+.corridor .doors-track .card {
+  inline-size: min(84vw, 28rem);
+  min-block-size: 28rem;
 }
 
 .corridor .door-body {
-  max-inline-size: 42ch;
-}
-
-.corridor .door-cta {
-  display: inline-flex;
-  align-items: center;
-  margin-block-start: 1rem;
-  padding-block-end: 2px;
-  color: var(--c-ink);
-  border-block-end: 1px solid var(--c-line);
-  transition: border-color var(--d-micro) var(--e-out);
-}
-
-.corridor .door:hover .door-cta,
-.corridor .door:focus-visible .door-cta {
-  border-block-end-color: var(--c-accent);
-}
-
-/* §3.6: arrows mirror. One glyph in the markup, flipped by the multiplier. */
-.corridor .door-arrow {
-  display: inline-block;
-  scale: var(--dir) 1;
-  transition: translate var(--d-micro) var(--e-out);
-}
-
-.corridor .door:hover .door-arrow,
-.corridor .door:focus-visible .door-arrow {
-  translate: calc(4px * var(--dir)) 0;
+  max-inline-size: 36ch;
+  margin: 0;
 }
 
 @media (min-width: 900px) {
-  .corridor .doors {
-    grid-auto-flow: column;
-    grid-auto-columns: 1fr;
-  }
-
-  .corridor .door + .door {
-    border-block-start: 0;
-    border-inline-start: 1px solid var(--c-line);
-  }
-
-  /*
-   * The preview. §Scene 09 permits this hover because it is meaningful — the
-   * chosen side expands and the other dims, which shows the consequence of the
-   * choice before it is made. `:focus-within` gives a keyboard user the same
-   * preview; a hover-only affordance would make it a reward for owning a mouse.
-   */
-  .corridor .doors:hover .door,
-  .corridor .doors:focus-within .door {
-    opacity: 0.55;
-  }
-
-  .corridor .doors .door:hover,
-  .corridor .doors .door:focus-within {
-    opacity: 1;
-    background-color: var(--c-panel-deep);
+  .corridor .doors-track .card {
+    inline-size: 44vw;
+    min-block-size: min(36rem, 72vh);
   }
 }
 
-/* ==========================================================================
-   Scene 10 — Questions
-   ========================================================================== */
-
+/* ---------------------------------------------------------------------------
+ * Scene 10 · questions — glass accordion on native <details>.
+ * ------------------------------------------------------------------------- */
 .corridor .faq {
+  display: flex;
+  flex-direction: column;
+  gap: 0.5rem;
   margin-block-start: clamp(2rem, 5vh, 3rem);
-  border-block-start: 1px solid var(--c-line);
 }
 
 .corridor .faq-item {
-  border-block-end: 1px solid var(--c-line);
+  border: 1px solid var(--c-line);
+  border-radius: var(--r-card);
+  background-color: var(--c-glass-soft);
+  backdrop-filter: blur(var(--glass-blur));
+  transition: background-color var(--dur-normal) var(--ease-entrance);
+}
+
+.corridor .faq-item[open] {
+  background-color: var(--c-panel);
 }
 
 .corridor .faq-question {
   display: flex;
-  align-items: baseline;
+  align-items: center;
   gap: 1rem;
-  padding-block: 1.25rem;
+  padding: 1.25rem 1.5rem;
   cursor: pointer;
   list-style: none;
 }
 
-/* The default disclosure triangle is a physical-direction glyph that does not
-   flip reliably under RTL, so it is replaced entirely. */
 .corridor .faq-question::-webkit-details-marker {
   display: none;
 }
@@ -1569,98 +1275,46 @@
 .corridor .faq-marker {
   position: relative;
   flex: 0 0 auto;
-  inline-size: 14px;
-  block-size: 14px;
+  inline-size: 2.5rem;
+  block-size: 2.5rem;
   margin-inline-start: auto;
-  align-self: center;
+  border: 1px solid var(--c-line);
+  border-radius: 50%;
+  transition:
+    rotate var(--dur-normal) var(--ease-entrance),
+    background-color var(--dur-normal) var(--ease-entrance),
+    border-color var(--dur-normal) var(--ease-entrance);
 }
 
 .corridor .faq-marker::before,
 .corridor .faq-marker::after {
   content: '';
   position: absolute;
-  inset-block-start: 50%;
-  inset-inline-start: 0;
-  inline-size: 14px;
+  inset: 0;
+  margin: auto;
+  inline-size: 0.875rem;
   block-size: 1px;
-  background-color: var(--c-ink-subtle);
-  transition: rotate var(--d-micro) var(--e-out);
+  background-color: var(--c-ink);
 }
 
 .corridor .faq-marker::after {
   rotate: 90deg;
 }
 
-.corridor .faq-item[open] .faq-marker::after {
-  rotate: 0deg;
+.corridor .faq-item[open] .faq-marker {
+  rotate: 45deg;
+  background-color: var(--c-lime);
+  border-color: var(--c-lime-edge);
 }
 
 .corridor .faq-answer {
   padding-block-end: 1.5rem;
-  /* Aligned under the question text, past the index column. */
-  padding-inline-start: calc(1rem + 2ch);
+  padding-inline: calc(1.5rem + 2ch + 1rem) 1.5rem;
 }
 
-/* ==========================================================================
-   Scene 11 — Close
-   ========================================================================== */
-
-.corridor .scene--close {
-  padding-block-end: clamp(4rem, 10vh, 7rem);
-}
-
-/*
- * The inversion. The only large light surface in the document after the
- * viewer panel, and the last thing seen.
- */
-.corridor .close-plate {
-  position: relative;
-  padding: clamp(3rem, 10vh, 7rem) clamp(1.5rem, 6vw, 5rem);
-  background-color: var(--c-ink);
-  color: var(--c-ground);
-  border-radius: var(--r-card);
-  text-align: center;
-}
-
-.corridor .close-line {
-  margin-block-start: 1.5rem;
-  margin-inline: auto;
-  max-inline-size: 22ch;
-  color: var(--c-ground);
-}
-
-.corridor .close-actions {
-  display: flex;
-  flex-wrap: wrap;
-  justify-content: center;
-  gap: 0.75rem;
-  margin-block-start: 2.5rem;
-}
-
-.corridor .btn--invert {
-  background-color: var(--c-ground);
-  color: var(--c-ink);
-}
-
-.corridor .btn--invert:hover {
-  background-color: var(--c-lime);
-  translate: 0 -1px;
-}
-
-.corridor .btn--invert-ghost {
-  border-color: rgb(255 255 255 / 0.4);
-  color: var(--c-ground);
-}
-
-.corridor .btn--invert-ghost:hover {
-  border-color: var(--c-ground);
-}
-
-/* The inverted plate needs its own focus colour: phosphor on bone fails
-   contrast, and an invisible focus ring on the page's one remaining call to
-   action is the worst place to have one. */
-.corridor .close-plate :focus-visible {
-  outline-color: var(--c-alert);
+.corridor .faq-answer p {
+  margin: 0;
+  line-height: 1.5;
 }
 
 /* ==========================================================================
@@ -2241,4 +1895,270 @@
 
 .corridor .consent-switch-thumb {
   box-shadow: 0 1px 2px rgb(0 0 0 / 0.25);
+}
+
+/* ---------------------------------------------------------------------------
+ * Logo tile and mark.
+ * ------------------------------------------------------------------------- */
+.corridor .logo-tile {
+  display: inline-grid;
+  place-items: center;
+  flex: 0 0 auto;
+  inline-size: 2.625rem;
+  block-size: 2.625rem;
+  border-radius: var(--r-tile);
+  background-color: var(--c-accent);
+  color: var(--c-lime);
+}
+
+.corridor .mir-mark {
+  inline-size: 1.5rem;
+  block-size: 1.5rem;
+  fill: none;
+  stroke: currentColor;
+  stroke-width: 1.4;
+  stroke-linecap: round;
+}
+
+/* ---------------------------------------------------------------------------
+ * Scene 11 · close — the helix returns beside a white card.
+ * ------------------------------------------------------------------------- */
+.corridor .scene--close {
+  padding-block: clamp(4rem, 10vh, 7rem);
+}
+
+.corridor .close-stage {
+  display: grid;
+  gap: 2rem;
+  align-items: center;
+}
+
+.corridor .close-helix {
+  block-size: 40vh;
+}
+
+.corridor .close-card {
+  padding: clamp(2rem, 4vw, 3rem);
+  border: 1px solid var(--c-line);
+  border-radius: var(--r-card);
+  background-color: var(--c-glass-strong);
+  backdrop-filter: blur(var(--glass-blur));
+}
+
+.corridor .close-line {
+  margin-block: 1.5rem 2.5rem;
+}
+
+.corridor .close-actions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 1rem;
+}
+
+@media (min-width: 1000px) {
+  .corridor .close-stage {
+    grid-template-columns: 1fr 1fr;
+    min-block-size: min(46rem, 90vh);
+  }
+
+  .corridor .close-helix {
+    block-size: 100%;
+    min-block-size: 36rem;
+  }
+}
+
+/* ---------------------------------------------------------------------------
+ * Header — floating glass pieces (spec §7.3).
+ * ------------------------------------------------------------------------- */
+.corridor .chrome {
+  position: fixed;
+  inset-block-start: 1rem;
+  inset-inline: 0;
+  z-index: 50;
+  pointer-events: none;
+}
+
+.corridor .chrome-inner {
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+  max-inline-size: var(--content-max);
+  margin-inline: auto;
+  padding-inline: var(--margin);
+}
+
+.corridor .chrome-brand,
+.corridor .chrome-actions,
+.corridor .chrome-menu {
+  pointer-events: auto;
+}
+
+.corridor .chrome-brand {
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+}
+
+.corridor .chrome-mark {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.75rem;
+  block-size: 3.375rem;
+  padding-inline: 0.375rem 1rem;
+  border-radius: var(--r-tile);
+  background-color: var(--c-ground);
+  color: var(--c-ink);
+  font-size: 1.25rem;
+  font-weight: 300;
+  transition: box-shadow var(--dur-normal) var(--ease-entrance);
+}
+
+.corridor .chrome-nav {
+  display: none;
+  align-items: center;
+  block-size: 3.375rem;
+  padding-inline: 1rem;
+  border-radius: var(--r-tile);
+  background-color: var(--c-glass);
+  backdrop-filter: blur(var(--glass-blur));
+  transition: box-shadow var(--dur-normal) var(--ease-entrance);
+}
+
+.corridor .chrome-link {
+  display: inline-flex;
+  align-items: center;
+  min-block-size: 2.75rem;
+  padding-inline: 0.75rem;
+  color: var(--c-ink);
+  font-size: 0.9375rem;
+  font-weight: 300;
+  transition: color var(--dur-fast) var(--ease-entrance);
+}
+
+.corridor .chrome-link:hover {
+  color: var(--c-accent);
+}
+
+.corridor .chrome-actions {
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+  margin-inline-start: auto;
+}
+
+.corridor .chrome-signin {
+  display: none;
+  border: 1px solid var(--c-line);
+  border-radius: var(--r-tile);
+  background-color: var(--c-glass);
+  -webkit-backdrop-filter: blur(var(--glass-blur));
+  backdrop-filter: blur(var(--glass-blur));
+  transition:
+    color var(--dur-fast) var(--ease-entrance),
+    box-shadow var(--dur-normal) var(--ease-entrance);
+}
+
+.corridor .control-trigger {
+  min-block-size: 3.375rem;
+  padding-inline: 1rem;
+  border-radius: var(--r-tile);
+  background-color: var(--c-glass);
+  backdrop-filter: blur(var(--glass-blur));
+}
+
+.corridor .chrome-cta {
+  display: none;
+  align-items: center;
+  gap: 0.625rem;
+  block-size: 3.375rem;
+  padding-inline: 2rem 0.1875rem;
+  border: 1px solid var(--c-accent-deep);
+  border-radius: var(--r-pill);
+  background-color: var(--c-accent);
+  color: var(--c-on-accent);
+  font-size: var(--t-pill);
+  font-weight: 300;
+  white-space: nowrap;
+}
+
+.corridor .chrome-cta-arrow {
+  inline-size: 3rem;
+  block-size: 3rem;
+  border: 0;
+  background-color: var(--c-lime);
+  color: var(--c-ink);
+}
+
+.corridor .chrome-toggle {
+  display: inline-flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 0.3125rem;
+  inline-size: 3.375rem;
+  block-size: 3.375rem;
+  border: 0;
+  border-radius: var(--r-tile);
+  background-color: var(--c-glass);
+  backdrop-filter: blur(var(--glass-blur));
+  cursor: pointer;
+}
+
+.corridor .chrome-toggle-bar {
+  display: block;
+  inline-size: 1.25rem;
+  block-size: 1px;
+  background-color: var(--c-ink);
+}
+
+.corridor .chrome-menu {
+  display: flex;
+  flex-direction: column;
+  margin-block: 0.5rem 0;
+  margin-inline: var(--margin);
+  padding-block: 0.5rem 1rem;
+  padding-inline: 1rem;
+  border: 1px solid var(--c-line);
+  border-radius: var(--r-card);
+  background-color: var(--c-glass-strong);
+  backdrop-filter: blur(var(--glass-blur));
+}
+
+.corridor .chrome-menu .chrome-link {
+  min-block-size: 2.75rem;
+  font-size: 1rem;
+}
+
+.corridor .chrome[data-detached='true'] :is(.chrome-mark, .chrome-nav, .chrome-signin) {
+  box-shadow: 0 8px 24px -16px rgb(0 0 0 / 0.3);
+}
+
+@media (min-width: 900px) {
+  .corridor .chrome-nav,
+  .corridor .chrome-signin {
+    display: inline-flex;
+  }
+
+  .corridor .chrome-toggle,
+  .corridor .chrome-menu {
+    display: none;
+  }
+}
+
+@media (min-width: 1100px) {
+  .corridor .chrome-cta {
+    display: inline-flex;
+  }
+}
+
+/* ---------------------------------------------------------------------------
+ * Footer — the same content in the light register.
+ * ------------------------------------------------------------------------- */
+.corridor .site-footer {
+  background-color: var(--c-ground);
+}
+
+.corridor .footer-locale,
+.corridor .footer-switch {
+  font-weight: 300;
 }
