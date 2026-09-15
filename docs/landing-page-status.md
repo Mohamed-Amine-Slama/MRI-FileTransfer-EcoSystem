@@ -73,9 +73,10 @@ apps/web/
 ├── components/corridor/
 │   ├── Corridor.tsx              composition; lang/dir live here
 │   ├── scenes/S00…S11            eleven scenes, one file each
-│   ├── motion/                   FocalReveal, WindowingWipe, WordReveal, BlurIn
+│   ├── motion/                   WordReveal, BlurIn, ScrollLitText, StackPanel,
+│   │                             HorizontalTrack
 │   ├── helix/                    HelixCanvas, renderer, shaders, geometry, config
-│   └── primitives/               Plate, StatusPill
+│   └── primitives/               Card, DemoCard, MirMark, StatusPill
 ├── lib/site/                     tier, scroll, gsap, split, sound, haptics,
 │                                 copy, entity, corridor-labels
 └── scripts/                      render-slices, render-helix-poster,
@@ -102,6 +103,9 @@ Each of these is argued in full at the head of the file that makes it.
 | Scene 01 | CT slice sequence scrubbed by scroll, DICOM HUD, 001/180 counter | Particle DNA helix, raw WebGL2 (spec 2026-09-10 §4–5) | The owner's re-direction. One program, one draw call, positions computed on the GPU from seeded attributes; A 36k / B 14k particles, C the poster. No three.js: the same argument §6.1's handoff deviation made. The Tier A frame set (36 AVIFs) is deleted; the Tier B set stays because S05's consent thumbnails use three of its frames. |
 | — | One helix poster, mirrored in RTL | Two posters, `poster-{ltr,rtl}.avif` | Mirroring with `scaleX(-1)` turns a right-handed helix left-handed. The live render leans the other way by negating its roll; the posters are rendered the same way, by the real renderer (`scripts/render-helix-poster.mjs`). |
 | §12 L3 | `?tier=` forces a tier | …and holds it | A forced tier was still demoted by the frame-rate check, so under software WebGL a forced Tier A fell to C mid-test. Real visitors are still demoted; a forced tier is not. |
+| Scene 02 | Three plates scrubbed sideways (the page's one pin) | Three cards, static | The light re-theme gives the one pin to Scene 09's door track instead, where the cards genuinely overflow the viewport; §6.4 still holds — one pin on the page. |
+| Scene 09 | Doctors' card with a list of links | The whole card is one link | Links cannot nest; each door keeps its single `data-testid` and destination, and the doctors' topics are its body text. |
+| 3.1 | `--c-ink-subtle` 50%, `--c-ink-muted` 40% | 62% and 45% | The spec's own rule (every text pair ≥ 4.5:1) cannot hold at 50%/40%. `--c-ink-muted` is for text ≥ 24px only; `lib/site/tokens.test.ts` asserts both thresholds. |
 
 ---
 
@@ -117,10 +121,30 @@ that profile has not been used, so treat these as floor values.
 | Tier A total page | ≤2.5 MB warn | **1.06 MB** | ✅ |
 | Tier C total page | ≤450 KB block | **699 KB** | ❌ |
 | First-load JS (gz) | ≤110 KB block | **~315 KB** | ❌ |
+| `/[locale]` First Load JS (`next build` output table) | spec §10: unchanged or lower | **255 kB** — unchanged from the pre-refactor build (Task 10a) and unchanged again after the 2026-09-15 dependency bumps (ESLint 10, `globals` 17, `lucide-react`, a dev-dependency batch; HEAD `5f751a3`) | ✅ |
 | LCP / CLS / INP | 2.0 s / 0.03 / 200 ms | not measured | ⬜ |
 | Lighthouse mobile / a11y | ≥92 / 100 | not measured | ⬜ |
-| `helix:geometry` build (spec §10, per idle sample) | ≤10 ms on a real device | **21.1, 21.5, 29.4, 30.3, 32.3 ms** (min 21.1, median 29.4) — WSL2 + software WebGL2 (SwiftShader) + Docker, ~8 GB RAM; not a real device | 🏠 |
-| Helix posters (`poster-ltr.avif` / `poster-rtl.avif`) | — | **56.9 KB** / **57.6 KB**, both 1140×900, AVIF quality 30 | ✅ |
+| `helix:geometry` build (spec §10, per idle sample) | ≤10 ms on a real device | **21.1, 21.5, 29.4, 30.3, 32.3 ms** (min 21.1, median 29.4) — WSL2 + software WebGL2 (SwiftShader) + Docker, ~8 GB RAM; not a real device. Re-confirmed after the dark-era primitive removal, three quiet-machine runs (`uptime` load average 1.0–2.6): **27.8, 23.2, 21.5 ms**, all under the 40 ms environment tripwire and inside this same range. The spec §10 ≤10 ms real-device target is still unverified — see §4. | 🏠 |
+| Helix posters (`poster-ltr.avif` / `poster-rtl.avif`) | — | **56.9 KB** / **57.6 KB**, both 1140×900, AVIF quality 30 — reconfirmed on disk 2026-09-15, unchanged | ✅ |
+
+The `/[locale]` First Load JS row above is `next build`'s own build-table figure
+(spec §10's "first-load JS unchanged or lower" clause) and is **not** the same
+measurement as the "First-load JS (gz)" row above it, which is bytes actually
+seen over the wire for Tier C, including code split into chunks that load
+lazily after LCP (the helix renderer, GSAP, sound/haptics) and so never appear
+in the build table's initial-bundle figure. The two are not directly
+comparable; each is tracked against its own prior value.
+
+**LCP and CLS were not re-measured in this task.** The spec's §10 target (LCP
+< 2.0 s, CLS 0 on "the 3 Mbit profile") has never actually been backed by a
+documented, repeatable procedure in this repository — no tool, throttling
+preset, or trace method is written down anywhere to re-run "exactly", and this
+row has read "not measured" since before the light re-theme. Software-rendered
+WebGL2 under WSL2 (the only GPU path available here) would not produce a
+timing number representative of a real device in any case. Recording an ad hoc
+number under this row's name would misrepresent it as the documented
+measurement it is not; the honest state is that §8.1's LCP/CLS/INP budgets
+remain unmeasured; a real device and network are what §4 already asks for.
 
 **Both failures are the application shell, not this page.** Of the 699 KB that
 Tier C transfers:
@@ -169,6 +193,38 @@ Grouped by who can close them.
 - ⬜ **The OG card checked in an actual WhatsApp thread** (§10) — that is how
   this product spreads. The Arabic card renders with correct shaping and was
   inspected; WhatsApp's own rendering was not.
+- 🔒 **Owner's visual sign-off of the light re-theme against the reference
+  captures.** Screenshots at 1440×900, 390×844 and 1920×1080, `ar` and `fr`
+  (plus the Tier C hero poster and a 1024×768 header check), are under
+  `retheme-look/` from the Task 10b review; the four items below are what that
+  review could not close by itself.
+- 🔒 **Hero helix colour reads pale yellow-green, not "dusty… deep teal far,
+  lime near".** Consistent across every viewport captured (1440/390/1920,
+  `ar`/`fr`) — it reads as a pale mint-green ghost on the mint panel rather
+  than showing depth-based colour separation. Not changed here per the
+  controller's ruling (an open design decision, not a bug). If the owner asks
+  for a change, it is a `helix-config.ts` / shader tuning pass, and **any
+  change requires re-rendering both posters** with
+  `scripts/render-helix-poster.mjs` against a fresh build on a free port,
+  watching the 60 KB poster budget (currently 56.9/57.6 KB, little headroom).
+- 🔒 **Wide-screen hero containment.** At 1920×1080 the hero's copy sits 40px
+  from the viewport edge (full-bleed, per spec §4.1) while every other scene
+  sits inside a centred ~1440px column — measured (`fr`, tier A): hero H1 left
+  edge 40px, Scene 02's `<h2>` left edge 336px. Deliberate per the spec text,
+  but visually inconsistent at very wide viewports; not changed here per the
+  controller's ruling.
+- 🔒 **No `/signup` path from the header below 1100px.** `.chrome-cta` (the
+  teal "register" pill, sharing `heroCtaPrimary`'s copy) only turns on at
+  `min-width: 1100px` (`app/corridor.css`); confirmed absent at 1024×768
+  (`fr`) while the nav, controls and sign-in link all still fit without
+  overflow at that width. The hero's own two CTAs remain reachable by
+  scrolling, so this is a header-only gap, not a missing page path; needs an
+  owner decision on whether the header should carry a signup affordance
+  between 900px and 1099px.
+- ⬜ **The OG card (`public/og/*.png`) is still the dark-room design** — void
+  ground, phosphor-style accents — and needs a light restyle plus a re-render
+  via `scripts/render-og.mjs` to match the 2026-09-10 re-theme. Not attempted
+  here: it is a design pass on its own, not a bug fix.
 
 ### Needs a device or a network
 
@@ -185,6 +241,8 @@ Grouped by who can close them.
   (SwiftShader) + Docker — a proxy for a real GPU, not evidence about one. If
   a real device exceeds the spec's 10 ms budget, the remedy is to chunk the
   particle-buffer build across frames (spec §10) rather than build it in one.
+- 🔒 **Helix GPU frame time at Tier A on integrated graphics** (spec §10
+  target ≤ 2 ms). SwiftShader in CI proves correctness, not speed.
 
 ### Needs a tool this repository does not have
 
