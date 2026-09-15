@@ -261,9 +261,9 @@
  * position — late, or in the worst case never.
  *
  * "Never" is what it did. Scene 09 rendered as an empty black band on Tier A,
- * because `FocalReveal`'s `fromTo` had applied its `autoAlpha: 0` start state
- * and the trigger that would clear it sat at a scroll offset the page never
- * reached. Scene 10 was caught permanently mid-blur for the same reason.
+ * because `BlurIn`'s `fromTo` had applied its `opacity: 0` start state and the
+ * trigger that would clear it sat at a scroll offset the page never reached.
+ * Scene 10 was caught permanently mid-blur for the same reason.
  * Tier C was unaffected — it runs no timelines — which is exactly why the
  * no-JS and Tier C tests all passed while two scenes were invisible.
  *
@@ -294,98 +294,6 @@
   color: var(--c-ink-subtle);
   font-size: var(--t-body-l);
   margin-block-end: 0.75rem;
-}
-
-/* ==========================================================================
-   §3.3 The plate — the one structural device
-   ========================================================================== */
-
-/*
- * Not a card. A plate: a hairline frame with corner ticks, a mono label in the
- * top-inline-start corner, and near-zero radius. It is a lightbox frame and a
- * DICOM viewport at once, and everything that would otherwise have become a
- * rounded card becomes one of these.
- *
- *   ┌─ MR · T2 · AX ────────────────────┐
- *   │                                   │
- *   │         [ content ]               │
- *   │                                   │
- *   └──────────────────────── 24 / 180 ─┘
- */
-/*
- * A plate has to read as an OBJECT sitting in the room, not as a rectangle
- * drawn on it. Three things do that, and none of them is a drop shadow with a
- * grey blur:
- *
- *   - a lit top edge. Light in this room comes from above, so the frame is a
- *     shade brighter where it faces the source and the fill falls away
- *     downward. That single gradient is most of the effect.
- *   - a fill that is not flat. 3% of vertical falloff is invisible as a
- *     gradient and obvious as depth.
- *   - a shadow that is BLACK rather than grey. On a warm near-black ground a
- *     grey shadow is lighter than the page and haloes; black just deepens.
- */
-.corridor .plate {
-  position: relative;
-  border: 1px solid var(--c-line);
-  border-radius: var(--r-card);
-  background-color: var(--c-ground);
-  box-shadow:
-    0 1px 2px rgb(0 0 0 / 0.04),
-    0 24px 48px -32px rgb(0 0 0 / 0.18);
-}
-
-.corridor .plate--flush {
-  background-color: transparent;
-  background-image: none;
-  box-shadow: none;
-}
-
-.corridor .plate-label {
-  position: absolute;
-  inset-block-start: -0.62em;
-  inset-inline-start: 1.25rem;
-  padding-inline: 0.5rem;
-  background-color: var(--c-ground);
-  color: var(--c-ink-subtle);
-  font-family: var(--f-mono);
-  font-size: 0.6875rem;
-  letter-spacing: 0.08em;
-  white-space: nowrap;
-  pointer-events: none;
-}
-
-/*
- * `unicode-bidi: plaintext` — the counters are the one place bidi gets this
- * wrong on purpose.
- *
- * "36 / 312" is two LTR digit runs separated by a neutral slash. In an RTL
- * paragraph the algorithm is entitled to order those runs right-to-left, and
- * it does: the plate read "312 / 36", quietly inverting a progress fraction
- * into a nonsense one. `plaintext` takes the direction from the content, and
- * content with no strong character resolves left-to-right — which is what a
- * fraction is in every locale.
- *
- * It is set on the TEXT rather than by flipping `direction`, because
- * `direction` also decides which physical edge `inset-inline-end` means, and
- * the counter must stay on the trailing corner of the plate in both scripts.
- */
-.corridor .plate-counter {
-  position: absolute;
-  inset-block-end: -0.62em;
-  inset-inline-end: 1.25rem;
-  padding-inline: 0.5rem;
-  background-color: var(--c-ground);
-  color: var(--c-ink-subtle);
-  font-family: var(--f-mono);
-  font-size: 0.6875rem;
-  font-variant-numeric: tabular-nums;
-  unicode-bidi: plaintext;
-  pointer-events: none;
-}
-
-.corridor .plate-body {
-  padding: clamp(1.25rem, 3vw, 2.5rem);
 }
 
 /* ==========================================================================
@@ -531,28 +439,6 @@
     box-shadow: 0 0 0 5px rgb(36 111 101 / 0);
   }
 }
-
-/* ==========================================================================
-   §3.4 · §6.6 Focal depth
-   ========================================================================== */
-
-/*
- * Depth is expressed as blur + scale + opacity as a function of distance from
- * the focal plane. THE RESTING STATE IS THE CORRECT STATE (§3.5): what is
- * written here is what the page looks like with no JavaScript at all, and the
- * animation only ever moves an element from a start state it sets itself.
- */
-.corridor [data-plane] {
-  transform-origin: center;
-}
-
-/*
- * §3.4 note 3, and the single detail that decides whether this page is smooth
- * or crashes Chrome on a Galaxy A-series: `will-change` is set when a
- * transition STARTS and removed when it completes, by the motion code. It is
- * never declared here, because a permanently promoted layer is a permanent
- * cost and there are ~40 of these elements on the page.
- */
 
 /* ==========================================================================
    §6.8 Reduced motion — none, not "smaller"
@@ -1104,10 +990,6 @@
   display: grid;
   gap: 2rem;
   margin-block-start: clamp(2rem, 5vh, 3.5rem);
-}
-
-.corridor .viewer-plate {
-  overflow: hidden;
 }
 
 /*

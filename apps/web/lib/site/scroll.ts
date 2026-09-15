@@ -60,9 +60,9 @@ export async function initScroll(tier: Tier): Promise<ScrollSystem | null> {
    * page WITHOUT going through Lenis — an in-page anchor, a browser restoring
    * a scroll position on reload, find-on-page, End, a screen reader moving
    * focus — leaves ScrollTrigger believing the page never moved. Every trigger
-   * below the new position then stays unfired, and since `FocalReveal`
-   * animates from `autoAlpha: 0`, the scenes it should have revealed are
-   * simply not there.
+   * below the new position then stays unfired, and since `BlurIn` animates
+   * from `opacity: 0`, the scenes it should have revealed are simply not
+   * there.
    *
    * This page has four nav anchors and a hero CTA that all do exactly that.
    * `ScrollTrigger.update()` is cheap and idempotent, so the honest fix is to

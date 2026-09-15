@@ -197,19 +197,20 @@ test.describe('focal reveals (§3.5, §6.6, §12 L5)', () => {
     /*
      * The guard this page needed and did not have.
      *
-     * `FocalReveal` animates FROM `autoAlpha: 0` and a blur, so a trigger that
-     * never fires leaves its content permanently invisible — and nothing else
-     * catches it. Tier C runs no timelines, so the no-JS and Tier C tests pass
-     * while the page is broken; the scene ids are all present, so the
-     * structural tests pass too. Scene 09 shipped as an empty black band
-     * exactly once, because `content-visibility: auto` had collapsed the
-     * sections above it and every trigger below the fold was positioned
-     * against a page height that was never real.
+     * `BlurIn` animates FROM `opacity: 0` and a blur, and `WordReveal`'s word
+     * spans animate FROM `opacity: 0` too, so a trigger that never fires
+     * leaves its content permanently invisible — and nothing else catches it.
+     * Tier C runs no timelines, so the no-JS and Tier C tests pass while the
+     * page is broken; the scene ids are all present, so the structural tests
+     * pass too. Scene 09 shipped as an empty black band exactly once, because
+     * `content-visibility: auto` had collapsed the sections above it and
+     * every trigger below the fold was positioned against a page height that
+     * was never real.
      *
-     * Each PLANE is scrolled to, not each scene. A scene can be taller than
+     * Each reveal is scrolled to, not each scene. A scene can be taller than
      * the viewport — the corridor's map plate alone is most of one — so
-     * bringing a section into view says nothing about the planes still below
-     * its fold, whose reveals are correctly still waiting.
+     * bringing a section into view says nothing about the reveals still below
+     * its fold, which are correctly still waiting.
      */
     await page.goto('/ar?tier=A');
     await page.waitForTimeout(800);
@@ -221,14 +222,27 @@ test.describe('focal reveals (§3.5, §6.6, §12 L5)', () => {
      * this guard exists to catch, on the page's most important element (the
      * hero's own headline), and previously uncovered by this selector.
      */
-    const planes = page.locator('[data-plane], [data-reveal], [data-unit]');
+    const planes = page.locator('[data-reveal], [data-unit]');
     const total = await planes.count();
     // If this ever finds nothing, the selector changed and the test is vacuous.
     expect(total).toBeGreaterThan(15);
 
     for (let i = 0; i < total; i++) {
       const plane = planes.nth(i);
-      await plane.scrollIntoViewIfNeeded();
+
+      /*
+       * Scrolled to the viewport's CENTER, not `scrollIntoViewIfNeeded()`.
+       * That API stops at the nearest edge — the least scroll that makes an
+       * element technically visible — which on a narrow mobile viewport can
+       * land a few pixels short of the reveal's own `top 85%` trigger and
+       * then never move again: `once: true` does not get a second chance,
+       * and nothing else scrolls the page for the rest of the poll below.
+       * Desktop's wide layout happened to overshoot that threshold by
+       * hundreds of pixels on every jump and so never exposed this; a narrow
+       * viewport's closely-packed reveals do not get the same margin.
+       * Centering clears `top 85%` on any viewport this page supports.
+       */
+      await plane.evaluate((el) => el.scrollIntoView({ block: 'center' }));
 
       /*
        * Polled, not slept on. The reveal is 620 ms, but this suite runs many
@@ -254,7 +268,7 @@ test.describe('focal reveals (§3.5, §6.6, §12 L5)', () => {
     }
   });
 
-  test('an in-page anchor arrives at its scene and takes focus with it', async ({ page }) => {
+  test('an in-page anchor arrives at its scene and takes focus with it', async ({ page, isMobile }) => {
     /*
      * The chrome nav and the hero's second CTA are in-page anchors, and a
      * native jump would move the document without telling Lenis, which then
@@ -272,7 +286,22 @@ test.describe('focal reveals (§3.5, §6.6, §12 L5)', () => {
      */
     await expect(page.locator('h1 [data-unit]').first()).toBeVisible({ timeout: 15_000 });
 
-    await page.locator('.chrome-link[href="#security"]').first().click();
+    /*
+     * `.chrome-link[href="#security"]` matches two elements: the desktop
+     * nav's copy (`.chrome-nav`, `display: none` below 900px) and the
+     * toggle sheet's copy (`#chrome-menu`, hidden until opened). `.first()`
+     * always resolves to the desktop one regardless of viewport — on a
+     * narrow one it stays permanently invisible and the click never lands,
+     * which is exactly what CorridorChrome.tsx intends (§7.3: the sheet is
+     * the mobile equivalent, not a fallback), so a mobile run has to open
+     * the toggle and click the sheet's own link instead.
+     */
+    if (isMobile) {
+      await page.locator('.chrome-toggle').click();
+      await page.locator('#chrome-menu .chrome-link[href="#security"]').click();
+    } else {
+      await page.locator('.chrome-link[href="#security"]').first().click();
+    }
 
     const security = page.locator('#security');
     // Lenis animates over ~1.1 s; the assertion polls rather than guessing.
@@ -427,8 +456,9 @@ test.describe('consent (§Scene 05)', () => {
 
     /*
      * And wait for the focal reveal to have run, which matters more than it
-     * looks. `FocalReveal` animates from `autoAlpha: 0`, and GSAP's autoAlpha
-     * sets `visibility: hidden` — an element inside a hidden subtree cannot
+     * looks. Reveals used to animate from `autoAlpha: 0`, which sets
+     * `visibility: hidden`; `BlurIn` uses opacity, but the wait is kept as
+     * proof the scene has hydrated — an element inside a hidden subtree cannot
      * hold focus, so `focus()` before the reveal silently does nothing and the
      * Space keystroke goes to the document and scrolls the page instead of
      * toggling anything. The input itself is 1px and transparent by design, so
