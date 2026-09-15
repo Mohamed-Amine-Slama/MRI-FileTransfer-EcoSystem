@@ -197,19 +197,20 @@ test.describe('focal reveals (§3.5, §6.6, §12 L5)', () => {
     /*
      * The guard this page needed and did not have.
      *
-     * `FocalReveal` animates FROM `autoAlpha: 0` and a blur, so a trigger that
-     * never fires leaves its content permanently invisible — and nothing else
-     * catches it. Tier C runs no timelines, so the no-JS and Tier C tests pass
-     * while the page is broken; the scene ids are all present, so the
-     * structural tests pass too. Scene 09 shipped as an empty black band
-     * exactly once, because `content-visibility: auto` had collapsed the
-     * sections above it and every trigger below the fold was positioned
-     * against a page height that was never real.
+     * `BlurIn` animates FROM `opacity: 0` and a blur, and `WordReveal`'s word
+     * spans animate FROM `opacity: 0` too, so a trigger that never fires
+     * leaves its content permanently invisible — and nothing else catches it.
+     * Tier C runs no timelines, so the no-JS and Tier C tests pass while the
+     * page is broken; the scene ids are all present, so the structural tests
+     * pass too. Scene 09 shipped as an empty black band exactly once, because
+     * `content-visibility: auto` had collapsed the sections above it and
+     * every trigger below the fold was positioned against a page height that
+     * was never real.
      *
-     * Each PLANE is scrolled to, not each scene. A scene can be taller than
+     * Each reveal is scrolled to, not each scene. A scene can be taller than
      * the viewport — the corridor's map plate alone is most of one — so
-     * bringing a section into view says nothing about the planes still below
-     * its fold, whose reveals are correctly still waiting.
+     * bringing a section into view says nothing about the reveals still below
+     * its fold, which are correctly still waiting.
      */
     await page.goto('/ar?tier=A');
     await page.waitForTimeout(800);
@@ -221,14 +222,27 @@ test.describe('focal reveals (§3.5, §6.6, §12 L5)', () => {
      * this guard exists to catch, on the page's most important element (the
      * hero's own headline), and previously uncovered by this selector.
      */
-    const planes = page.locator('[data-plane], [data-reveal], [data-unit]');
+    const planes = page.locator('[data-reveal], [data-unit]');
     const total = await planes.count();
     // If this ever finds nothing, the selector changed and the test is vacuous.
     expect(total).toBeGreaterThan(15);
 
     for (let i = 0; i < total; i++) {
       const plane = planes.nth(i);
-      await plane.scrollIntoViewIfNeeded();
+
+      /*
+       * Scrolled to the viewport's CENTER, not `scrollIntoViewIfNeeded()`.
+       * That API stops at the nearest edge — the least scroll that makes an
+       * element technically visible — which on a narrow mobile viewport can
+       * land a few pixels short of the reveal's own `top 85%` trigger and
+       * then never move again: `once: true` does not get a second chance,
+       * and nothing else scrolls the page for the rest of the poll below.
+       * Desktop's wide layout happened to overshoot that threshold by
+       * hundreds of pixels on every jump and so never exposed this; a narrow
+       * viewport's closely-packed reveals do not get the same margin.
+       * Centering clears `top 85%` on any viewport this page supports.
+       */
+      await plane.evaluate((el) => el.scrollIntoView({ block: 'center' }));
 
       /*
        * Polled, not slept on. The reveal is 620 ms, but this suite runs many
@@ -254,7 +268,7 @@ test.describe('focal reveals (§3.5, §6.6, §12 L5)', () => {
     }
   });
 
-  test('an in-page anchor arrives at its scene and takes focus with it', async ({ page }) => {
+  test('an in-page anchor arrives at its scene and takes focus with it', async ({ page, isMobile }) => {
     /*
      * The chrome nav and the hero's second CTA are in-page anchors, and a
      * native jump would move the document without telling Lenis, which then
@@ -272,7 +286,22 @@ test.describe('focal reveals (§3.5, §6.6, §12 L5)', () => {
      */
     await expect(page.locator('h1 [data-unit]').first()).toBeVisible({ timeout: 15_000 });
 
-    await page.locator('.chrome-link[href="#security"]').first().click();
+    /*
+     * `.chrome-link[href="#security"]` matches two elements: the desktop
+     * nav's copy (`.chrome-nav`, `display: none` below 900px) and the
+     * toggle sheet's copy (`#chrome-menu`, hidden until opened). `.first()`
+     * always resolves to the desktop one regardless of viewport — on a
+     * narrow one it stays permanently invisible and the click never lands,
+     * which is exactly what CorridorChrome.tsx intends (§7.3: the sheet is
+     * the mobile equivalent, not a fallback), so a mobile run has to open
+     * the toggle and click the sheet's own link instead.
+     */
+    if (isMobile) {
+      await page.locator('.chrome-toggle').click();
+      await page.locator('#chrome-menu .chrome-link[href="#security"]').click();
+    } else {
+      await page.locator('.chrome-link[href="#security"]').first().click();
+    }
 
     const security = page.locator('#security');
     // Lenis animates over ~1.1 s; the assertion polls rather than guessing.
@@ -286,7 +315,7 @@ test.describe('focal reveals (§3.5, §6.6, §12 L5)', () => {
      * Polled rather than asserted once, because there is one legitimate shift
      * to tolerate: `ScrollTrigger.refresh()` runs when `document.fonts.ready`
      * settles (§6.4 requires it, since Arabic and Latin have different content
-     * heights), and refreshing recomputes the pinned Scene 02 spacer, which
+     * heights), and refreshing recomputes the pinned Scene 09 spacer, which
      * moves everything below it by a few pixels. That is a one-time settle and
      * it resolves; a snap-back does not.
      */
@@ -316,11 +345,26 @@ test.describe('focal reveals (§3.5, §6.6, §12 L5)', () => {
     await page.waitForTimeout(800);
 
     await page.locator('.chrome-link[href="#upload"]').first().click();
+
+    /*
+     * A STUCK panel reads rect.top === 0 for its WHOLE sticky range, not only
+     * at the moment it arrives: #upload is "stuck" for roughly its own
+     * height's worth of scroll before it (correctly, per §3.3's release
+     * mechanic) lets go of the next panel underneath. Polling its bounding
+     * box alone resolves as soon as that range is entered — while Lenis's
+     * ~1.1 s scroll is still hundreds of pixels short of its target — so it
+     * is not a safe arrival signal here the way it is for a non-sticky scene.
+     * Focus only moves in `onComplete`, once the scroll has actually settled
+     * (the same signal the in-page-anchor test above waits on), so it is.
+     */
+    await expect(upload).toBeFocused({ timeout: 10_000 });
     await expect
-      .poll(async () => Math.abs((await upload.boundingBox())?.y ?? 999), { timeout: 10_000 })
+      .poll(async () => Math.abs((await upload.boundingBox())?.y ?? 999), { timeout: 2000 })
       .toBeLessThan(4);
     // …and it is the upload panel on screen, not the consent panel over it.
-    expect((await page.locator('#consent').boundingBox())?.y ?? 0).toBeGreaterThan(400);
+    await expect
+      .poll(async () => (await page.locator('#consent').boundingBox())?.y ?? 0, { timeout: 2000 })
+      .toBeGreaterThan(400);
   });
 });
 
@@ -412,8 +456,9 @@ test.describe('consent (§Scene 05)', () => {
 
     /*
      * And wait for the focal reveal to have run, which matters more than it
-     * looks. `FocalReveal` animates from `autoAlpha: 0`, and GSAP's autoAlpha
-     * sets `visibility: hidden` — an element inside a hidden subtree cannot
+     * looks. Reveals used to animate from `autoAlpha: 0`, which sets
+     * `visibility: hidden`; `BlurIn` uses opacity, but the wait is kept as
+     * proof the scene has hydrated — an element inside a hidden subtree cannot
      * hold focus, so `focus()` before the reveal silently does nothing and the
      * Space keystroke goes to the document and scrolls the page instead of
      * toggling anything. The input itself is 1px and transparent by design, so
@@ -514,6 +559,26 @@ test.describe('accessibility (§9)', () => {
     expect(
       await page.evaluate(() => window.localStorage.getItem('mir.site.sound')),
     ).not.toBe('on');
+  });
+
+  test('the mobile header menu closes on Escape and returns focus to its toggle', async ({
+    page,
+    isMobile,
+  }) => {
+    test.skip(!isMobile, 'the chrome toggle only exists below the desktop breakpoint');
+    await page.goto('/fr');
+
+    const toggle = page.locator('.chrome-toggle');
+    const menu = page.locator('#chrome-menu');
+
+    await toggle.click();
+    await expect(toggle).toHaveAttribute('aria-expanded', 'true');
+    await expect(menu).toBeVisible();
+
+    await page.keyboard.press('Escape');
+    await expect(toggle).toHaveAttribute('aria-expanded', 'false');
+    await expect(menu).toBeHidden();
+    await expect(toggle).toBeFocused();
   });
 });
 
@@ -709,5 +774,77 @@ test.describe('the helix (spec §5)', () => {
       expect(response.status(), dir).toBe(200);
       expect(response.headers()['content-type'], dir).toContain('image/avif');
     }
+  });
+
+  test('returns at the close, already assembled, and only one helix animates at a time', async ({
+    page,
+    isMobile,
+  }) => {
+    test.skip(isMobile, 'Tier A is a desktop tier');
+    await page.setViewportSize({ width: 1440, height: 900 });
+    await page.goto('/fr?tier=A');
+    await expect(page.locator('#hero .helix')).toHaveAttribute('data-helix-state', 'running', {
+      timeout: 20_000,
+    });
+
+    await page.evaluate(() => window.scrollTo(0, document.body.scrollHeight));
+    const close = page.locator('#close .helix');
+    await expect(close).toHaveAttribute('data-helix-state', 'running', { timeout: 20_000 });
+    await expect(page.locator('#hero .helix')).toHaveAttribute('data-helix-state', 'paused');
+    await expect(page.getByTestId('landing-close-signup')).toBeVisible();
+
+    // `HelixCanvas`'s `hostRef` inside S11Close points at an unlabelled inner
+    // `<div>`, not the `#close` section itself — the label must resolve
+    // through the nearest id'd ancestor, not fall back to the generic
+    // `helix` label the way an unlabelled instance would.
+    const [closeMeasures, genericMeasures] = await page.evaluate(() => [
+      performance.getEntriesByName('helix:build:close').length,
+      performance.getEntriesByName('helix:build:helix').length,
+    ]);
+    expect(closeMeasures).toBeGreaterThanOrEqual(1);
+    expect(genericMeasures).toBe(0);
+  });
+});
+
+// ---------------------------------------------------------------------------
+// Scene 09 — the door track, the page's one pin (§6.4)
+// ---------------------------------------------------------------------------
+
+test.describe('the door track (spec §7.2)', () => {
+  test('pins while its cards travel toward the reader, then lets go', async ({ page, isMobile }) => {
+    test.skip(isMobile, 'the pinned track needs a fine pointer and 900px');
+    await page.setViewportSize({ width: 1440, height: 900 });
+    await page.goto('/fr?tier=A');
+    await expect(page.locator('#doors .track-viewport')).toHaveClass(/is-pinned/, { timeout: 15_000 });
+
+    const top = await page.evaluate(
+      () => (document.getElementById('doors')?.getBoundingClientRect().top ?? 0) + window.scrollY,
+    );
+    await page.evaluate((y) => window.scrollTo(0, y - 10), top);
+    await page.waitForTimeout(800);
+    await page.mouse.move(720, 450);
+    await page.mouse.wheel(0, 400);
+    await page.waitForTimeout(1500);
+
+    const pinned = await page.locator('#doors').boundingBox();
+    expect(Math.abs(pinned?.y ?? 99), 'the section is held at the top').toBeLessThan(2);
+    const x = await page
+      .locator('#doors .track')
+      .evaluate((el) => new DOMMatrix(getComputedStyle(el).transform).m41);
+    expect(x, 'the cards moved toward the reader\'s forward (leftward in fr)').toBeLessThan(-50);
+
+    await page.mouse.wheel(0, 2500);
+    await page.waitForTimeout(1500);
+    const released = await page.locator('#doors').boundingBox();
+    expect(released?.y ?? 0, 'released after its travel').toBeLessThan(-100);
+  });
+
+  test('is a native swipe row when motion is reduced', async ({ page }) => {
+    await page.emulateMedia({ reducedMotion: 'reduce' });
+    await page.goto('/fr');
+    const viewport = page.locator('#doors .track-viewport');
+    await expect(viewport).not.toHaveClass(/is-pinned/);
+    await expect(viewport).toHaveCSS('overflow-x', 'auto');
+    await expect(page.getByTestId('door-doctors')).toBeVisible();
   });
 });

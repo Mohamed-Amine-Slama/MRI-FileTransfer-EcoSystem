@@ -182,11 +182,8 @@ function template(locale, card) {
     padding-block-start: 26px;
     font-size: 20px;
     color: #5B6874;
-    display: flex; justify-content: space-between; align-items: baseline;
+    display: flex; align-items: baseline;
   }
-
-  /* Latin digits only, so mono is safe and correct here. */
-  .slice { font-family: 'PlexMono', monospace; color: #3FE0C5; letter-spacing: 0.08em; }
 </style></head>
 <body>
   <div class="volume"></div>
@@ -195,7 +192,7 @@ function template(locale, card) {
     <div class="row"><span class="reticle"></span><span class="mark">MIR</span></div>
     <h1 class="headline">${card.headline}</h1>
     <p class="sub">${card.sub}</p>
-    <div class="foot"><span>${card.trust}</span><span class="slice" dir="ltr">001 / 180</span></div>
+    <div class="foot"><span>${card.trust}</span></div>
   </div>
 </body></html>`;
 }

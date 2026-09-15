@@ -90,9 +90,9 @@ export function Corridor({
           <div className="stack-group">
             <S04UploadDemo />
             <S05Consent />
+            <S06Viewer />
+            <S07Appointment />
           </div>
-          <S06Viewer />
-          <S07Appointment />
           <S08Security />
           <S09Doors />
           <S10Questions />

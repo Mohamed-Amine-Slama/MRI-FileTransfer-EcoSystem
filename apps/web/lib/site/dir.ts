@@ -25,19 +25,3 @@ export function dirOf(locale: UiLocale): 1 | -1 {
 export function directionOf(locale: UiLocale): 'rtl' | 'ltr' {
   return UI_LOCALE_DIRECTION[locale];
 }
-
-/**
- * Things that mirror under RTL, and things that do not — §3.6.
- *
- * Arrows, chevrons and progress bars mirror, because they point at something
- * on a mirrored layout. Clocks, play buttons and the slice-stack indicator do
- * not: a CT stack is not directional, and scrolling down goes deeper in every
- * language. Getting this backwards is the failure that makes a bilingual site
- * feel machine-translated even when every word is right.
- */
-export const MIRRORS_UNDER_RTL = {
-  arrows: true,
-  progress: true,
-  sliceStack: false,
-  clock: false,
-} as const;

@@ -88,10 +88,13 @@ export function HelixCanvas({
 
     const still = new URLSearchParams(window.location.search).has('helix-still');
     const mirror = dir === 'rtl';
-    // Namespaces the performance measures per host — the hero is `#hero`, the
-    // close scene (Plan 3) will be `#close`, and two unlabelled instances
-    // would collide on the same `helix:build` / `helix:geometry` marks.
-    const label = host.id !== '' ? host.id : 'helix';
+    // Namespaces the performance measures by the host's own id, or — since
+    // `hostRef` is not always the id'd section itself (S11Close wires it to
+    // an inner, unlabelled `<div>`) — its nearest id'd ancestor: the hero is
+    // `#hero`, the close scene (Plan 3) is `#close`, and two unlabelled
+    // instances would otherwise collide on the same `helix:build` /
+    // `helix:geometry` marks.
+    const label = host.closest('[id]')?.id || 'helix';
     let disposed = false;
     let factory: Factory | null = null;
     let renderer: HelixRenderer | null = null;
