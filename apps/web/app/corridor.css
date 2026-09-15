@@ -1563,7 +1563,16 @@
     position: absolute;
     inset-block-start: 83.6%;
     inset-inline-end: 2.5rem;
-    max-inline-size: 32rem;
+    /*
+     * The 32rem cap alone lets this block's near edge reach into the trust
+     * row's content between ~1000px and ~1170px (measured: both sit at the
+     * same 83.6% top, and the trust row has no width cap of its own), so
+     * the two visibly overlap. `min()` only tightens the cap in that band —
+     * at 1180px and up, `100% - 39rem` already exceeds 32rem, so the cap
+     * reverts to 32rem and rendering there, including the whole ≥1440px
+     * "wide-screen" range, is unchanged.
+     */
+    max-inline-size: min(32rem, calc(100% - 39rem));
   }
 
   .corridor .hero-chips {
