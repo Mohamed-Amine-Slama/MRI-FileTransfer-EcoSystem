@@ -60,9 +60,9 @@ export async function initScroll(tier: Tier): Promise<ScrollSystem | null> {
    * page WITHOUT going through Lenis — an in-page anchor, a browser restoring
    * a scroll position on reload, find-on-page, End, a screen reader moving
    * focus — leaves ScrollTrigger believing the page never moved. Every trigger
-   * below the new position then stays unfired, and since `FocalReveal`
-   * animates from `autoAlpha: 0`, the scenes it should have revealed are
-   * simply not there.
+   * below the new position then stays unfired, and since `BlurIn` animates
+   * from `opacity: 0`, the scenes it should have revealed are simply not
+   * there.
    *
    * This page has four nav anchors and a hero CTA that all do exactly that.
    * `ScrollTrigger.update()` is cheap and idempotent, so the honest fix is to
@@ -76,14 +76,14 @@ export async function initScroll(tier: Tier): Promise<ScrollSystem | null> {
    * ---------------------------------------------------------------------------
    * AN ANCHOR HAS TO BE RE-AIMED AFTER THE PAGE FINISHES BECOMING ITSELF.
    *
-   * Scene 02 is pinned (§Scene 02's horizontal scrub, and the only pin on the
+   * Scene 09 is pinned (its horizontal door track, and the only pin on the
    * page). Pinning inserts a spacer roughly a viewport tall, so the moment
    * ScrollTrigger creates it, every scene below moves DOWN by that much.
    *
    * Anything that aimed at a scene before then is now aimed too high. Clicking
    * "الأمان" in the first seconds of a slow load scrolled to Scene 08's
    * position as the page was laid out *at that instant*, and then the pin
-   * appeared and left the reader looking at Scene 06 — two scenes early, with
+   * appeared and left the reader looking at an earlier scene, with
    * no indication anything had gone wrong. A deep link (`/ar#security`) breaks
    * identically, and worse, because the browser's own jump happens before any
    * of this code runs.
@@ -123,10 +123,12 @@ export async function initScroll(tier: Tier): Promise<ScrollSystem | null> {
    */
   const flowTop = (target: HTMLElement): number => {
     const sticky = getComputedStyle(target).position === 'sticky';
-    if (sticky) target.style.position = 'relative';
-    const top = target.getBoundingClientRect().top + window.scrollY;
-    if (sticky) target.style.position = '';
-    return top;
+    try {
+      if (sticky) target.style.position = 'relative';
+      return target.getBoundingClientRect().top + window.scrollY;
+    } finally {
+      if (sticky) target.style.position = '';
+    }
   };
 
   const focusTarget = (target: HTMLElement): void => {
