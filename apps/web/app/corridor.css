@@ -1561,16 +1561,31 @@
 
   .corridor .hero-chips-wrap {
     position: absolute;
-    inset-block-start: 83.6%;
+    /*
+     * Bottom-anchored, not top-anchored. At 1440x900 — spec §9.3's own
+     * review viewport — four chips wrapping from a fixed 83.6% top ran out
+     * of room and the last one was clipped by the panel's 100lvh +
+     * `overflow: hidden` bottom edge; at 1024x768 two clipped. Anchoring to
+     * the CTA row's bottom edge instead (`.hero-actions` sits at
+     * `inset-block-start: 89.4%` and its `.btn` children are exactly
+     * `min-block-size: 3rem` tall, so its bottom edge is `10.6% - 3rem` up
+     * from the panel's own bottom) makes this block grow UPWARD as it
+     * wraps, into the panel's much larger reserve of space above, so no
+     * wrap count can push a chip past either edge.
+     */
+    inset-block-end: calc(10.6% - 3rem);
     inset-inline-end: 2.5rem;
     /*
      * The 32rem cap alone lets this block's near edge reach into the trust
-     * row's content between ~1000px and ~1170px (measured: both sit at the
-     * same 83.6% top, and the trust row has no width cap of its own), so
-     * the two visibly overlap. `min()` only tightens the cap in that band —
-     * at 1180px and up, `100% - 39rem` already exceeds 32rem, so the cap
-     * reverts to 32rem and rendering there, including the whole ≥1440px
-     * "wide-screen" range, is unchanged.
+     * row's content between ~1000px and ~1101px (fr) / ~1117px (en) /
+     * ~1000px (ar) — both sit at the same vertical band and the trust row
+     * has no width cap of its own, so below those widths the two visibly
+     * overlap. `min()` only tightens the cap in that band — above it
+     * (including the whole ≥1440px "wide-screen" range, left untouched)
+     * `100% - 39rem` already exceeds 32rem, so the cap reverts to 32rem and
+     * rendering there is byte-identical to before. This guard is
+     * independent of the anchor edge above: it bounds this block's WIDTH,
+     * so it holds regardless of which direction the block grows.
      */
     max-inline-size: min(32rem, calc(100% - 39rem));
   }

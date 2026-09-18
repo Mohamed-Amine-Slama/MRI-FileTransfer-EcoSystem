@@ -222,9 +222,13 @@ Grouped by who can close them.
   owner decision on whether the header should carry a signup affordance
   between 900px and 1099px.
 - ⬜ **The OG card (`public/og/*.png`) is still the dark-room design** — void
-  ground, phosphor-style accents — and needs a light restyle plus a re-render
-  via `scripts/render-og.mjs` to match the 2026-09-10 re-theme. Not attempted
-  here: it is a design pass on its own, not a bug fix.
+  ground, phosphor-style accents, and even the retired "001 / 180" slice
+  counter (removed from the *template* by Task 10a but never re-rendered into
+  the PNGs; files dated 2026-09-09, before the re-theme spec). This is **not**
+  an owner decision — the light register was already decided (spec
+  2026-09-10) — it needs a light restyle plus a re-render via
+  `scripts/render-og.mjs` to catch up to it. Not attempted here: it is a
+  design pass on its own, not a bug fix.
 
 ### Needs a device or a network
 
