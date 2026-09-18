@@ -1524,10 +1524,15 @@
 
 @media (min-width: 1000px) {
   .corridor .scene--hero {
-    display: block;
+    display: grid;
+    grid-template-columns: minmax(0, 1fr) minmax(0, 34rem);
+    align-content: end;
+    column-gap: 2rem;
+    row-gap: 1.5rem;
     block-size: 100lvh;
     min-block-size: 40rem;
-    padding: 0;
+    padding-block-end: 3rem;
+    padding-inline: 2.5rem;
   }
 
   .corridor .hero-copy {
@@ -1547,47 +1552,65 @@
     margin: 0;
   }
 
+  /*
+   * The bottom band — divider, trust row, chips, CTAs — used to be four
+   * independently `position: absolute`d blocks pinned to fixed percentages
+   * of the panel's height. At 1440x900 (spec §9.3's own review viewport)
+   * that broke two ways at once: capping the chips block's width so it
+   * stopped overlapping the trust row (this file's earlier history) made it
+   * wrap into enough rows to rise above the divider — no single fixed
+   * anchor percentage can satisfy both "never above the divider" and "never
+   * clipped by the panel's bottom edge" when the content driving one of the
+   * blocks (how many chips wrap, per locale) isn't fixed.
+   *
+   * A two-column grid, sized by its own content and pinned to the panel's
+   * bottom edge (`align-content: end`), replaces every fixed anchor with a
+   * structural guarantee instead: column 1 carries the divider (spanning
+   * both columns), the trust row and the CTAs, in DOM/reading order — the
+   * divider is always row 1, so it is always above whatever the other rows
+   * need; column 2 carries the chips, bottom-aligned beside the trust row
+   * and CTAs and capped at 34rem by the column track itself, so the old
+   * width-based guard against overlapping the trust row is gone — separate
+   * columns can't overlap. If the chips ever need more height than the
+   * trust row and CTAs do (more locales, longer copy), rows 2–3 simply grow
+   * to fit and the whole band — divider included — shifts up as one unit;
+   * nothing is ever clipped or crossed. `.hero-copy` and `.hero-helix` keep
+   * their own absolute positioning and ignore this grid entirely.
+   *
+   * `align-self: end` on every band item stops grid's default item
+   * stretching: without it, a row that grows to fit the spanning chips
+   * block would stretch the trust row or the CTA buttons to fill it,
+   * distorting their height.
+   *
+   * `position: relative; z-index: 1;` on every band item matches the same
+   * pair already on `.hero-copy`: `.hero-helix` is `position: absolute`
+   * with `z-index: auto`, and a non-positioned (static) grid item always
+   * paints BELOW a positioned one regardless of DOM order, so without this
+   * the band would render behind the helix.
+   */
   .corridor .hero-rule-wrap {
-    position: absolute;
-    inset-block-start: 78.6%;
-    inset-inline: 2.5rem;
+    position: relative;
+    z-index: 1;
+    grid-column: 1 / -1;
+    grid-row: 1;
+    align-self: end;
   }
 
   .corridor .hero-trust {
-    position: absolute;
-    inset-block-start: 83.6%;
-    inset-inline-start: 2.5rem;
+    position: relative;
+    z-index: 1;
+    grid-column: 1;
+    grid-row: 2;
+    align-self: end;
   }
 
   .corridor .hero-chips-wrap {
-    position: absolute;
-    /*
-     * Bottom-anchored, not top-anchored. At 1440x900 — spec §9.3's own
-     * review viewport — four chips wrapping from a fixed 83.6% top ran out
-     * of room and the last one was clipped by the panel's 100lvh +
-     * `overflow: hidden` bottom edge; at 1024x768 two clipped. Anchoring to
-     * the CTA row's bottom edge instead (`.hero-actions` sits at
-     * `inset-block-start: 89.4%` and its `.btn` children are exactly
-     * `min-block-size: 3rem` tall, so its bottom edge is `10.6% - 3rem` up
-     * from the panel's own bottom) makes this block grow UPWARD as it
-     * wraps, into the panel's much larger reserve of space above, so no
-     * wrap count can push a chip past either edge.
-     */
-    inset-block-end: calc(10.6% - 3rem);
-    inset-inline-end: 2.5rem;
-    /*
-     * The 32rem cap alone lets this block's near edge reach into the trust
-     * row's content between ~1000px and ~1101px (fr) / ~1117px (en) /
-     * ~1000px (ar) — both sit at the same vertical band and the trust row
-     * has no width cap of its own, so below those widths the two visibly
-     * overlap. `min()` only tightens the cap in that band — above it
-     * (including the whole ≥1440px "wide-screen" range, left untouched)
-     * `100% - 39rem` already exceeds 32rem, so the cap reverts to 32rem and
-     * rendering there is byte-identical to before. This guard is
-     * independent of the anchor edge above: it bounds this block's WIDTH,
-     * so it holds regardless of which direction the block grows.
-     */
-    max-inline-size: min(32rem, calc(100% - 39rem));
+    position: relative;
+    z-index: 1;
+    grid-column: 2;
+    grid-row: 2 / span 2;
+    justify-self: end;
+    align-self: end;
   }
 
   .corridor .hero-chips {
@@ -1595,9 +1618,11 @@
   }
 
   .corridor .hero-actions {
-    position: absolute;
-    inset-block-start: 89.4%;
-    inset-inline-start: 2.5rem;
+    position: relative;
+    z-index: 1;
+    grid-column: 1;
+    grid-row: 3;
+    align-self: end;
   }
 }
 
