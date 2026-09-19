@@ -72,6 +72,17 @@ export const HELIX = {
   cameraZ: 9.5,
   fovDeg: 46,
   /**
+   * The fewest device pixels per CSS pixel the canvas is drawn at, whatever
+   * the screen reports — each tier's `dpr` caps it from above.
+   *
+   * On a 1x display the particles are a pixel wide and read as hard little
+   * squares; drawing the same helix into twice the pixels lets a particle be
+   * half a CSS pixel and land as fine grain instead. It is supersampling,
+   * and on a decoration made of thousands of sub-pixel points it is the
+   * difference between grain and dots.
+   */
+  renderScale: 2,
+  /**
    * The density the look was tuned at — Tier A's count over the hero's canvas
    * at 1440×900, in particles per CSS px². A sparser canvas (Tier B, or a
    * larger screen) draws each particle a little larger and stronger, a denser

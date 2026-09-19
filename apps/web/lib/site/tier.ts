@@ -14,7 +14,7 @@
  * So:
  *   Tier C is the page. Static, correct, complete, ~34 KB of JS. It is what
  *          the HTML response contains and what renders if no script ever runs.
- *   Tier B adds the helix at 48k particles and two depth planes.
+ *   Tier B adds the helix at 64k particles and two depth planes.
  *   Tier A adds the full helix, five planes, sound and haptics.
  *
  * The layout is IDENTICAL in all three. That is not a nicety — it is the
@@ -220,12 +220,16 @@ export interface TierBudget {
   expressive: boolean;
   /** The upload demo is interactive rather than three static states. */
   interactiveDemo: boolean;
-  /** The particle helix (spec 2026-09-10 §5.5), or null for its poster alone. */
+  /**
+   * The particle helix (spec 2026-09-10 §5.5), or null for its poster alone.
+   * `dpr` caps the device pixels per CSS pixel it is drawn at; the floor is
+   * `HELIX.renderScale`, so a 1x screen still gets supersampled grain.
+   */
   helix: { readonly particles: number; readonly dpr: number } | null;
 }
 
 export const TIER_BUDGET: Record<Tier, TierBudget> = {
-  A: { planes: 5, expressive: true, interactiveDemo: true, helix: { particles: 140_000, dpr: 2 } },
-  B: { planes: 2, expressive: true, interactiveDemo: true, helix: { particles: 48_000, dpr: 1 } },
+  A: { planes: 5, expressive: true, interactiveDemo: true, helix: { particles: 200_000, dpr: 2 } },
+  B: { planes: 2, expressive: true, interactiveDemo: true, helix: { particles: 64_000, dpr: 1.5 } },
   C: { planes: 0, expressive: false, interactiveDemo: false, helix: null },
 };

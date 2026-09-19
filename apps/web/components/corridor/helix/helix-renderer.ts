@@ -10,13 +10,13 @@ import { FRAGMENT_SHADER, VERTEX_SHADER } from './helix-shaders';
  * than throwing: a page whose hero decoration failed must still be a page.
  */
 
-export const ATTRIBUTES = ['aKind', 'aT', 'aSeed', 'aScatter'] as const;
+export const ATTRIBUTES = ['aKind', 'aT', 'aSeed'] as const;
 
 export const UNIFORMS = [
   'uTime', 'uSpinAngle', 'uAssemble', 'uScroll', 'uRoll', 'uPitch', 'uPointer', 'uPointerStrength',
   'uViewport', 'uDpr', 'uTurns', 'uRadius', 'uLength', 'uGroove', 'uRibbon', 'uYawSwing',
   'uCameraZ', 'uFocal', 'uAspect', 'uPointerRadius', 'uPointerMax', 'uSizeStrand', 'uSizeRung',
-  'uSizeDust', 'uAlphaStrand', 'uAlphaRung', 'uAlphaDust', 'uJitter', 'uDustBoost', 'uDof',
+  'uSizeDust', 'uAlphaStrand', 'uAlphaRung', 'uAlphaDust', 'uJitter', 'uDustBoost', 'uReach', 'uDof',
   'uLight', 'uDensity', 'uPalette',
 ] as const;
 
@@ -138,7 +138,7 @@ export function createHelixRenderer(
   const data = buildHelix({ count: options.count });
   performance.measure(`helix:geometry:${label}`, { start: started, end: performance.now() });
   // Captured so the closures below never retain `data` itself — at Tier A
-  // that object is ~5 MB of typed arrays, needed only to get them onto the
+  // that object is ~3.4 MB of typed arrays, needed only to get them onto the
   // GPU, not to keep around for the life of the renderer.
   const count = data.count;
 
@@ -168,7 +168,6 @@ export function createHelixRenderer(
   attribute('aKind', data.kind, 1);
   attribute('aT', data.t, 1);
   attribute('aSeed', data.seed, 4);
-  attribute('aScatter', data.scatter, 3);
   gl.bindVertexArray(null);
 
   if (attributeFailed) {
@@ -203,6 +202,7 @@ export function createHelixRenderer(
   gl.uniform2f(u.uAlphaDust, ...HELIX.alpha.dust);
   gl.uniform3f(u.uJitter, HELIX.jitter.strand, HELIX.jitter.rung, HELIX.jitter.dust);
   gl.uniform1f(u.uDustBoost, HELIX.scrollDustBoost);
+  gl.uniform1f(u.uReach, HELIX.radius * 3);
   gl.uniform3f(u.uDof, HELIX.dof.focus, HELIX.dof.pxPerUnit, HELIX.dof.maxPx);
   gl.uniform3f(u.uLight, ...HELIX.light);
   gl.uniform3fv(u.uPalette, new Float32Array(HELIX.palette.flatMap((hex) => hexToRgb01(hex))));

@@ -5,6 +5,12 @@ import { HELIX } from './helix-config';
  *
  * Pure and seeded: no DOM, no GL, same output for the same seed. The shader
  * turns these into positions every frame, so nothing here is per-frame work.
+ *
+ * Only what gives the helix its SHAPE is built here: which strand, where
+ * along it, where across the ribbon. A particle's 3D fuzz and its entrance
+ * scatter point are hashed from the vertex index in the shader instead —
+ * this loop runs on the main thread, and at Tier A's count those two were
+ * most of its cost.
  */
 
 export const KIND = { strandA: 0, strandB: 1, rung: 2, dustA: 3, dustB: 4 } as const;
@@ -21,8 +27,6 @@ export interface HelixBuffers {
    * radial normal for dust.
    */
   seed: Float32Array;
-  /** 3 per particle: where the particle starts before the entrance assembles it. */
-  scatter: Float32Array;
 }
 
 /** A small, fast, seedable PRNG. Not for anything but decoration. */
@@ -84,13 +88,11 @@ export function buildHelix({ count, seed = HELIX.seed }: { count: number; seed?:
   const kind = new Float32Array(count);
   const t = new Float32Array(count);
   const seeds = new Float32Array(count * 4);
-  const scatter = new Float32Array(count * 3);
 
   const { strand, rung } = kindCounts(count);
   const halfStrand = Math.floor(strand / 2);
   const dustStart = strand + rung;
   const halfDust = Math.floor((count - dustStart) / 2);
-  const reach = HELIX.radius * 3;
 
   for (let i = 0; i < count; i++) {
     let k: number;
@@ -114,26 +116,7 @@ export function buildHelix({ count, seed = HELIX.seed }: { count: number; seed?:
     seeds[i * 4 + 1] = normal();
     seeds[i * 4 + 2] = rand();
     seeds[i * 4 + 3] = rand();
-
-    /*
-     * A uniform point in a ball, by rejection from the cube around it: ~1.9
-     * tries of three draws each, and no log, trig or cube root — at Tier A's
-     * count this loop is most of the geometry's cost, and it runs on the main
-     * thread. (Each particle's 3D fuzz is not here at all; the vertex shader
-     * hashes it from the vertex index.)
-     */
-    let x: number;
-    let y: number;
-    let z: number;
-    do {
-      x = rand() * 2 - 1;
-      y = rand() * 2 - 1;
-      z = rand() * 2 - 1;
-    } while (x * x + y * y + z * z > 1);
-    scatter[i * 3] = x * reach;
-    scatter[i * 3 + 1] = y * reach;
-    scatter[i * 3 + 2] = z * reach;
   }
 
-  return { count, kind, t, seed: seeds, scatter };
+  return { count, kind, t, seed: seeds };
 }

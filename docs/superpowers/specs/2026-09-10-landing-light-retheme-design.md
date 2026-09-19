@@ -424,3 +424,18 @@ Found while writing the implementation plans (`docs/superpowers/plans/2026-09-10
 8. **Stacked panels sit in a `.stack-group`** around S04–S07. A sticky element stays stuck until its parent ends; without the group, S08–S10 would scroll underneath S07. Anchors aim at a panel's flow position, because a stuck panel reports where it is painted.
 9. **The pin moves from S02 to S09.** S02 carried the page's one pin; it becomes three static cards, keeping §6.4's one-pin rule.
 10. **Build order detail.** Each motion component is introduced in the task that first mounts it (WordReveal/BlurIn with the hero; ScrollLitText with S03; StackPanel with S04; HorizontalTrack with S09), so every task ends with something the e2e suite can see.
+
+## 16. Changes after implementation
+
+Made after the three plans were implemented, with the owner's approval. Where this list and an earlier section (including §15) disagree, this list wins. `components/corridor/helix/helix-config.ts` holds the exact values; the figures below are a summary.
+
+1. **The helix was re-tuned (2026-09-19)** to the owner's reference: a denser double helix seen side-on and tilted toward the camera, with ribbon backbones. It replaces §5.2–§5.3's shape, §5.3's palette and §5.5's particle counts:
+   - **Kinds and split.** Strands 50% (split evenly), rungs 16% on 20 base pairs, dust 34%. Dust is two kinds (`dustA`, `dustB`, one per strand): mostly a halo hugging its backbone, with about a quarter sprayed wider as mist.
+   - **Shape.** 1.9 turns, radius 2.15, length 13. Strand B trails strand A by `groove` (2.9 rad) rather than π, so the major and minor grooves differ. Each backbone is a ribbon (`ribbon.halfWidth` × `ribbon.thickness`), with half its particles crowding the two edges.
+   - **View.** The lower end pitches 14° toward the camera, roll −24° (negated in RTL), yaw swing ±5°, camera at z 9.5 with a 46° field of view. Depth of field (`dof`) blurs and dims particles away from the focal plane, and a view-space light shades each backbone.
+   - **Palette.** `#12361f → #29672c → #5b9934 → #a8cb45 → #e0ec8a` (forest → lime).
+   - **Counts.** Tier A 140,000 particles and Tier B 48,000 (was 36,000 and 14,000). Point size and alpha scale with particle density against `referenceDensity`, so the helix reads at the same weight on every canvas size.
+2. **Less work on the main thread.** `buildHelix` now builds only `kind`, `t` and `seed` (`seed.x` is the ribbon offset for strands, the chord position for rungs, and a radial normal for dust). Each particle's 3D fuzz and its entrance scatter point (a uniform ball of radius `uReach`) are hashed from `gl_VertexID` in the vertex shader. So §5.2's `scatter` attribute is gone. This keeps Tier A's geometry build near its old 36k-particle cost at 140k particles.
+3. **Posters** are re-rendered from this helix at AVIF quality 22, 4:2:0, and both stay under the script's 60 KiB budget.
+4. **The geometry-time e2e is opt-in.** It always records `helix:geometry:hero` as a test annotation, but asserts its 40 ms development-machine tripwire only when `MIR_PERF_TRIPWIRE=1`. On WSL2 + SwiftShader, identical code measured anywhere from 21 to 84 ms, so the check failed on noise. §10's ≤ 10 ms real-device budget is unchanged and still unmeasured.
+5. **Door cards scroll into view for keyboard focus only.** `HorizontalTrack`'s `focusin` handler returns unless the target matches `:focus-visible`. Chrome focuses a link on mousedown, and a press on a half-hidden door moved the page 600–830 px before the button came back up.

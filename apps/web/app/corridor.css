@@ -1557,44 +1557,47 @@
     display: grid;
     grid-template-columns: minmax(0, 1fr) minmax(0, 34rem);
     /*
-     * Row 1 is the copy, top-aligned. Row 2 is a spacer that absorbs
-     * whatever vertical room is left over, which is what pushes the band
-     * (rows 3–5) down to the panel's bottom edge — see the comment below on
-     * why this replaced `align-content: end`. An empty `fr` track's
-     * automatic minimum is 0, so on a short viewport the spacer collapses
-     * to nothing rather than the copy and the band overlapping.
+     * Row 1 holds the copy and is the grid's only flexible track: it takes
+     * whatever height the band (rows 2–4, pinned to the bottom edge — see
+     * the comment below) leaves, and the copy is centred in it. A `1fr`
+     * track's minimum is its content, so the copy can never be squeezed
+     * under the band.
      */
-    grid-template-rows: auto minmax(0, 1fr) auto auto auto;
+    grid-template-rows: 1fr auto auto auto;
     column-gap: 2rem;
     row-gap: 1.5rem;
     /*
-     * `min-block-size`, not a fixed `block-size`. The panel used to be
-     * exactly one viewport tall and the copy was positioned absolutely
-     * within it, ignoring its own overflow — on a short, ≥1000px-wide
-     * viewport (a laptop lid, not a phone) three lines of subhead plus a
-     * fixed 28.5% top offset ran past the divider. Letting the panel grow
-     * instead means the grid simply needs more room; nothing overlaps.
+     * ONE SCREEN, AND THE CTAs ON IT.
+     *
+     * `min-block-size`, not a fixed `block-size`: when the content really
+     * does need more than a viewport, the panel grows rather than anything
+     * overlapping. But the space ABOVE the copy must give way first, and it
+     * used to be the one thing that could not: 7rem of padding plus a fixed
+     * 28.5vh margin put the copy ~370px down at every width, so on any
+     * screen under ~870px tall — every laptop with browser chrome, 1536×730,
+     * 1366×657, 1280×720 — the panel outgrew the viewport and both CTAs sat
+     * below the fold. Centring the copy in the flexible row spends only the
+     * room that is left over, and at 1440×900 still lands it near the
+     * reference's ~29%.
+     *
+     * `svh`: on a ≥1000px touch screen with its toolbars showing, the SMALL
+     * viewport is what is actually visible.
      */
-    min-block-size: 100lvh;
+    min-block-size: 100svh;
     padding-block-end: 3rem;
     padding-inline: 2.5rem;
   }
 
   /*
-   * In the grid, not absolutely positioned over it. `margin-block-start`
-   * reproduces the previous `inset-block-start: 28.5%` at the reference
-   * viewport (1440×900: 28.5vh ≈ 256px) without repeating its failure mode
-   * — a margin is document flow, so if the copy's own height plus that
-   * margin genuinely needs more than the row-2 spacer can give back, the
-   * PANEL grows (`min-block-size` above) rather than the copy sliding over
-   * the band beneath it.
+   * In the grid, not absolutely positioned over it: document flow, so the
+   * copy and the band can never overlap — if they cannot both fit, the
+   * panel grows (`min-block-size` above).
    */
   .corridor .hero-copy {
     grid-column: 1;
     grid-row: 1;
-    align-self: start;
+    align-self: center;
     justify-self: start;
-    margin-block-start: 28.5vh;
     inline-size: min(44.75rem, 55vw);
     gap: 2rem;
   }
@@ -1636,9 +1639,9 @@
    * The band used to reach its bottom-pinned position via `align-content:
    * end` on the whole grid, back when `.hero-copy` sat outside it,
    * absolutely positioned. Now that the copy is grid row 1, `align-content:
-   * end` would pack the copy down with everything else instead of leaving
-   * it near the top — the row-2 `1fr` spacer above does that job instead,
-   * so the band's rows are simply the last three tracks in a five-row grid.
+   * end` would pack the copy down with everything else — the flexible row 1
+   * above does that job instead, so the band's rows are simply the last
+   * three tracks in a four-row grid.
    *
    * `align-self: end` on every band item stops grid's default item
    * stretching: without it, a row that grows to fit the spanning chips
@@ -1656,7 +1659,7 @@
     position: relative;
     z-index: 1;
     grid-column: 1 / -1;
-    grid-row: 3;
+    grid-row: 2;
     align-self: end;
   }
 
@@ -1664,7 +1667,7 @@
     position: relative;
     z-index: 1;
     grid-column: 1;
-    grid-row: 4;
+    grid-row: 3;
     align-self: end;
   }
 
@@ -1672,7 +1675,7 @@
     position: relative;
     z-index: 1;
     grid-column: 2;
-    grid-row: 4 / span 2;
+    grid-row: 3 / span 2;
     justify-self: end;
     align-self: end;
   }
@@ -1685,8 +1688,26 @@
     position: relative;
     z-index: 1;
     grid-column: 1;
-    grid-row: 5;
+    grid-row: 4;
     align-self: end;
+  }
+}
+
+/*
+ * A short laptop screen (≤ 760px of viewport, e.g. 1366×657 or 1280×720
+ * with browser chrome) has no room to spare: tighten the header clearance
+ * and the gaps before the panel has to outgrow the screen. The header is
+ * ~4.5rem tall, so 6rem still clears it.
+ */
+@media (min-width: 1000px) and (max-height: 760px) {
+  .corridor .scene--hero {
+    padding-block-start: 6rem;
+    padding-block-end: 2rem;
+    row-gap: 1rem;
+  }
+
+  .corridor .hero-copy {
+    gap: 1.25rem;
   }
 }
 

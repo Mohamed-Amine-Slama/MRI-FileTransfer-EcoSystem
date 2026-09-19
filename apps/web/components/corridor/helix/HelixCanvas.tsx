@@ -153,7 +153,10 @@ export function HelixCanvas({
     const resize = (): void => {
       if (renderer === null) return;
       const rect = canvas.getBoundingClientRect();
-      renderer.resize(rect.width, rect.height, Math.min(window.devicePixelRatio || 1, helix.dpr));
+      // At least HELIX.renderScale device pixels per CSS pixel (supersampling
+      // on a 1x screen), never more than the tier allows.
+      const scale = Math.min(Math.max(window.devicePixelRatio || 1, HELIX.renderScale), helix.dpr);
+      renderer.resize(rect.width, rect.height, scale);
       if (still) paintStill();
     };
 
