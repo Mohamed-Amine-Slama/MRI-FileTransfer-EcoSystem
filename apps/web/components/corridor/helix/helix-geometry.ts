@@ -14,8 +14,15 @@ export interface HelixBuffers {
   kind: Float32Array;
   /** Position along the helix, 0..1. */
   t: Float32Array;
-  /** 4 per particle: [radial jitter | rung chord 0..1, angular/axial jitter, size 0..1, tone 0..1]. */
+  /**
+   * 4 per particle: [shape, radial jitter, size 0..1, tone 0..1]. `shape` is
+   * where across its backbone ribbon a strand particle sits (-1..1), where
+   * along the chord between the strands a rung particle sits (0..1), and a
+   * radial normal for dust.
+   */
   seed: Float32Array;
+  /** 4 per particle: three standard normals (3D fuzz) and a uniform 0..1 (dust: halo or mist). */
+  jitter: Float32Array;
   /** 3 per particle: where the particle starts before the entrance assembles it. */
   scatter: Float32Array;
 }
@@ -59,12 +66,27 @@ export function kindCounts(count: number): { strand: number; rung: number; dust:
   return { strand, rung, dust: Math.max(0, count - strand - rung) };
 }
 
+/**
+ * Where across its ribbon a strand particle sits, -1..1. `edgeShare` of them
+ * crowd the two edges (a half-normal inward from ±1), the rest fill the width
+ * evenly — dense edges over a lighter fill is what reads as a flat, twisting
+ * backbone rather than a tube.
+ */
+function ribbonOffset(rand: () => number, normal: () => number): number {
+  if (rand() < HELIX.ribbon.edgeShare) {
+    const inward = Math.min(1, Math.abs(normal()) * 0.09);
+    return (rand() < 0.5 ? -1 : 1) * (1 - inward);
+  }
+  return rand() * 2 - 1;
+}
+
 export function buildHelix({ count, seed = HELIX.seed }: { count: number; seed?: number }): HelixBuffers {
   const rand = mulberry32(seed);
   const normal = normals(rand);
   const kind = new Float32Array(count);
   const t = new Float32Array(count);
   const seeds = new Float32Array(count * 4);
+  const jitter = new Float32Array(count * 4);
   const scatter = new Float32Array(count * 3);
 
   const { strand, rung } = kindCounts(count);
@@ -85,6 +107,9 @@ export function buildHelix({ count, seed = HELIX.seed }: { count: number; seed?:
       t[i] = (pair + 0.5) / HELIX.rungs;
       // Where along the chord between the two strands this particle sits.
       seeds[i * 4] = rand();
+    } else if (k === KIND.strandA || k === KIND.strandB) {
+      t[i] = rand();
+      seeds[i * 4] = ribbonOffset(rand, normal);
     } else {
       t[i] = rand();
       seeds[i * 4] = normal();
@@ -92,6 +117,11 @@ export function buildHelix({ count, seed = HELIX.seed }: { count: number; seed?:
     seeds[i * 4 + 1] = normal();
     seeds[i * 4 + 2] = rand();
     seeds[i * 4 + 3] = rand();
+
+    jitter[i * 4] = normal();
+    jitter[i * 4 + 1] = normal();
+    jitter[i * 4 + 2] = normal();
+    jitter[i * 4 + 3] = rand();
 
     // A uniform point in a ball: gaussian direction, cube-root radius.
     const x = normal();
@@ -104,5 +134,5 @@ export function buildHelix({ count, seed = HELIX.seed }: { count: number; seed?:
     scatter[i * 3 + 2] = (z / length) * r;
   }
 
-  return { count, kind, t, seed: seeds, scatter };
+  return { count, kind, t, seed: seeds, jitter, scatter };
 }

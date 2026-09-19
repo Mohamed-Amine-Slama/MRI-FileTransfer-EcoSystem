@@ -7,6 +7,9 @@ const here = dirname(fileURLToPath(import.meta.url));
 const nextConfig = {
   reactStrictMode: true,
 
+  // TEMP(mir-32): lets a second session build without clobbering .next. Revert before commit.
+  distDir: process.env.NEXT_DIST_DIR || '.next',
+
   // Emit a self-contained server (apps/web/Dockerfile runs it directly) with
   // only the traced production dependencies, instead of requiring the full
   // workspace node_modules in the runtime image.

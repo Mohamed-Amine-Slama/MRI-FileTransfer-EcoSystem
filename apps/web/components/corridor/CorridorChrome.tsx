@@ -107,7 +107,7 @@ export function CorridorChrome({
         </div>
       </div>
 
-      <div id="chrome-menu" className="chrome-menu" hidden={!menuOpen}>
+      <nav id="chrome-menu" className="chrome-menu" aria-label={t.navQuestions} hidden={!menuOpen}>
         {links.map((link) => (
           <a key={link.href} href={link.href} className="chrome-link" onClick={() => setMenuOpen(false)}>
             {link.label}
@@ -116,7 +116,7 @@ export function CorridorChrome({
         <Link href="/login" className="chrome-link" onClick={() => setMenuOpen(false)}>
           {t.navSignIn}
         </Link>
-      </div>
+      </nav>
     </header>
   );
 }

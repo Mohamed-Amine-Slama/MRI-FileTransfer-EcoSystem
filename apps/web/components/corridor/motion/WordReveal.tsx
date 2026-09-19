@@ -44,8 +44,17 @@ export function WordReveal({
   const [split, setSplit] = useState(false);
   const animates = budget.planes > 0;
 
+  /*
+   * Tracks `animates` both ways, the same fix as `ScrollLitText`'s latch.
+   * A one-way `if (animates) setSplit(true)` never un-splits on a demotion,
+   * so a word whose tween had not yet fired stayed at its initial
+   * `opacity: 0` / blurred state forever — the split word boxes are what
+   * `gsap.fromTo` writes inline styles onto, and once `useGsapScope`'s
+   * `enabled` goes false those boxes are simply abandoned, not restored.
+   * Un-splitting removes them and renders the plain text node instead.
+   */
   useEffect(() => {
-    if (animates) setSplit(true);
+    setSplit(animates);
   }, [animates]);
 
   useGsapScope(

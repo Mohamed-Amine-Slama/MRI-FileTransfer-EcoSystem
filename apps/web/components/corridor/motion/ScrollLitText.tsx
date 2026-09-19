@@ -30,8 +30,17 @@ export function ScrollLitText({
   const [split, setSplit] = useState(false);
   const animates = budget.planes > 0;
 
+  /*
+   * Tracks `animates` both ways. A demotion to Tier C — or the footer's
+   * reduce-motion switch, which forces Tier C (site-provider.tsx) — kills
+   * the ScrollTrigger below, but that only stops `data-lit` from being
+   * written; it does not touch whatever value was written last. A one-way
+   * latch here left every word frozen at `data-lit="off"` (muted) after the
+   * drop, because the split words never went back to being the plain,
+   * unsplit (and therefore un-mutable) text §8's Tier C row promises.
+   */
   useEffect(() => {
-    if (animates) setSplit(true);
+    setSplit(animates);
   }, [animates]);
 
   useGsapScope(

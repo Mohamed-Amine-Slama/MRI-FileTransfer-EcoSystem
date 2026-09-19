@@ -1,7 +1,8 @@
 'use client';
 
 import { useRef, type ReactNode, type RefObject } from 'react';
-import { trackTravel, trackX } from '../../../lib/site/motion';
+import { clamp01, trackTravel, trackX } from '../../../lib/site/motion';
+import { scrollToY } from '../../../lib/site/scroll';
 import { useSite } from '../../../lib/site/site-provider';
 import { promoting, useGsapScope } from '../../../lib/site/use-gsap';
 
@@ -30,9 +31,10 @@ export function HorizontalTrack({
   const viewportRef = useRef<HTMLDivElement>(null);
   const trackRef = useRef<HTMLDivElement>(null);
   const { budget, sign } = useSite();
+  const animates = budget.planes > 0;
 
   useGsapScope(
-    budget.planes > 0,
+    animates,
     viewportRef,
     ({ gsap }, viewport) => {
       const track = trackRef.current;
@@ -43,7 +45,7 @@ export function HorizontalTrack({
       viewport.classList.add('is-pinned');
       const travel = (): number => trackTravel(track.scrollWidth, viewport.clientWidth);
 
-      gsap.to(track, {
+      const tween = gsap.to(track, {
         x: () => trackX(travel(), sign),
         ease: 'none',
         scrollTrigger: {
@@ -57,9 +59,50 @@ export function HorizontalTrack({
         ...promoting(track, 'transform'),
       });
 
-      return () => viewport.classList.remove('is-pinned');
+      /*
+       * Tabbing into a door only clips it correctly — the section is pinned
+       * horizontally, so a card off to the side stays clipped by the
+       * viewport even after the browser's own focus-follows-scroll brings
+       * the SECTION into view vertically. Nothing was moving the track
+       * itself, so a focused card could sit ~90% off-screen with a focus
+       * ring nobody could see.
+       *
+       * The fix moves the page to whichever vertical scroll position makes
+       * this pin's horizontal progress center the focused card, computed
+       * from the same `x(progress) = -progress * travel * sign` the tween
+       * above scrubs against (`trackX`), solved for the progress that
+       * centers the card, then mapped back onto this ScrollTrigger's own
+       * scroll range.
+       */
+      const onFocusIn = (event: FocusEvent): void => {
+        const focused = event.target;
+        if (!(focused instanceof HTMLElement)) return;
+        const card = focused.closest<HTMLElement>('[data-testid]');
+        if (card === null || !track.contains(card)) return;
+
+        const trigger = tween.scrollTrigger;
+        const total = travel();
+        if (trigger === undefined || total <= 0) return;
+
+        const currentX = Number(gsap.getProperty(track, 'x')) || 0;
+        const cardRect = card.getBoundingClientRect();
+        const viewportRect = viewport.getBoundingClientRect();
+        // The card's position in the track's own, untransformed layout —
+        // undoing whatever the tween has already scrubbed `x` to.
+        const cardLeft = cardRect.left - viewportRect.left - currentX;
+        const desiredX = viewportRect.width / 2 - (cardLeft + cardRect.width / 2);
+        const progress = clamp01((-sign * desiredX) / total);
+
+        scrollToY(trigger.start + progress * (trigger.end - trigger.start), { immediate: true });
+      };
+      viewport.addEventListener('focusin', onFocusIn);
+
+      return () => {
+        viewport.classList.remove('is-pinned');
+        viewport.removeEventListener('focusin', onFocusIn);
+      };
     },
-    [budget.planes, sign],
+    [animates, sign],
   );
 
   return (

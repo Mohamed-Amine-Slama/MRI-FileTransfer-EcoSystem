@@ -17,6 +17,9 @@ Same legend as `pre-launch-checklist.md`, and for the same reason:
 - ⬜ **Open** — not done. No partial credit.
 - 🔒 **Blocked** — cannot be done from this repository; needs a person, a
   device, a legal answer, or a real connection.
+- 🏛 **Retired** — the gate described code or a measurement the 2026-09-10
+  light re-theme removed. Not a current pass/fail; kept for history, with a
+  pointer to whatever replaced it.
 
 **Nothing here is checked off on the basis of code review.**
 
@@ -39,18 +42,18 @@ Same legend as `pre-launch-checklist.md`, and for the same reason:
 | **L0** Fonts chosen; licences bought if commercial | ✅ | IBM Plex Sans Arabic (incl. Light 300, complete files carrying both scripts) + IBM Plex Mono + Google Sans Flex (Latin subsets), all OFL, self-hosted. `app/fonts/README.md` records each file, its role and its bytes. No commercial licence needed; §3.2's optional 29LT upgrade was not taken. |
 | **L1** Eleven scenes as static semantic HTML, real copy, correct RTL, **no animation** | ✅ | `e2e/corridor.spec.ts` — "with JavaScript disabled", all three locales, asserts all eleven scene ids, a non-empty `h1`, a visible CTA and eight non-empty FAQ answers with `javaScriptEnabled: false`. |
 | **L1** Lighthouse mobile ≥98 / a11y 100 with zero JS — *"the most important gate in this document"* | ⬜ | Lighthouse was not run. The no-JS **correctness** half is verified above; the **score** half is not, and §12 is right that everything after it is additive. See §3 below for the measured budgets, which are the part that decides it. |
-| **L2** Tokens, `Plate`, type scale, per-script scaling, grain, focus states | ✅ | `app/corridor.css`. §3.1 palette, §3.2 scale with `--script-scale` 1.08 and `--leading-body` 1.5 / `--leading-display` 1.25 under RTL, §3.3 plate, §3.5 motion tokens. The grain/scanline/bloom materials this row used to cite were retired by the 2026-09-10 re-theme — see the §2 deviation row. |
+| **L2** Tokens, type scale, per-script scaling, focus states | ✅ | `app/corridor.css`. §3.1 palette, §3.2 scale with `--script-scale` 1.08 and `--leading-body` 1.5 / `--leading-display` 1.25 under RTL, §3.5 motion tokens. `Plate` (this row used to cite it, and "§3.3 plate") and the grain/scanline/bloom materials were retired by the 2026-09-10 re-theme, along with the rest of the dark room — see the §2 deviation row. `Plate` is replaced by `DemoCard` (`components/corridor/primitives/DemoCard.tsx`); the current §3.3 is "Motion primitives", not a plate. |
 | **L2** RTL/LTR parity on all eleven scenes; no horizontal scrollbar | ✅ | `e2e/corridor.spec.ts` — `dir`/`lang` per locale route, and no horizontal overflow at 360 / 768 / 1440 / 2560 px in Arabic **and** English, scrolled to the bottom. §14's four breakpoints. |
 | **L2** Stylelint rule banning physical properties | ⬜ | Stylelint is not installed in this repository. The equivalent rule **is** enforced for components: `eslint.config.mjs` fails the build on physical Tailwind utilities in `apps/web/**/*.tsx`, and `corridor.css` is written entirely in logical properties. The gap is that a future physical property in raw CSS would not be caught. |
 | **L3** `detectTier()`, provider, runtime demotion, `?tier=` override | ✅ | `lib/site/tier.ts` + `lib/site/site-provider.tsx`; 20 unit tests in `lib/site/tier.test.ts` cover every Tier C exit, the Tier A clause, the override and one-way demotion. |
 | **L3** All three tiers render complete layouts; demotion is visually silent | ✅ | `e2e/corridor.spec.ts` — each tier renders all eleven scenes; Tier C requests **zero** sequence frames; the `h1` box differs by <2 px between Tier A and Tier C, which is §6.3's actual requirement (a visible jump means the layout was tier-dependent). |
-| **L4** Lenis, GSAP, `ScrubCanvas`, the asset pipeline, the slice counter | ✅ | `lib/site/scroll.ts`, `lib/site/gsap.ts` (dynamic import after LCP), `components/corridor/motion/ScrubCanvas.tsx`, `scripts/render-slices.mjs`. |
-| **L4** Sequence within budget; degrades to poster silently | ✅ | `node scripts/render-slices.mjs` — tier a 242.6 KB (budget 260), tier b 81.2 KB (budget 120). §7.1's instruction was followed on the overage: frame count came down 48 → 36, quality did not. |
-| **L4** Scrub at 6× on a throttled connection shows a stepping approximation, never a blank frame | 🏠 | Bisect load order is unit-tested (`tier.test.ts`) and `ScrubCanvas` draws the nearest *loaded* frame rather than the requested one. The 6× throttled scrub itself was not performed. |
-| **L5** `FocalReveal`, depth planes, windowing wipe, horizontal problem-scroll, consent stamp, two-doors | ✅ | `components/corridor/motion/` and `scenes/`. One pinned element on the page (§6.4), in Scene 02. |
-| **L5** CLS ≤0.03 across a scripted scroll | ⬜ | Not measured, and there is a known shift to measure: Scene 02's pin inserts a spacer when ScrollTrigger initialises, moving everything below it once. Every image carries explicit `width`/`height`, so images contribute nothing — but that is an argument, not a measurement. |
+| **L4** Lenis, GSAP, the asset pipeline | ✅ | `lib/site/scroll.ts`, `lib/site/gsap.ts` (dynamic import after LCP), `scripts/render-slices.mjs`. `ScrubCanvas` and the slice counter (`SliceCounter`) this row used to cite were retired by the 2026-09-10 re-theme along with the CT slice-scrub hero they served (spec §3.4) — see the §2 deviation row. The hero now renders the particle helix (`components/corridor/helix/`); `scripts/render-slices.mjs` still runs, now for Scene 06's illustration and Scene 05's consent thumbnails. |
+| **L4** Sequence within budget; degrades to poster silently | 🏛 *pre-re-theme figure* | `node scripts/render-slices.mjs` measured tier a 242.6 KB (budget 260), tier b 81.2 KB (budget 120) before the 2026-09-10 re-theme retired the hero's frame-scrub sequence (spec §3.4). The Tier A frame set (36 AVIFs) is deleted with `ScrubCanvas`; the Tier B set stays, but only for three of S05's consent-panel thumbnails, not a budgeted scrub sequence, so the 81.2 KB figure is no longer a live constraint to re-check. |
+| **L4** Scrub at 6× on a throttled connection shows a stepping approximation, never a blank frame | 🏛 *retired gate* | This describes `ScrubCanvas`'s bisect-and-nearest-loaded-frame behaviour, retired with it by the 2026-09-10 re-theme (spec §3.4). The hero no longer scrubs frames by scroll position; nothing in the current build exercises this gate. |
+| **L5** `FocalReveal`, depth planes, windowing wipe, horizontal problem-scroll, consent stamp, two-doors | ✅ (mechanics retired and replaced) | `components/corridor/motion/` and `scenes/`. `FocalReveal` and its windowing wipe were retired by the 2026-09-10 re-theme (spec §3.3, §3.4); one-shot reveals are now `BlurIn`/`WordReveal`, and scroll-lit text is `ScrollLitText`. The page's one pinned element (§6.4) moved from Scene 02 to Scene 09's door track (`HorizontalTrack`) — see the §2 deviation row ("Scene 02 | Three plates scrubbed sideways… | Three cards, static"). Horizontal problem-scroll, consent stamp and two-doors are current: `S02Problem.tsx`, `S05Consent.tsx`, `S09Doors.tsx`. |
+| **L5** CLS ≤0.03 across a scripted scroll | ⬜ | Not measured, and there is a known shift to measure: the page's one pin (now Scene 09's door track, moved from Scene 02 by the 2026-09-10 re-theme — see the §2 deviation row) inserts a spacer when ScrollTrigger initialises, moving everything below it once. Every image carries explicit `width`/`height`, so images contribute nothing — but that is an argument, not a measurement. |
 | **L6** Interactive simulation, local, keyboard operable, `aria-live` | ✅ | `e2e/corridor.spec.ts` — operated by `focus()` + `Enter` only, asserts the interruption and the resume are announced through `[role=status][aria-live=polite]`, and that no non-GET request is made while it runs. |
-| **L5** §2.2 channel 1 — 5 parallax z-planes with continuous focal falloff | ✅ | `FocalReveal` runs two tweens on two nested elements: a scrubbed `y` translation whose rate scales with the plane (the parallax), and a one-shot focus pull on arrival. It first shipped with only the second, so the page had depth for 620 ms and was flat afterwards — which is §3.5's "elements that fly in once and then sit there", the default the brief rules out. Measured in the container: one plane's translate runs +44 → −42.6 → −22 px across its passage. |
+| **L5** §2.2 channel 1 — 5 parallax z-planes with continuous focal falloff | 🏛 *retired mechanism* | This described `FocalReveal`'s two-tween DOM parallax, retired by the 2026-09-10 re-theme along with the dark room it depended on (spec §3.3, §3.4). "Planes" now names the helix's particle depth layers instead (`lib/site/tier.ts`: Tier A five, Tier B two, Tier C none) — a WebGL rendering budget, not a continuous DOM focal-falloff channel. No current row claims the old channel's behaviour. |
 | **L7** Sound, haptics | ✅ | `lib/site/sound.ts` (five synthesised cues, 0 KB of assets), `lib/site/haptics.ts` (two moments, and the type system limits it to two). The cursor light and WebGL handoff this row used to cover were retired by the 2026-09-10 re-theme — see the §2 deviation row. |
 | **L7** Sound off by default; state persists; Tier B stands on its own | ✅ | `e2e/corridor.spec.ts` asserts sound is unchecked and unstored on load. Tier B completeness is asserted structurally (all eleven scenes, interactive demo retained); whether it *feels* complete is a judgement §12 asks a person to make. |
 | **L8** Subset fonts, `content-visibility`, layer audit, CSP nonces, cache headers, OG per locale | ◐ | Fonts subset ✅ for two of the three added faces (Google Sans Flex, Plex Mono); Plex Arabic Light is a complete file carrying both scripts, not a subset (`app/fonts/README.md`). OG per locale ✅ (`scripts/render-og.mjs`). `content-visibility` ❌ **removed deliberately** — see the deviations table. Layer audit ⬜. CSP nonces ⬜ — `next.config.mjs` documents at length why a nonce cannot be adopted without forcing dynamic rendering app-wide; that predates this work and is unchanged. Cache headers ⬜ — owned by the edge, which is unconfigured. |
@@ -115,12 +118,18 @@ Measured over the wire (`encodedBodySize`) against `next start`, Arabic locale,
 1440×900. **Not** on the Moto G Power / 2 Mbit / 200 ms profile §8.1 specifies —
 that profile has not been used, so treat these as floor values.
 
+**The four rows below are pre-re-theme figures**, captured against the dark-room
+build and never re-measured against the 2026-09-10 light re-theme. Nothing
+here says they got worse — CSS, fonts and the client JS tree they mostly
+measure did not move with the palette — but they are an inherited number, not
+a re-theme measurement, and are marked that way rather than implied current.
+
 | Metric | Budget | Measured | |
 |---|---|---|---|
-| Critical CSS | ≤18 KB | **13.5 KB** | ✅ |
-| Tier A total page | ≤2.5 MB warn | **1.06 MB** | ✅ |
-| Tier C total page | ≤450 KB block | **699 KB** | ❌ |
-| First-load JS (gz) | ≤110 KB block | **~315 KB** | ❌ |
+| Critical CSS | ≤18 KB | **13.5 KB** *(pre-re-theme, not re-measured)* | ✅ |
+| Tier A total page | ≤2.5 MB warn | **1.06 MB** *(pre-re-theme, not re-measured)* | ✅ |
+| Tier C total page | ≤450 KB block | **699 KB** *(pre-re-theme, not re-measured; breakdown below)* | ❌ |
+| First-load JS (gz) | ≤110 KB block | **~315 KB** *(pre-re-theme, not re-measured)* | ❌ |
 | `/[locale]` First Load JS (`next build` output table) | spec §10: unchanged or lower | **255 kB** — unchanged from the pre-refactor build (Task 10a) and unchanged again after the 2026-09-15 dependency bumps (ESLint 10, `globals` 17, `lucide-react`, a dev-dependency batch; HEAD `5f751a3`) | ✅ |
 | LCP / CLS / INP | 2.0 s / 0.03 / 200 ms | not measured | ⬜ |
 | Lighthouse mobile / a11y | ≥92 / 100 | not measured | ⬜ |
@@ -147,7 +156,10 @@ measurement it is not; the honest state is that §8.1's LCP/CLS/INP budgets
 remain unmeasured; a real device and network are what §4 already asks for.
 
 **Both failures are the application shell, not this page.** Of the 699 KB that
-Tier C transfers:
+Tier C transfers *(pre-re-theme breakdown, not re-measured — see above; the
+"grain 2.7" line names an asset the 2026-09-10 re-theme removed entirely, so
+this list is kept for its still-true fonts/JS argument, not as a current
+inventory)*:
 
 - **314 KB is fonts** — the four IBM Plex Sans Arabic weights the whole product
   shares, one family carrying both scripts (D4).
@@ -155,7 +167,8 @@ Tier C transfers:
   rest is the root layout's client tree: `zod` reaches the browser through
   `@mir/contracts`, and `lib/api/mock/*` parses its fixtures with it at module
   load, so ~94 KB gzipped lands on every route including this one.
-- **20 KB is this page's images** (poster 13.7, map 9.3, grain 2.7).
+- **20 KB is this page's images** (poster 13.7, map 9.3, grain 2.7 — the grain
+  tile is retired; map and poster are current).
 
 Two levers, both outside a landing page's scope and both worth taking:
 
@@ -193,11 +206,19 @@ Grouped by who can close them.
 - ⬜ **The OG card checked in an actual WhatsApp thread** (§10) — that is how
   this product spreads. The Arabic card renders with correct shaping and was
   inspected; WhatsApp's own rendering was not.
-- 🔒 **Owner's visual sign-off of the light re-theme against the reference
-  captures.** Screenshots at 1440×900, 390×844 and 1920×1080, `ar` and `fr`
-  (plus the Tier C hero poster and a 1024×768 header check), are under
-  `retheme-look/` from the Task 10b review; the four items below are what that
-  review could not close by itself.
+- 🔒 **Owner's visual sign-off of the light re-theme against the reference.**
+  The per-scene screenshot set from the Task 10b review lived under
+  `retheme-look/` in `/tmp`, which is ephemeral — it is already gone, and
+  screenshots are never committed to the repository. To regenerate the
+  evidence: follow Plan 3's Task 10 Step 5 capture procedure
+  (`docs/superpowers/plans/2026-09-10-retheme-3-scenes-chrome.md`) — save its
+  script outside the repo, run it against `pnpm --filter @mir/web start`, and
+  look at every screenshot against that step's checklist. Capture the
+  viewport matrix at **1440×900, 390×844, 1920×1080, 1024×660, ~1180×800 and
+  1280×720**, `ar` and `fr` (the last three added by this fix wave, to cover
+  the short/laptop-width range its hero-copy overlap and header-wrap fixes
+  target), plus the Tier C hero poster and a 1024×768 header check. The four
+  items below are what the Task 10b review could not close by itself.
 - 🔒 **Hero helix colour reads pale yellow-green, not "dusty… deep teal far,
   lime near".** Consistent across every viewport captured (1440/390/1920,
   `ar`/`fr`) — it reads as a pale mint-green ghost on the mint panel rather
@@ -254,11 +275,13 @@ Grouped by who can close them.
   This is what turns the two failing budgets above into a merge block.
 - ⬜ **axe** for the zero-violations claim (§12 L8).
 - ⬜ **Stylelint** for the physical-property ban in raw CSS (§12 L2).
-- ⬜ **CLS measured across a scripted scroll** (§12 L5). Note that Scene 02's
-  pin inserts a spacer when ScrollTrigger initialises, which moves everything
-  below it once; `lib/site/scroll.ts` re-aims in-page anchors and deep links
-  after each refresh so that shift cannot land someone on the wrong scene, but
-  the shift itself is real and is what this measurement would quantify.
+- ⬜ **CLS measured across a scripted scroll** (§12 L5). Note that the page's
+  one pin (Scene 09's door track, moved from Scene 02 by the 2026-09-10
+  re-theme — see the §2 deviation row) inserts a spacer when ScrollTrigger
+  initialises, which moves everything below it once; `lib/site/scroll.ts`
+  re-aims in-page anchors and deep links after each refresh so that shift
+  cannot land someone on the wrong scene, but the shift itself is real and is
+  what this measurement would quantify.
 
 ### Deliberately not done
 
@@ -269,9 +292,17 @@ Grouped by who can close them.
 - **`/doctors/tn`** (§1.1). The Tunisian specialist's dedicated route is
   §15's "if the budget were double" item. Scene 09's first door is the
   routing surface it would hang from.
-- **A theme control on the landing page.** The page is a darkened reading room
-  in both themes by design (§3.1) — a switch there would visibly do nothing.
-  `e2e/theme.spec.ts` exercises the toggle on `/pricing` for that reason.
+- ~~A theme control on the landing page~~ **Built, not skipped.** This row
+  was wrong: `CorridorChrome.tsx` ships `ThemeControl`
+  (`components/corridor/CorridorControls.tsx`) in the header, next to the
+  language control, per §7.3. The page itself still stays in its own light
+  palette in both themes — that is what the 2026-09-10 re-theme made true of
+  the *whole* page, not only the parts drawn before it — so the control
+  reaches the platform's other pages, not this one, and someone who flips it
+  here and sees nothing change deserves to know why rather than to wonder
+  (the control's own note says so). `e2e/theme.spec.ts` still drives the
+  toggle from `/pricing`, because asserting `data-theme` from the landing
+  page would prove nothing about whether the toggle works.
 
 ---
 
@@ -307,7 +338,7 @@ All output is committed; a deploy needs none of this.
 
 ```bash
 node apps/web/scripts/render-slices.mjs                 # Tier B frames + viewer poster + SOURCE.md
-node apps/web/scripts/render-helix-poster.mjs           # helix posters (needs the app running on :3001)
+node apps/web/scripts/render-helix-poster.mjs [baseUrl] # helix posters — a fresh build served on a free port, passed as the script's first argument (the default, :3001, is a stale Docker container in this environment; see the script's own header)
 node apps/web/scripts/render-corridor-map.mjs ly-tn LY TN   # §Scene 03 map + route module
 node apps/web/scripts/render-og.mjs                     # §10 OG cards (needs Playwright)
 bash apps/web/scripts/fetch-fonts.sh                    # re-download the vendored landing faces + OFL

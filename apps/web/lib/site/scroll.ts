@@ -18,6 +18,36 @@ export interface ScrollSystem {
   destroy: () => void;
 }
 
+type LenisInstance = InstanceType<(typeof import('lenis'))['default']>;
+
+/**
+ * The page's one Lenis instance, while it exists — Tier A/B only (§6.4: ONE
+ * scroll system). Module-scoped rather than threaded through props because
+ * `scrollToY` below is called from places (a card's `focusin` handler) that
+ * have no reason to otherwise know the scroll system exists at all.
+ */
+let activeLenis: LenisInstance | null = null;
+
+/**
+ * Move the page to a vertical offset through whichever scroll system is
+ * active, rather than around it.
+ *
+ * On Tier A/B that is Lenis: a raw `window.scrollTo` moves the document
+ * without telling Lenis, and — see the "second listener" comment below —
+ * Lenis then animates back to the position it still believes is current on
+ * its very next frame, undoing the jump. On Tier C, or before Lenis has
+ * finished loading, native `scrollTo` is the whole scroll system there is.
+ */
+export function scrollToY(y: number, options: { immediate?: boolean } = {}): void {
+  if (activeLenis !== null) {
+    activeLenis.scrollTo(y, { immediate: options.immediate ?? false, force: true });
+    return;
+  }
+  if (typeof window !== 'undefined') {
+    window.scrollTo({ top: y, behavior: options.immediate === true ? 'auto' : 'smooth' });
+  }
+}
+
 /**
  * Start smooth scrolling and hand ScrollTrigger a stable value to scrub
  * against.
@@ -48,6 +78,8 @@ export async function initScroll(tier: Tier): Promise<ScrollSystem | null> {
      */
     syncTouch: false,
   });
+
+  activeLenis = lenis;
 
   lenis.on('scroll', ScrollTrigger.update);
 
@@ -120,11 +152,21 @@ export async function initScroll(tier: Tier): Promise<ScrollSystem | null> {
    * is where it is PAINTED, not where it LIVES, so aiming at it from further
    * down the page scrolled nowhere. Sticky is switched off for one
    * synchronous layout to measure it; nothing paints in between.
+   *
+   * `static`, not `relative`. `.stack-panel.is-stacking` sets BOTH `position:
+   * sticky` and `inset-block-start: min(0px, 100lvh − panel height)` in the
+   * same rule, and only `position` is overridden here — `relative` still
+   * honours that inset (relative positioning respects offsets; static does
+   * not), so a tall panel's measured top came back short by (panel height −
+   * viewport height). `static` drops the inset along with the sticky
+   * behaviour, which is the actual flow position (spec §15.8: "anchors aim
+   * at a panel's FLOW position, because a stuck panel reports where it is
+   * painted").
    */
   const flowTop = (target: HTMLElement): number => {
     const sticky = getComputedStyle(target).position === 'sticky';
     try {
-      if (sticky) target.style.position = 'relative';
+      if (sticky) target.style.position = 'static';
       return target.getBoundingClientRect().top + window.scrollY;
     } finally {
       if (sticky) target.style.position = '';
@@ -228,6 +270,7 @@ export async function initScroll(tier: Tier): Promise<ScrollSystem | null> {
       document.removeEventListener('click', onAnchorClick);
       ScrollTrigger.removeEventListener('refresh', realign);
       gsap.ticker.remove(tick);
+      if (activeLenis === lenis) activeLenis = null;
       lenis.destroy();
       /*
        * Kill every trigger this page created. §6.4 warns that leaked triggers

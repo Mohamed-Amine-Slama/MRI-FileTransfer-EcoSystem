@@ -3,21 +3,40 @@
  *
  * One place, so visual tuning never touches the renderer. World units are
  * arbitrary; the camera and field of view below frame a helix of `length`
- * so it overruns the top and bottom of its box slightly, which is the look.
+ * so it overruns the top and bottom of its box, which is the look.
+ *
+ * The look is a smoky, dense double helix seen at an angle: the lower end
+ * leans toward the camera (`pitchDeg`), so each turn reads as a ring rather
+ * than a flat S-curve, the near coils are larger and out of focus (`dof`), and
+ * the base pairs show as fine rungs between two ribbon-like backbones.
  */
 export const HELIX = {
   /** PRNG seed — the live render, the posters and the tests all agree. */
   seed: 20260910,
   /** Share of particles per kind. Must sum to 1. */
-  split: { strand: 0.45, rung: 0.15, dust: 0.4 },
-  /** Base pairs along the visible length. */
-  rungs: 26,
-  turns: 2.2,
-  radius: 1.75,
-  length: 10,
+  split: { strand: 0.52, rung: 0.18, dust: 0.3 },
+  /** Base pairs along the visible length — ~10.5 per turn, as in B-DNA. */
+  rungs: 34,
+  turns: 3.2,
+  radius: 1.95,
+  length: 13,
+  /**
+   * How far strand B trails strand A around the axis, in radians. Less than
+   * half a turn, so the two grooves differ in width (major and minor) the way
+   * real DNA's do, instead of two identical interleaved springs.
+   */
+  groove: 2.45,
+  /**
+   * Each backbone is a ribbon lying on the helix's cylinder: `halfWidth`
+   * across it, `thickness` through it. `edgeShare` of the strand particles sit
+   * on the ribbon's two edges, which draws the darker outline the strands have.
+   */
+  ribbon: { halfWidth: 0.21, thickness: 0.035, edgeShare: 0.55 },
+  /** The lower end tilts toward the camera by this much — the rings, and the depth. */
+  pitchDeg: 30,
   /** Corner-to-corner lean. Negated in RTL — which keeps the helix right-handed. */
-  rollDeg: -28,
-  yawSwingDeg: 6,
+  rollDeg: -24,
+  yawSwingDeg: 5,
   /** Spin at rest, radians per second. */
   spin: 0.12,
   /** Spin and dust-spread multipliers once the host has fully scrolled out. */
@@ -34,15 +53,32 @@ export const HELIX = {
     /** A pointer that has not moved for this long counts as resting. */
     idleMs: 1200,
   },
-  /** Point size ranges, CSS px, before perspective and depth. */
-  size: { strand: [1.2, 3.2], rung: [0.8, 1.6], dust: [0.6, 1.8] },
-  alpha: { strand: [0.55, 0.9], rung: [0.25, 0.5], dust: [0.08, 0.35] },
-  /** Gaussian spread around the strand, world units. */
-  jitter: { strand: 0.12, rung: 0.05, dust: 0.55 },
-  /** Deep teal → teal → leaf → chartreuse → lime. Far particles sit toward the start. */
-  palette: ['#054038', '#246f65', '#4f8a3c', '#9fbf4a', '#e5ed9b'],
-  cameraZ: 12,
-  fovDeg: 38,
+  /** Point size ranges, CSS px, before perspective, depth of field and density. */
+  size: { strand: [0.8, 2], rung: [0.7, 1.3], dust: [0.5, 1.5] },
+  alpha: { strand: [0.2, 0.5], rung: [0.14, 0.32], dust: [0.05, 0.2] },
+  /** Gaussian spread, world units: strand fuzz, rung fuzz, dust halo. */
+  jitter: { strand: 0.03, rung: 0.012, dust: 0.28 },
+  /**
+   * Depth of field. The focal plane sits `focus` world units behind the
+   * helix's centre; a particle's blur grows by `pxPerUnit` CSS px per unit
+   * away from it, up to `maxPx`. Blurred particles grow and dim together, so
+   * the near coil turns soft rather than bright.
+   */
+  dof: { focus: 0.8, pxPerUnit: 2.4, maxPx: 7 },
+  /** Direction the light comes from, in view space (x right, y up, z away from the camera). */
+  light: [-0.45, 0.7, -0.55],
+  /** Forest → green → leaf → yellow-green → lime. Shadowed particles sit toward the start. */
+  palette: ['#143b24', '#2b6234', '#5a8f3e', '#a4c754', '#e3ed9e'],
+  cameraZ: 9.5,
+  fovDeg: 46,
+  /**
+   * The density the look was tuned at — Tier A's count over the hero's canvas
+   * at 1440×900, in particles per CSS px². A sparser canvas (Tier B, or a
+   * larger screen) draws each particle a little larger and stronger, a denser
+   * one (a phone's band) a little smaller and fainter, so the helix reads
+   * the same weight everywhere.
+   */
+  referenceDensity: 140_000 / (1140 * 900),
 } as const;
 
 /**
