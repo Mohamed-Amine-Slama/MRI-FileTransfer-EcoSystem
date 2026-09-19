@@ -842,6 +842,19 @@
 
 .corridor .consent-redaction-note {
   margin-block-start: 0.35rem;
+  /*
+   * Room for the stamp beneath the last line. On a phone the note wraps to
+   * the card's full width, and the stamp — pinned to the card's bottom
+   * corner — landed on top of "the name is shown to the patient". From
+   * 700px the note is short enough to end before the stamp begins.
+   */
+  margin-block-end: 3.25rem;
+}
+
+@media (min-width: 700px) {
+  .corridor .consent-redaction-note {
+    margin-block-end: 0;
+  }
 }
 
 .corridor .consent-stamp {
@@ -1475,6 +1488,17 @@
   margin-inline: calc(var(--hero-gutter) * -1);
 }
 
+/*
+ * A band of the helix, not a box of it. Below 1000px the hero's helix is a
+ * 40lvh strip between the copy and the band, and the close scene's sits in
+ * its own cell; both used to cut the strands off square at the top and
+ * bottom edges. A short fade lets them run out instead. (From 1000px the
+ * hero's helix fills the panel, whose own edge is the natural cut.)
+ */
+.corridor :is(.hero-helix, .close-helix) {
+  mask-image: linear-gradient(to bottom, transparent, #000 14%, #000 86%, transparent);
+}
+
 .corridor .hero-rule {
   margin: 0;
   border: 0;
@@ -1578,10 +1602,11 @@
   .corridor .hero-helix {
     position: absolute;
     inset-block: 0;
-    inset-inline-start: 22.5rem;
+    inset-inline-start: 22.5625rem;
     inline-size: 71.25rem;
     block-size: auto;
     margin: 0;
+    mask-image: none;
   }
 
   /*

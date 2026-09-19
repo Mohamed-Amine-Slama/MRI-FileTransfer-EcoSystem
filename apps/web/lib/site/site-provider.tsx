@@ -15,7 +15,7 @@ import { SITE_COPY, SITE_TEMPLATES, type SiteCopy } from './copy';
 import { dirOf, directionOf } from './dir';
 import { initScroll, whenIdle, type ScrollSystem } from './scroll';
 import { setSoundEnabled, soundEnabled, closeSound, playCue, type Cue } from './sound';
-import { DEMOTION, TIER_BUDGET, demoted, detectTier, tierOverride, type Tier, type TierBudget } from './tier';
+import { DEMOTION, TIER_BUDGET, demoted, detectTier, tierOverride, windowFps, type Tier, type TierBudget } from './tier';
 
 /**
  * The landing page's one context — Landing-Page-Specs §6.3, §6.4, §6.8.
@@ -129,38 +129,84 @@ export function SiteProvider({
    *
    * Detection lies: a good `effectiveType` on a congested tower is common in
    * exactly the places this page has to work. Sustained frame rate is the
-   * measurement that catches it, and it is sampled over a two-second window
-   * rather than per-frame so that one long GC pause does not demote a device
-   * that is otherwise fine.
+   * measurement that catches it: the median frame over a two-second window
+   * (`windowFps`), so a GC pause or a font swap does not demote a device that
+   * is otherwise fine.
+   *
+   * ---------------------------------------------------------------------------
+   * A DEMOTION IS ONE-WAY, SO EVERY WAY OF MEASURING WRONG IS A PAGE WITH NO
+   * ANIMATION UNTIL A RELOAD.
+   *
+   * This loop used to average frames over wall-clock time from the moment of
+   * mount. A background tab gets no animation frames, so the first frame back
+   * closed a window several seconds long with a handful of frames in it —
+   * "sustained 18 fps" — and two tab switches took a capable laptop to Tier C.
+   * The load itself (hydration, GSAP arriving, the helix's geometry) did the
+   * same on a cold cache. Readers saw animations that "only work after a
+   * refresh". So: nothing is scored while hidden or during the warm-up, a
+   * window holding a stall is discarded, and it takes `DEMOTION.strikes`
+   * slow windows in a row to step down.
+   * ---------------------------------------------------------------------------
    */
   useEffect(() => {
     if (tier === 'C') return;
 
-    let frames = 0;
-    let start = performance.now();
+    const armedAt = performance.now() + DEMOTION.warmupMs;
+    let intervals: number[] = [];
+    let windowStart = 0;
+    let last = 0;
+    let strikes = 0;
     let raf = 0;
     let cancelled = false;
 
-    const tick = (now: number): void => {
-      if (cancelled) return;
-      frames += 1;
-      const elapsed = now - start;
-      if (elapsed >= DEMOTION.fpsWindowMs) {
-        const fps = (frames * 1000) / elapsed;
-        if (fps < DEMOTION.minFps) {
-          demote(`sustained ${fps.toFixed(0)} fps over ${DEMOTION.fpsWindowMs} ms`);
-          return;
-        }
-        frames = 0;
-        start = now;
-      }
-      raf = requestAnimationFrame(tick);
+    // A fresh window: the next frame starts it rather than being measured
+    // against whatever frame came before the break.
+    const restart = (): void => {
+      intervals = [];
+      windowStart = 0;
+      last = 0;
     };
 
+    const tick = (now: number): void => {
+      if (cancelled) return;
+      raf = requestAnimationFrame(tick);
+      if (document.hidden || now < armedAt) {
+        restart();
+        return;
+      }
+      if (last === 0) {
+        windowStart = now;
+      } else {
+        intervals.push(now - last);
+      }
+      last = now;
+      if (now - windowStart < DEMOTION.fpsWindowMs) return;
+
+      const fps = windowFps(intervals);
+      intervals = [];
+      windowStart = now;
+      // A stall says nothing about the device, good or bad.
+      if (fps === null) return;
+      if (fps >= DEMOTION.minFps) {
+        strikes = 0;
+        return;
+      }
+      strikes += 1;
+      if (strikes < DEMOTION.strikes) return;
+      cancelled = true;
+      cancelAnimationFrame(raf);
+      demote(`sustained ${fps.toFixed(0)} fps over ${DEMOTION.strikes} windows of ${DEMOTION.fpsWindowMs} ms`);
+    };
+
+    document.addEventListener('visibilitychange', restart);
+    // A page restored from the back/forward cache resumes mid-window.
+    window.addEventListener('pageshow', restart);
     raf = requestAnimationFrame(tick);
     return () => {
       cancelled = true;
       cancelAnimationFrame(raf);
+      document.removeEventListener('visibilitychange', restart);
+      window.removeEventListener('pageshow', restart);
     };
   }, [tier, demote]);
 

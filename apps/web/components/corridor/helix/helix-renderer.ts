@@ -13,11 +13,26 @@ import { FRAGMENT_SHADER, VERTEX_SHADER } from './helix-shaders';
 export const ATTRIBUTES = ['aKind', 'aT', 'aSeed', 'aScatter'] as const;
 
 export const UNIFORMS = [
-  'uTime', 'uSpinAngle', 'uAssemble', 'uScroll', 'uRoll', 'uPointer', 'uPointerStrength',
-  'uViewport', 'uDpr', 'uTurns', 'uRadius', 'uLength', 'uYawSwing', 'uCameraZ', 'uFocal',
-  'uAspect', 'uPointerRadius', 'uPointerMax', 'uSizeStrand', 'uSizeRung', 'uSizeDust',
-  'uAlphaStrand', 'uAlphaRung', 'uAlphaDust', 'uJitter', 'uDustBoost', 'uPalette',
+  'uTime', 'uSpinAngle', 'uAssemble', 'uScroll', 'uRoll', 'uPitch', 'uPointer', 'uPointerStrength',
+  'uViewport', 'uDpr', 'uTurns', 'uRadius', 'uLength', 'uGroove', 'uRibbon', 'uYawSwing',
+  'uCameraZ', 'uFocal', 'uAspect', 'uPointerRadius', 'uPointerMax', 'uSizeStrand', 'uSizeRung',
+  'uSizeDust', 'uAlphaStrand', 'uAlphaRung', 'uAlphaDust', 'uJitter', 'uDustBoost', 'uDof',
+  'uLight', 'uDensity', 'uPalette',
 ] as const;
+
+/**
+ * Alpha and size multipliers that keep the helix the same visual weight on a
+ * canvas sparser or denser than the one the look was tuned on — Tier B's
+ * smaller count, a wide monitor, a phone's short band. Alpha carries most of
+ * the correction; size a little, so a sparse canvas does not turn into
+ * visibly separate dots. Both are clamped: past these bounds a density is
+ * not worth rescuing, only not making worse.
+ */
+export function densityScale(count: number, cssWidth: number, cssHeight: number): [number, number] {
+  const area = Math.max(1, cssWidth * cssHeight);
+  const ratio = HELIX.referenceDensity / (count / area);
+  return [Math.min(2.4, Math.max(0.55, Math.sqrt(ratio))), Math.min(1.5, Math.max(0.85, Math.pow(ratio, 0.25)))];
+}
 
 type UniformName = (typeof UNIFORMS)[number];
 
@@ -123,7 +138,7 @@ export function createHelixRenderer(
   const data = buildHelix({ count: options.count });
   performance.measure(`helix:geometry:${label}`, { start: started, end: performance.now() });
   // Captured so the closures below never retain `data` itself — at Tier A
-  // that object is ~1.3 MB of typed arrays, needed only to get them onto the
+  // that object is ~5 MB of typed arrays, needed only to get them onto the
   // GPU, not to keep around for the life of the renderer.
   const count = data.count;
 
@@ -172,7 +187,10 @@ export function createHelixRenderer(
   gl.uniform1f(u.uTurns, HELIX.turns);
   gl.uniform1f(u.uRadius, HELIX.radius);
   gl.uniform1f(u.uLength, HELIX.length);
+  gl.uniform1f(u.uGroove, HELIX.groove);
+  gl.uniform2f(u.uRibbon, HELIX.ribbon.halfWidth, HELIX.ribbon.thickness);
   gl.uniform1f(u.uRoll, HELIX.rollDeg * deg * (options.mirror ? -1 : 1));
+  gl.uniform1f(u.uPitch, HELIX.pitchDeg * deg);
   gl.uniform1f(u.uYawSwing, HELIX.yawSwingDeg * deg);
   gl.uniform1f(u.uCameraZ, HELIX.cameraZ);
   gl.uniform1f(u.uFocal, 1 / Math.tan((HELIX.fovDeg * deg) / 2));
@@ -185,6 +203,8 @@ export function createHelixRenderer(
   gl.uniform2f(u.uAlphaDust, ...HELIX.alpha.dust);
   gl.uniform3f(u.uJitter, HELIX.jitter.strand, HELIX.jitter.rung, HELIX.jitter.dust);
   gl.uniform1f(u.uDustBoost, HELIX.scrollDustBoost);
+  gl.uniform3f(u.uDof, HELIX.dof.focus, HELIX.dof.pxPerUnit, HELIX.dof.maxPx);
+  gl.uniform3f(u.uLight, ...HELIX.light);
   gl.uniform3fv(u.uPalette, new Float32Array(HELIX.palette.flatMap((hex) => hexToRgb01(hex))));
 
   // Premultiplied "over". Additive blending washes out to white on a light ground.
@@ -205,6 +225,7 @@ export function createHelixRenderer(
       gl.uniform1f(u.uAspect, width / height);
       gl.uniform1f(u.uDpr, dpr);
       gl.uniform1f(u.uPointerRadius, Math.min(width, height) * HELIX.pointer.radiusFrac);
+      gl.uniform2f(u.uDensity, ...densityScale(count, width, height));
     },
     render(frame) {
       gl.useProgram(program);

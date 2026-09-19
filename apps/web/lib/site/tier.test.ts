@@ -4,11 +4,13 @@ import { fileURLToPath } from 'node:url';
 import { describe, expect, it } from 'vitest';
 import { SEQUENCE, framePath } from './sequence';
 import {
+  DEMOTION,
   TIER_BUDGET,
   demoted,
   isTier,
   tierFromSignals,
   tierOverride,
+  windowFps,
   type Signals,
 } from './tier';
 
@@ -72,6 +74,45 @@ describe('tier selection (§6.3)', () => {
   });
 });
 
+describe('the frame-rate measurement behind runtime demotion (§6.3)', () => {
+  const frames = (ms: number, n: number): number[] => Array.from({ length: n }, () => ms);
+
+  it('reads a steady 60 Hz window as 60 fps', () => {
+    expect(windowFps(frames(1000 / 60, 120))).toBeCloseTo(60);
+  });
+
+  it('reads a device that cannot keep up as slow', () => {
+    expect(windowFps(frames(40, 50))).toBeCloseTo(25);
+    expect(windowFps(frames(40, 50))).toBeLessThan(DEMOTION.minFps);
+  });
+
+  /*
+   * A background tab gets no animation frames at all, so the first frame back
+   * arrives seconds after the last one. Averaged, that single gap read as
+   * "sustained 18 fps" and demoted a perfectly capable device — twice over two
+   * tab switches, which is Tier C: every animation off until a reload.
+   */
+  it('discards a window holding a stall — a hidden tab, a debugger, a pause — as evidence of nothing', () => {
+    expect(windowFps([...frames(1000 / 60, 60), 4000])).toBeNull();
+    expect(windowFps([...frames(1000 / 60, 60), DEMOTION.stallMs + 1])).toBeNull();
+  });
+
+  it('is not dragged down by a few long frames in an otherwise smooth window', () => {
+    // A garbage collection, a font swap, the helix building: short hitches, not a slow device.
+    const hitchy = [...frames(1000 / 60, 110), 120, 90, 150, 60, 200];
+    expect(windowFps(hitchy)).toBeGreaterThan(DEMOTION.minFps);
+  });
+
+  it('has nothing to say about an empty window', () => {
+    expect(windowFps([])).toBeNull();
+  });
+
+  it('needs more than one bad window, and waits out the page load, before it acts', () => {
+    expect(DEMOTION.strikes).toBeGreaterThanOrEqual(2);
+    expect(DEMOTION.warmupMs).toBeGreaterThan(0);
+  });
+});
+
 describe('the ?tier= override (§12 L3)', () => {
   it('accepts each tier in either case', () => {
     expect(tierOverride('?tier=A')).toBe('A');
@@ -112,8 +153,8 @@ describe('what each tier ships', () => {
   });
 
   it('sizes the helix per tier and gives Tier C its poster alone (spec §5.5)', () => {
-    expect(TIER_BUDGET.A.helix).toEqual({ particles: 36_000, dpr: 2 });
-    expect(TIER_BUDGET.B.helix).toEqual({ particles: 14_000, dpr: 1 });
+    expect(TIER_BUDGET.A.helix).toEqual({ particles: 140_000, dpr: 2 });
+    expect(TIER_BUDGET.B.helix).toEqual({ particles: 48_000, dpr: 1 });
     expect(TIER_BUDGET.C.helix).toBeNull();
   });
 });
