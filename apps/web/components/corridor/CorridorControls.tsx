@@ -104,11 +104,12 @@ export function ThemeControl(): React.JSX.Element {
       </div>
 
       {/*
-        Said once, plainly, where the choice is made. This page is a darkened
-        reading room in either setting — that contrast against the light
-        clinical product is the design (§3.1) — so the control governs the rest
-        of the site rather than this page, and a reader who flips it and sees
-        nothing change deserves to know why rather than to wonder.
+        Said once, plainly, where the choice is made. This page stays in its
+        own light palette regardless of the setting — the 2026-09-10 re-theme
+        put the whole landing page in that register on purpose — so the
+        control only reaches the platform's other pages, not this one, and a
+        reader who flips it here and sees nothing change deserves to know why
+        rather than to wonder.
       */}
       <p className="control-note">{t.themeAppliesToApp}</p>
     </details>

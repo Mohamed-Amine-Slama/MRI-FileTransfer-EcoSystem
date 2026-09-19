@@ -49,9 +49,11 @@ test.describe('theme (§4.1)', () => {
      * `/pricing`, not `/`.
      *
      * The landing page keeps its own light palette in BOTH themes — the
-     * theme applies to the signed-in application — but its header carries
-     * the appearance control, so the toggle is driven from there and the
-     * assertions are on `data-theme` alone.
+     * theme applies to the signed-in application, not this page — so
+     * asserting `data-theme` from the landing page would prove nothing about
+     * whether the toggle works. The signed-in shell carries its own
+     * appearance control (`components/shell/ThemeToggle.tsx`), and the test
+     * drives the toggle from `/pricing` instead.
      *
      * The three tests above still load `/`, because what they assert is that
      * `theme-init.js` stamps <html> before paint — which happens on every

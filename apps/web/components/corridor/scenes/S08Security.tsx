@@ -25,7 +25,7 @@ export function S08Security(): React.JSX.Element {
           <dl className="security">
             {SECURITY_ROWS.map((row) => (
               <div key={row.term} className="security-row">
-                <dt dir="ltr" className="security-term">
+                <dt dir="ltr" lang="en" className="security-term">
                   {row.term}
                 </dt>
                 <dd className="subtle security-desc">{t[row.descKey]}</dd>

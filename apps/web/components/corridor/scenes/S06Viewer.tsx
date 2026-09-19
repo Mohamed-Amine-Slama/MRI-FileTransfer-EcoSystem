@@ -25,7 +25,7 @@ export function S06Viewer(): React.JSX.Element {
 
         <div className="viewer-grid">
           <BlurIn>
-            <DemoCard label="VIEWER" padded={false} className="viewer-plate">
+            <DemoCard label="VIEWER" padded={false}>
               <div className="viewer-panel">
                 <p className="viewer-banner" data-testid="viewer-banner">
                   {t.viewerBanner}
