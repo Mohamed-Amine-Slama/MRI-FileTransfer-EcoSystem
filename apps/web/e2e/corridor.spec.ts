@@ -908,6 +908,15 @@ test.describe('the door track (spec §7.2)', () => {
     await page.setViewportSize({ width: 1440, height: 900 });
     await page.goto('/fr?tier=A');
     await expect(page.locator('#doors .track-viewport')).toHaveClass(/is-pinned/, { timeout: 15_000 });
+    /*
+     * Let the post-load settle finish before tabbing: `lib/site/scroll.ts`
+     * refreshes ScrollTrigger once `document.fonts.ready` resolves (Arabic
+     * and Latin have different content heights), and this pin's
+     * `start`/`end` — which the fix below reads live — are only their final
+     * values after that refresh. Racing it landed the second Tab's computed
+     * scroll target against a still-provisional geometry.
+     */
+    await page.waitForTimeout(1500);
 
     /*
      * A temporary focusable element right before the track — the shortest
