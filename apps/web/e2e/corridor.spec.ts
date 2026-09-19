@@ -222,13 +222,13 @@ test.describe('focal reveals (§3.5, §6.6, §12 L5)', () => {
      * this guard exists to catch, on the page's most important element (the
      * hero's own headline), and previously uncovered by this selector.
      */
-    const planes = page.locator('[data-reveal], [data-unit]');
-    const total = await planes.count();
+    const reveals = page.locator('[data-reveal], [data-unit]');
+    const total = await reveals.count();
     // If this ever finds nothing, the selector changed and the test is vacuous.
     expect(total).toBeGreaterThan(15);
 
     for (let i = 0; i < total; i++) {
-      const plane = planes.nth(i);
+      const reveal = reveals.nth(i);
 
       /*
        * Scrolled to the viewport's CENTER, not `scrollIntoViewIfNeeded()`.
@@ -242,7 +242,7 @@ test.describe('focal reveals (§3.5, §6.6, §12 L5)', () => {
        * viewport's closely-packed reveals do not get the same margin.
        * Centering clears `top 85%` on any viewport this page supports.
        */
-      await plane.evaluate((el) => el.scrollIntoView({ block: 'center' }));
+      await reveal.evaluate((el) => el.scrollIntoView({ block: 'center' }));
 
       /*
        * Polled, not slept on. The reveal is 620 ms, but this suite runs many
@@ -254,7 +254,7 @@ test.describe('focal reveals (§3.5, §6.6, §12 L5)', () => {
       await expect
         .poll(
           () =>
-            plane.evaluate((el) => {
+            reveal.evaluate((el) => {
               const cs = getComputedStyle(el);
               return {
                 opacity: Number(cs.opacity),
@@ -262,7 +262,7 @@ test.describe('focal reveals (§3.5, §6.6, §12 L5)', () => {
                 hidden: cs.visibility === 'hidden',
               };
             }),
-          { message: `plane ${i} never resolved`, timeout: 10_000 },
+          { message: `reveal ${i} never resolved`, timeout: 10_000 },
         )
         .toEqual({ opacity: 1, blurred: false, hidden: false });
     }
@@ -299,6 +299,9 @@ test.describe('focal reveals (§3.5, §6.6, §12 L5)', () => {
     if (isMobile) {
       await page.locator('.chrome-toggle').click();
       await page.locator('#chrome-menu .chrome-link[href="#security"]').click();
+      // The link's own onClick closes the sheet; it must not linger over
+      // the scene it just navigated to.
+      await expect(page.locator('#chrome-menu')).toBeHidden();
     } else {
       await page.locator('.chrome-link[href="#security"]').first().click();
     }
@@ -337,7 +340,11 @@ test.describe('focal reveals (§3.5, §6.6, §12 L5)', () => {
     await page.evaluate(() => {
       const consent = document.getElementById('consent');
       if (consent === null) return;
-      consent.style.position = 'relative';
+      // `static`, not `relative` — see the comment on `flowTop` in
+      // lib/site/scroll.ts. `relative` still honours the sticky rule's own
+      // `inset-block-start`, which understates a tall panel's flow top by
+      // (panel height − viewport height).
+      consent.style.position = 'static';
       const top = consent.getBoundingClientRect().top + window.scrollY;
       consent.style.position = '';
       window.scrollTo(0, top + 200);
@@ -365,6 +372,30 @@ test.describe('focal reveals (§3.5, §6.6, §12 L5)', () => {
     await expect
       .poll(async () => (await page.locator('#consent').boundingBox())?.y ?? 0, { timeout: 2000 })
       .toBeGreaterThan(400);
+  });
+
+  test('a mobile chrome-menu anchor to a stacked panel also arrives at its flow top (spec §3.3, §15.8)', async ({
+    page,
+    isMobile,
+  }) => {
+    test.skip(!isMobile, 'the chrome toggle sheet is the mobile equivalent of the desktop nav');
+    await page.goto('/fr?tier=A');
+
+    const consent = page.locator('#consent');
+    await expect(consent).toHaveClass(/is-stacking/, { timeout: 15_000 });
+
+    await page.locator('.chrome-toggle').click();
+    await page.locator('#chrome-menu .chrome-link[href="#consent"]').click();
+
+    // Same arrival signal as the desktop stacked-anchor test above: focus
+    // only moves once Lenis's scroll has actually settled.
+    await expect(consent).toBeFocused({ timeout: 10_000 });
+    await expect
+      .poll(async () => Math.abs((await consent.boundingBox())?.y ?? 999), { timeout: 2000 })
+      .toBeLessThan(4);
+    // The link's own onClick closes the sheet; it should not still be
+    // covering the panel it just navigated to.
+    await expect(page.locator('#chrome-menu')).toBeHidden();
   });
 });
 
@@ -547,6 +578,34 @@ test.describe('accessibility (§9)', () => {
     const after = page.getByTestId('footer-reduce-motion');
     await after.scrollIntoViewIfNeeded();
     await expect(after).toBeChecked();
+  });
+
+  test('un-dims scroll-lit text once the reduce-motion switch drops the page to Tier C (§8, §12 L5)', async ({
+    page,
+  }) => {
+    /*
+     * ScrollLitText's words start `data-lit="off"` (`--c-ink-muted`) and
+     * light up as the reader scrolls through S03. Checking the switch forces
+     * Tier C immediately (site-provider.tsx), which kills the ScrollTrigger
+     * that lights them — and a one-way "have I ever animated" latch used to
+     * leave every word frozen at whatever `data-lit` it last had, muted,
+     * because the split words never went back to being the plain text §8's
+     * Tier C row promises is already lit.
+     */
+    await page.goto('/ar?tier=A');
+
+    const toggle = page.getByTestId('footer-reduce-motion');
+    await toggle.scrollIntoViewIfNeeded();
+    await toggle.check();
+
+    const title = page.locator('#corridor-title');
+    await title.scrollIntoViewIfNeeded();
+
+    // Tier C renders plain text, not a lit/muted split, at all.
+    await expect(page.locator('#corridor [data-lit]')).toHaveCount(0);
+    await expect
+      .poll(async () => title.evaluate((el) => getComputedStyle(el).color))
+      .toBe('rgb(0, 0, 0)');
   });
 
   test('leaves sound off until it is asked for (§2.2, §16)', async ({ page }) => {
@@ -839,12 +898,59 @@ test.describe('the door track (spec §7.2)', () => {
     expect(released?.y ?? 0, 'released after its travel').toBeLessThan(-100);
   });
 
+  test('keyboard focus brings the pinned door fully into view (§7.2, §9)', async ({
+    page,
+    isMobile,
+    browserName,
+  }) => {
+    test.skip(isMobile, 'the pinned track needs a fine pointer and 900px');
+    test.skip(browserName !== 'chromium', 'one browser is enough for a layout assertion');
+    await page.setViewportSize({ width: 1440, height: 900 });
+    await page.goto('/fr?tier=A');
+    await expect(page.locator('#doors .track-viewport')).toHaveClass(/is-pinned/, { timeout: 15_000 });
+
+    /*
+     * A temporary focusable element right before the track — the shortest
+     * real Tab sequence that reaches it, independent of how many focusable
+     * elements the rest of the page happens to carry.
+     */
+    await page.evaluate(() => {
+      const probe = document.createElement('button');
+      probe.id = 'e2e-probe-before-doors';
+      probe.textContent = 'probe';
+      document.querySelector('#security .shell')?.appendChild(probe);
+      probe.focus();
+    });
+
+    await page.keyboard.press('Tab'); // the doctors' door
+    // A settling beat between the two tabs: the first one triggers a scroll
+    // (this fix), and firing the second before it has caught up raced the
+    // browser's own focus bookkeeping under load.
+    await page.waitForTimeout(400);
+    await page.keyboard.press('Tab'); // the patients' door — mostly off-screen before this fix
+
+    const patients = page.getByTestId('door-patients');
+    await expect(patients).toBeFocused({ timeout: 10_000 });
+    // The scroll this fix triggers is "immediate", not animated, but give it
+    // one settling beat before reading geometry.
+    await page.waitForTimeout(200);
+
+    const box = await patients.boundingBox();
+    expect(box).not.toBeNull();
+    const viewportWidth = page.viewportSize()?.width ?? 1440;
+    const visible =
+      Math.max(0, Math.min((box?.x ?? 0) + (box?.width ?? 0), viewportWidth) - Math.max(box?.x ?? 0, 0)) /
+      (box?.width ?? 1);
+    expect(visible, 'the focused door is ≥90% within the viewport').toBeGreaterThanOrEqual(0.9);
+  });
+
   test('is a native swipe row when motion is reduced', async ({ page }) => {
     await page.emulateMedia({ reducedMotion: 'reduce' });
     await page.goto('/fr');
     const viewport = page.locator('#doors .track-viewport');
     await expect(viewport).not.toHaveClass(/is-pinned/);
     await expect(viewport).toHaveCSS('overflow-x', 'auto');
+    await expect(viewport).toHaveCSS('scroll-snap-type', 'x mandatory');
     await expect(page.getByTestId('door-doctors')).toBeVisible();
   });
 });
