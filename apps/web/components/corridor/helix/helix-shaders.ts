@@ -14,7 +14,6 @@ precision highp float;
 in float aKind;
 in float aT;
 in vec4 aSeed;
-in vec3 aScatter;
 
 uniform float uTime;
 uniform float uSpinAngle;
@@ -45,6 +44,7 @@ uniform vec2 uAlphaRung;
 uniform vec2 uAlphaDust;
 uniform vec3 uJitter;
 uniform float uDustBoost;
+uniform float uReach;
 uniform vec3 uDof;
 uniform vec3 uLight;
 uniform vec2 uDensity;
@@ -96,6 +96,17 @@ vec4 vertexJitter(uint id) {
   float r = sqrt(-2.0 * log(max(u.x, 1e-7)));
   float r2 = sqrt(-2.0 * log(max(fract(u.z * 7.0), 1e-7)));
   return vec4(r * cos(TAU * u.y), r * sin(TAU * u.y), r2 * cos(TAU * u.z), fract(u.y * 13.0 + u.x));
+}
+
+// Where the entrance starts this particle: a uniform point in a ball of radius uReach.
+vec3 scatterPoint(uint id) {
+  uint a = pcg(id * 3u + 7u);
+  uint b = pcg(a);
+  uint c = pcg(b);
+  vec3 u = vec3(float(a), float(b), float(c)) / 4294967296.0;
+  float z = u.x * 2.0 - 1.0;
+  float ring = sqrt(max(0.0, 1.0 - z * z));
+  return vec3(ring * cos(TAU * u.y), z, ring * sin(TAU * u.y)) * pow(u.z, 1.0 / 3.0) * uReach;
 }
 
 vec3 yawPitchRoll(vec3 p, float yaw) {
@@ -160,7 +171,7 @@ void main() {
   // Entrance: each particle travels in from its scatter point, later along the strand.
   float k = clamp(uAssemble * 1.35 - aT * 0.35, 0.0, 1.0);
   float eased = k >= 1.0 ? 1.0 : 1.0 - pow(2.0, -10.0 * k);
-  p = mix(aScatter, p, eased);
+  p = mix(scatterPoint(uint(gl_VertexID)), p, eased);
 
   float yaw = sin(uTime * 0.25) * uYawSwing;
   p = yawPitchRoll(p, yaw);
@@ -196,9 +207,13 @@ void main() {
   float size = sharp + blur;
   float alpha = mix(alphaRange.x, alphaRange.y, fract(aSeed.w * 7.13)) * uDensity.x;
   alpha *= clamp(pow(sharp / size, 1.3), 0.14, 1.0);
-  if (size < 1.0) {
-    alpha *= size;
-    size = 1.0;
+  // The floor is ONE DEVICE PIXEL, not one CSS pixel: a canvas drawn at 2x
+  // can carry half-CSS-pixel grain, and clamping in CSS px would throw that
+  // resolution away and coarsen the texture back to the 1x look.
+  float device = size * uDpr;
+  if (device < 1.0) {
+    alpha *= device;
+    device = 1.0;
   }
   // Smoke, not tubing: density comes and goes in clumps along each backbone.
   if (!isRung) alpha *= mix(0.4, 1.6, noise(vec3(aT * 34.0, onB ? 9.0 : 0.0, aSeed.x * 1.2)));
@@ -207,7 +222,7 @@ void main() {
   alpha *= mix(1.0, 0.5, depth) * mix(0.25, 1.0, eased);
 
   gl_Position = vec4(ndc, 0.0, 1.0);
-  gl_PointSize = size * uDpr;
+  gl_PointSize = device;
   vAlpha = alpha;
   vTone = tone;
   vSoft = clamp(blur / size, 0.0, 1.0);

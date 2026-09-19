@@ -153,8 +153,8 @@ describe('what each tier ships', () => {
   });
 
   it('sizes the helix per tier and gives Tier C its poster alone (spec §5.5)', () => {
-    expect(TIER_BUDGET.A.helix).toEqual({ particles: 140_000, dpr: 2 });
-    expect(TIER_BUDGET.B.helix).toEqual({ particles: 48_000, dpr: 1 });
+    expect(TIER_BUDGET.A.helix).toEqual({ particles: 200_000, dpr: 2 });
+    expect(TIER_BUDGET.B.helix).toEqual({ particles: 64_000, dpr: 1.5 });
     expect(TIER_BUDGET.C.helix).toBeNull();
   });
 });

@@ -133,8 +133,8 @@ a re-theme measurement, and are marked that way rather than implied current.
 | `/[locale]` First Load JS (`next build` output table) | spec §10: unchanged or lower | **255 kB** — unchanged from the pre-refactor build (Task 10a) and unchanged again after the 2026-09-15 dependency bumps (ESLint 10, `globals` 17, `lucide-react`, a dev-dependency batch; HEAD `5f751a3`) | ✅ |
 | LCP / CLS / INP | 2.0 s / 0.03 / 200 ms | not measured | ⬜ |
 | Lighthouse mobile / a11y | ≥92 / 100 | not measured | ⬜ |
-| `helix:geometry` build (spec §10, per idle sample) | ≤10 ms on a real device | **21.1, 21.5, 29.4, 30.3, 32.3 ms** (min 21.1, median 29.4) — WSL2 + software WebGL2 (SwiftShader) + Docker, ~8 GB RAM; not a real device. Re-confirmed after the dark-era primitive removal, three quiet-machine runs (`uptime` load average 1.0–2.6): **27.8, 23.2, 21.5 ms**, all under the 40 ms environment tripwire and inside this same range. The spec §10 ≤10 ms real-device target is still unverified — see §4. | 🏠 |
-| Helix posters (`poster-ltr.avif` / `poster-rtl.avif`) | — | **56.9 KB** / **57.6 KB**, both 1140×900, AVIF quality 30 — reconfirmed on disk 2026-09-15, unchanged | ✅ |
+| `helix:geometry` build (spec §10, per idle sample) | ≤10 ms on a real device | **42.1, 43.4, 46.3, 48.7, 50.5, 84.6 ms** (median 47.5) at 140k particles — WSL2 + software WebGL2 (SwiftShader) + Docker, ~8 GB RAM, `uptime` load average 11–13 from a second session, 2026-09-19; not a real device. The 2026-09-19 helix hashes each particle's fuzz and scatter point on the GPU, so this covers 140k particles where the pre-rework figures (**21.1–32.3 ms**, median 29.4, on a quiet machine) covered 36k. The e2e check now records this number and asserts the 40 ms environment tripwire only under `MIR_PERF_TRIPWIRE=1` (spec §16.4): identical code measured 21–84 ms here whatever the load, so as a gate it failed on noise. The spec §10 ≤10 ms real-device target is still unverified — see §4. | 🏠 |
+| Helix posters (`poster-ltr.avif` / `poster-rtl.avif`) | — | **56.5 KB** / **55.9 KB**, both 1140×900, AVIF quality 22 at 4:2:0 — re-rendered 2026-09-19 for the re-tuned helix, whose dense grain compresses far worse than the old thin strands (quality 30 at 4:4:4 was 78.4 KB, over budget) | ✅ |
 
 The `/[locale]` First Load JS row above is `next build`'s own build-table figure
 (spec §10's "first-load JS unchanged or lower" clause) and is **not** the same
@@ -227,7 +227,12 @@ Grouped by who can close them.
   for a change, it is a `helix-config.ts` / shader tuning pass, and **any
   change requires re-rendering both posters** with
   `scripts/render-helix-poster.mjs` against a fresh build on a free port,
-  watching the 60 KB poster budget (currently 56.9/57.6 KB, little headroom).
+  watching the 60 KB poster budget (currently 56.5/55.9 KB, little headroom).
+  **The owner asked for that pass on 2026-09-19** and it was made: a denser
+  helix with ribbon backbones, a forest-to-lime palette, depth of field and
+  per-backbone lighting (spec §16.1). Whether it now reads as depth rather
+  than a flat ghost has not been checked against the viewport matrix above —
+  that is still a person's call.
 - 🔒 **Wide-screen hero containment.** At 1920×1080 the hero's copy sits 40px
   from the viewport edge (full-bleed, per spec §4.1) while every other scene
   sits inside a centred ~1440px column — measured (`fr`, tier A): hero H1 left

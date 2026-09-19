@@ -51,7 +51,6 @@ describe('buildHelix', () => {
     expect(a.kind).toEqual(b.kind);
     expect(a.t).toEqual(b.t);
     expect(a.seed).toEqual(b.seed);
-    expect(a.scatter).toEqual(b.scatter);
   });
 
   it('changes with the seed', () => {
@@ -64,7 +63,6 @@ describe('buildHelix', () => {
     expect(h.kind).toHaveLength(1_234);
     expect(h.t).toHaveLength(1_234);
     expect(h.seed).toHaveLength(1_234 * 4);
-    expect(h.scatter).toHaveLength(1_234 * 3);
   });
 
   it('labels particles with their kind in the configured proportion', () => {
@@ -108,14 +106,5 @@ describe('buildHelix', () => {
     });
     // An even spread would put 10% of them in the outer tenth; the edges hold far more.
     expect(nearEdge / strands).toBeGreaterThan(HELIX.ribbon.edgeShare * 0.8);
-  });
-
-  it('scatters the entrance positions inside a ball three radii wide', () => {
-    const h = buildHelix({ count: 3_000 });
-    const reach = HELIX.radius * 3 + 1e-4;
-    for (let i = 0; i < h.count; i++) {
-      const d = Math.hypot(h.scatter[i * 3] ?? 0, h.scatter[i * 3 + 1] ?? 0, h.scatter[i * 3 + 2] ?? 0);
-      expect(d).toBeLessThanOrEqual(reach);
-    }
   });
 });

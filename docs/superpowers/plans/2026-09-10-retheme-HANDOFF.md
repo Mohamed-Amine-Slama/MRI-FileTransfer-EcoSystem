@@ -1,51 +1,56 @@
 # Landing Light Re-theme — Session Handoff
 
-Entry point for the session that finishes the re-theme. All three plans are implemented and reviewed; what remains is one test decision, a handful of owner calls, and integrating the branch. Read this first.
+The re-theme, the WebGL2 helix hero and the 2026-09-19 helix re-tune are implemented, reviewed and verified. What remains is a list of owner calls, none of which blocks anything. Read this first; trust `git log` over it.
 
-The previous version of this file (commit `cb9c267`) was the kickoff for the implementation; `git show cb9c267:docs/superpowers/plans/2026-09-10-retheme-HANDOFF.md` has it.
+Earlier versions: the implementation kickoff is `git show cb9c267:docs/superpowers/plans/2026-09-10-retheme-HANDOFF.md`; the "finish the branch" version is at `368df49`.
 
-## State at handoff (2026-09-19)
+## State (2026-09-19, evening)
 
 | Item | Status |
 |---|---|
-| Branch | `feat/frontend-uplift`, HEAD `8b510f3`, pushed (nothing local-only). |
-| Implementation | **Done at `d21cbf2`.** Plans 1, 2 and 3 executed task by task (69 commits from `cb9c267` to `d21cbf2`), each task reviewed, each plan closed by a whole-branch review and one fix wave. Plan 3's fix wave was re-reviewed: every finding addressed, no new Critical or Important issues. |
-| After the re-theme | `8b510f3` (owner, 14:55, pushed) sits on top. It commits another session's (mir-32) helix rework — `helix-config.ts` (+72) and `helix-geometry.ts` (+34): more turns and base pairs, ribbon backbones, a 30° pitch, a new particle split — together with that session's temporary `distDir` in `next.config.mjs` (its own comment says "TEMP(mir-32) … Revert before commit"), `tsconfig.json`, `next-env.d.ts` and the lockfile. It was not reviewed by the re-theme process. See "Test status". |
-| `main` | `origin/main` holds this branch minus its 10 newest commits (the owner merged mid-plan). Local `main` is stale. |
-| Finishing | **Not done.** `superpowers:finishing-a-development-branch` stopped at its first step on a failing suite (below). |
-| Working tree | Clean except this file. |
-| Plan workspaces | Deleted (`.superpowers/sdd/2026-09-10-retheme-*`). Git history is the record. |
+| Branch | `feat/frontend-uplift`. |
+| `main` | Has the whole re-theme: the owner merged it through `8b510f3` as PR #98. Anything after that commit is not on `main` yet. |
+| Re-theme | **Done at `d21cbf2`** — plans 1, 2 and 3, each task reviewed, each plan closed by a whole-branch review and one fix wave. |
+| Helix re-tune | **Done.** `8b510f3` (owner) and `368df49` (owner) carry another session's (mir-32) rework: ribbon backbones, a groove offset, pitch toward the camera, depth of field, per-backbone lighting, a forest-to-lime palette, 140k/48k particles, and each particle's fuzz and entrance scatter hashed from `gl_VertexID` instead of uploaded. Recorded in spec §16. |
+| Door-card fix | **Done** in `368df49`: `HorizontalTrack`'s `focusin` handler returns unless the target matches `:focus-visible`, with an e2e that presses a half-hidden door with the mouse. |
+| Geometry tripwire | **Done** in `368df49`: the e2e always records `helix:geometry:hero` as an annotation and asserts 40 ms only under `MIR_PERF_TRIPWIRE=1`. |
+| Uncommitted | mir-32's last helix commit (see "What is uncommitted"). |
 
-## Test status
+## Verification (2026-09-19, on the tree described below)
 
-**At `8b510f3` (HEAD):** lint and typecheck pass; Vitest **218 / 220** — two tests in `components/corridor/helix/helix-geometry.test.ts` fail ("gives Tier A 45% strand, 15% rung, 40% dust, and loses nobody"; "labels particles with their kind in the configured proportion") because the commit moved `HELIX.split` from spec §5.2's 45 / 15 / 40 to 52 / 18 / 30. E2E was not run on this commit. Its helix changes also leave both committed posters (`public/helix/poster-{ltr,rtl}.avif`) showing the old helix, and change what the geometry tripwire measures.
+- `pnpm --filter @mir/web lint`, `typecheck`: pass. `eslint e2e/corridor.spec.ts` (the lint script does not cover `e2e/`): pass.
+- `test` (Vitest): **228 / 228**.
+- E2E, both projects (chromium + mobile-chrome), one worker: **197 passed, 10 skipped, 1 failed**. The skips are by design (desktop-only or mobile-only cases).
+- The failure is `focal reveals … every reveal on the page resolves to full opacity and zero blur` on mobile-chrome, at 34.6 s against Playwright's default 30 s per-test timeout, with a load average of ~10 from a second session. Rerun alone, 3× per project: all pass, 22.6–25.1 s. **It is the machine, not the page**: the same test with WebGL2 stubbed out (no helix at all) still takes 24.9 and 27.8 s, so the re-tuned helix is not the cost. The test sweeps ~80 reveals, scrolling to each; it needs most of its 30 s budget even idle. If it keeps flaking, give that one test an explicit longer timeout — it is a whole-page sweep, not a unit of work that should fit in 30 s.
 
-**At `d21cbf2` (the re-theme as reviewed):**
+## What is uncommitted
 
-- `pnpm --filter @mir/web lint`: pass. `typecheck`: pass. `test` (Vitest): 220 / 220.
-- E2E, both projects (chromium + mobile-chrome), one worker: **196 passed, 9 skipped, 1 failed.** The skips are by design (desktop-only or mobile-only cases).
-- The failure is `e2e/corridor.spec.ts:748`, "does not regress past this environment's measured geometry range": 42 ms against a 40 ms limit. Rerun alone three times: pass, pass, fail at 55 ms, with a load average of 5–7 from another session working on the same machine. Rerun three more times later on a quiet machine (load average 1.7), against the same build: fail at 84 ms, fail at 76 ms, pass. The geometry code at `d21cbf2` has not changed since `31cd581` (Plan 2), when this environment measured 21–32 ms idle.
-- So the check is noise here, not a signal: identical code ranges from under 40 ms to 84 ms in this WSL2 + SwiftShader setup, whatever the load. It is a regression tripwire for this environment, not the spec §10 budget (≤ 10 ms on a real device, still unmeasured). **It needs an owner decision before the suite can be called green:** gate it so it runs only where timings are stable (e.g. behind an opt-in environment variable or in CI), turn it into a recorded measurement instead of an assertion, or raise the limit with the measured range in its comment.
+mir-32's final helix commit, in the working tree, reviewed here and verified by the run above:
 
-## Next steps, in order
+- `helix-geometry.ts` / `.test.ts`, `helix-renderer.ts`, `helix-shaders.ts` — the entrance scatter moves to a GPU hash, so the `aScatter` attribute is gone.
+- `public/helix/poster-{ltr,rtl}.avif` re-rendered for the new look; `scripts/render-helix-poster.mjs` now writes AVIF quality 22 at 4:2:0 (56.5 / 55.9 KB, against the script's 60 KiB budget).
+- `next.config.mjs` — the TEMP `distDir` line is gone. `tsconfig.json` — restored to its `d21cbf2` form (staged).
 
-1. **Check for concurrent work.** Another session (mir-32) was reworking the hero helix, scroll animations and responsive layout on this same branch: `components/corridor/helix/*`, `BlurIn` / `WordReveal` / `ScrollLitText`, `lib/site/use-gsap.ts`, `lib/site/scroll.ts`, `app/corridor.css`. Run `git log` and `git status` first. Build on its commits; never overwrite them.
-2. **Settle `8b510f3`'s helix rework** (owner decision). If the new look stays: amend spec §5 (at least §5.2's split) to match, update the two failing geometry tests to the new split, re-render both posters (and confirm each stays under the 60 KiB budget), and review the diff the way the plans were reviewed. Either way, drop the temporary `distDir` from `next.config.mjs` or replace its "Revert before commit" comment with a real one.
-3. **Settle the geometry tripwire** (owner decision, see "Test status"), then **rebuild and rerun the web suite** (commands under "Environment").
-4. **Owner decision: the door-card focus fix** (first item under "Open items"). Recommended.
-5. **Run `superpowers:finishing-a-development-branch`** with base branch `main`: merge locally, push and open a PR, or keep the branch.
+Plus this session's docs: spec §16, and the status doc's geometry, poster and helix-colour entries.
+
+**Next step: commit all of it and open a PR to `main`.** Nothing else is pending.
+
+## Review findings (2026-09-19)
+
+Reviewed: `8b510f3`, `368df49` and the uncommitted helix work.
+
+- **A device below ~4 fps is never demoted** (Important, not fixed). `windowFps` in `lib/site/tier.ts` discards any 2 s window holding a frame longer than `DEMOTION.stallMs` (250 ms), and `site-provider.tsx` is the only caller. A device at 3 fps has every frame over 250 ms, so no window is ever scored and the one-way demotion never fires — for exactly the device that needs it. Before `368df49` a 3 fps device was demoted after one window. The median plus `DEMOTION.strikes` already absorbs a lone long frame (a debugger pause, a GC), which is what the stall rule was for, so the narrower rule is: discard a window only when it holds too few frames to judge.
+- **`8b510f3` was half a change** (resolved by `368df49`). It committed helix *config* the committed renderer did not read, so the page drew neither the old helix nor the new one.
+- **Its lockfile change is sound**: it re-synced a lockfile that had drifted from the manifests. `pnpm install --frozen-lockfile --lockfile-only` passes at HEAD.
 
 ## Open items for the owner
-
-**Recommended fix, not applied**
-- **A mouse press on a door card can jump the page.** `apps/web/components/corridor/motion/HorizontalTrack.tsx:77-98` — the `focusin` handler that brings a keyboard-focused door card into view also fires when a mouse press focuses the link (Chrome focuses links on mousedown). Measured: a 150 ms press moved the page ~830 px before release. The link still navigated in both runs; a lost click was not reproduced. The fix is one guard at the top of the handler, `if (!focused.matches(':focus-visible')) return;`, plus an e2e that clicks a partly visible card with the mouse and asserts no scroll. It was held back only because the review process allows one fix wave.
 
 **Copy (needs the Arabic review)**
 - `themeAppliesToApp` in `apps/web/lib/i18n/dictionary.ts` (ar :438, fr :1023, en :1627) still tells visitors "this page stays dark". The landing page is light now. Needs new copy in all three locales.
 - The mobile menu's `nav` landmark reuses the "Questions" label (`t.navQuestions`); a dedicated label needs a new copy key.
 
 **Design calls**
-- Helix colour and opacity. If tuned, the tone, depth and sprite constants live in `helix-shaders.ts` as well as `helix-config.ts`, and both posters must be re-rendered (see "Environment").
+- Whether the re-tuned helix now reads as depth rather than a pale ghost, across the viewport matrix in the status doc's visual-review item.
 - Wide-screen hero: the hero copy is anchored to the viewport edge (spec §4.1's "inline-start 40px"), so it drifts from every other scene's centred 1440 px shell — 32 px at 1440, 296 px at 1920, 640 px at 2560.
 - No /signup link in the header below the 1100 px CTA breakpoint.
 - The OG share cards (`apps/web/public/og/*.png`) are still the dark design. The template (`apps/web/scripts/render-og.mjs`) was updated to the new fonts and lost the retired slice counter, so template and committed PNGs differ until a light restyle and re-render.
@@ -58,16 +63,15 @@ The previous version of this file (commit `cb9c267`) was the kickoff for the imp
 - Moving the cursor over the helix by hand.
 - The Tier B poster crossfade.
 - LCP and CLS were not re-measured (no repeatable method is documented).
+- A real-device `helix:geometry` measurement against spec §10's ≤ 10 ms. This environment now measures 42–85 ms at 140k particles.
 
 **Git**
 - Four already-pushed commits lack the session trailer (`c68a708`, `bc47ea3`, `fab7e61`, `d39986b`). Pushed history was never amended; rewriting it is the owner's call.
 
 ## Rulings that still bind future work
 
-The implementing session made 55 rulings; the full list, each with its cost if wrong, was delivered in that session's final message. These are the ones a later change can trip over:
-
-- **Posters.** Any helix tuning must re-render both posters. They are 58,237 and 59,000 bytes against the script's 60 KiB `BUDGET`, at AVIF quality 30 (42 was over budget).
-- **Geometry tripwire.** 40 ms is an environment regression guard, not the spec budget. Chunking the geometry build across frames was deliberately not done.
+- **Posters.** Any helix tuning must re-render both posters (`scripts/render-helix-poster.mjs <baseUrl>`, against a fresh build on a free port — its default `:3001` is a stale Docker container here). They are 56.5 and 55.9 KB against the script's 60 KiB `BUDGET`, at AVIF quality 22, 4:2:0.
+- **Geometry tripwire.** 40 ms is an environment regression guard, not the spec budget, and it is opt-in (`MIR_PERF_TRIPWIRE=1`). Chunking the geometry build across frames was deliberately not done.
 - **Anchors.** `flowTop()` in `lib/site/scroll.ts` measures a sticky panel with `position: 'static'` (not `relative`, which keeps the panel's negative inset and lands anchors short on tall panels). An e2e covers it on mobile-chrome.
 - **Reveals survive a drop to Tier C.** `ScrollLitText` and `WordReveal` un-split when animation turns off mid-visit (FPS demotion or the footer's reduce-motion switch). Keep that both-ways behaviour.
 - **Hero layout.** The copy sits in the hero grid's first row; the section is `min-block-size: 100lvh`; the bottom band (divider, trust row, CTAs, chips) is a content-sized grid. The spec's 78.6 / 83.6 / 89.4 % positions are the reference's measurements at 1440×900, not invariants; the binding intent is order and alignment.
@@ -78,13 +82,14 @@ The implementing session made 55 rulings; the full list, each with its cost if w
 
 ## Where things are
 
-- **Current truth about the page:** `docs/landing-page-status.md` (truth pass in `076b221`).
-- **Design spec:** `docs/superpowers/specs/2026-09-10-landing-light-retheme-design.md` (§15 overrides earlier sections).
+- **Current truth about the page:** `docs/landing-page-status.md`.
+- **Design spec:** `docs/superpowers/specs/2026-09-10-landing-light-retheme-design.md` — **§16 wins, then §15, then the numbered sections.**
 - **Plans (fully executed, historical):** `docs/superpowers/plans/2026-09-10-retheme-{1-foundations,2-hero-helix,3-scenes-chrome}.md`.
 - **Code:** `apps/web/components/corridor/` (`helix/`, `motion/`, `primitives/`, `scenes/S01–S11`, `CorridorChrome.tsx`, `CorridorControls.tsx`), `apps/web/app/corridor.css`, `apps/web/lib/site/` (`scroll.ts`, `tier.ts`, `motion.ts`, `curtain.ts`), `apps/web/e2e/corridor.spec.ts` and `theme.spec.ts`, `apps/web/scripts/render-helix-poster.mjs` and `render-og.mjs`.
 
 ## Environment
 
+- **Two sessions share this working tree.** Another session (mir-32) has been working on the same branch all day, and the owner commits the whole tree at once. Before touching anything: `git log`, `git status`, and check file mtimes. To commit only your own change to a file someone else is editing, build a patch against HEAD and `git apply --cached` it.
 - **`:3001` is a Docker `mir-web` container on an old image.** The repo's Playwright config serves on `:3001` and reuses a server already there, so it silently tests the old page. Use a scratch config kept outside the repo:
 
   ```ts
@@ -118,23 +123,7 @@ The implementing session made 55 rulings; the full list, each with its cost if w
   ```
 
   Then, from `apps/web`: `pnpm build`, and `pnpm exec playwright test -c <path>/playwright.local.config.ts --workers=1`.
-- **Always `--workers=1`.** Three corridor tests flake under parallel load.
-- **Posters:** `pnpm --filter @mir/web exec next start -p 3202` in the background, then `node apps/web/scripts/render-helix-poster.mjs http://127.0.0.1:3202` (its default base URL is `:3001`, the old container). Stop the server afterwards.
+- **Always `--workers=1`,** and watch `uptime`: three corridor tests flake under parallel load, and the reveal sweep flakes above a load average of ~10 whatever the worker count.
 - **Never run the root `pnpm test` or the API suite** (`pnpm --filter @mir/api test`). It rewrites the `mir_app` role password and breaks the running local API. The web package's own `lint`, `typecheck` and `test` are safe.
 - **OneDrive + git:** a stale `.git/index.lock` can appear. Before removing one, confirm no git process is running (WSL `pgrep -a git`, Windows `tasklist.exe | grep -i git`).
 - **On this machine `grep` is aliased to ugrep;** use `/usr/bin/grep` in scripts.
-
-## Kickoff prompt for the next session
-
-```
-Finish the landing light re-theme. Read
-docs/superpowers/plans/2026-09-10-retheme-HANDOFF.md first. Check git log
-and git status before touching anything: another session may have changed
-the helix, the motion primitives or corridor.css since 8b510f3 — build on
-its work, never overwrite it. Apply the owner's decisions on 8b510f3's
-helix rework and on the geometry tripwire (see Next steps), rebuild and
-rerun the web suite as the handoff describes, then run
-superpowers:finishing-a-development-branch against main.
-```
-
-If the owner has approved the door-card focus fix, add: "First apply the `:focus-visible` guard in HorizontalTrack.tsx described under Open items, with its mouse-path e2e, and commit it."
