@@ -14,7 +14,7 @@
  * So:
  *   Tier C is the page. Static, correct, complete, ~34 KB of JS. It is what
  *          the HTML response contains and what renders if no script ever runs.
- *   Tier B adds the helix at 14k particles and two depth planes.
+ *   Tier B adds the helix at 48k particles and two depth planes.
  *   Tier A adds the full helix, five planes, sound and haptics.
  *
  * The layout is IDENTICAL in all three. That is not a nicety — it is the
@@ -173,9 +173,44 @@ export function demoted(from: Tier): Tier {
 export const DEMOTION = {
   /** Sustained fps below this over the window means the device cannot keep up. */
   minFps: 45,
-  /** Window over which frame rate is averaged, in ms. */
+  /** Window over which frame rate is measured, in ms. */
   fpsWindowMs: 2000,
+  /**
+   * One frame longer than this is a stall — a background tab (which gets no
+   * frames at all), a minimised window, a debugger, a long GC — not a slow
+   * device. The window it lands in is thrown away rather than scored.
+   */
+  stallMs: 250,
+  /**
+   * Nothing is measured for this long after the tier takes effect. Load —
+   * hydration, the animation runtime arriving, fonts swapping, the helix
+   * building its geometry — is a burst, not sustained performance, and a
+   * demotion is one-way for the session.
+   */
+  warmupMs: 3000,
+  /** Consecutive slow windows before a step down. One can be bad luck. */
+  strikes: 2,
 } as const;
+
+/**
+ * A window's frame rate, from its frame-to-frame intervals in ms — or `null`
+ * when the window says nothing about the device.
+ *
+ * The MEDIAN interval, not frames ÷ elapsed. An average lets one long frame
+ * speak for the whole window: a single four-second gap while the tab was in
+ * the background read as "sustained 18 fps", demoted a capable device, and
+ * two tab switches took the page to Tier C — every animation off until a
+ * reload. A device that genuinely cannot keep up is slow on most frames,
+ * which is exactly what a median measures.
+ */
+export function windowFps(intervals: readonly number[]): number | null {
+  if (intervals.length === 0) return null;
+  if (intervals.some((ms) => ms > DEMOTION.stallMs)) return null;
+  const sorted = [...intervals].sort((a, b) => a - b);
+  const mid = Math.floor(sorted.length / 2);
+  const median = sorted.length % 2 === 1 ? (sorted[mid] ?? 0) : ((sorted[mid - 1] ?? 0) + (sorted[mid] ?? 0)) / 2;
+  return median > 0 ? 1000 / median : null;
+}
 
 /** What each tier actually ships — §6.3's table, as data. */
 export interface TierBudget {
@@ -190,7 +225,7 @@ export interface TierBudget {
 }
 
 export const TIER_BUDGET: Record<Tier, TierBudget> = {
-  A: { planes: 5, expressive: true, interactiveDemo: true, helix: { particles: 36_000, dpr: 2 } },
-  B: { planes: 2, expressive: true, interactiveDemo: true, helix: { particles: 14_000, dpr: 1 } },
+  A: { planes: 5, expressive: true, interactiveDemo: true, helix: { particles: 140_000, dpr: 2 } },
+  B: { planes: 2, expressive: true, interactiveDemo: true, helix: { particles: 48_000, dpr: 1 } },
   C: { planes: 0, expressive: false, interactiveDemo: false, helix: null },
 };

@@ -37,10 +37,10 @@ describe('the particle split (spec §5.2)', () => {
     expect(HELIX.split.strand + HELIX.split.rung + HELIX.split.dust).toBeCloseTo(1);
   });
 
-  it('gives Tier A 45% strand, 15% rung, 40% dust, and loses nobody', () => {
-    expect(kindCounts(36_000)).toEqual({ strand: 16_200, rung: 5_400, dust: 14_400 });
-    const odd = kindCounts(14_001);
-    expect(odd.strand + odd.rung + odd.dust).toBe(14_001);
+  it('gives Tier A 50% strand, 16% rung, 34% dust, and loses nobody', () => {
+    expect(kindCounts(140_000)).toEqual({ strand: 70_000, rung: 22_400, dust: 47_600 });
+    const odd = kindCounts(48_001);
+    expect(odd.strand + odd.rung + odd.dust).toBe(48_001);
   });
 });
 
@@ -71,9 +71,9 @@ describe('buildHelix', () => {
     const h = buildHelix({ count: 1_000 });
     const counts = [0, 0, 0, 0, 0];
     for (const kind of h.kind) counts[kind] = (counts[kind] ?? 0) + 1;
-    expect((counts[KIND.strandA] ?? 0) + (counts[KIND.strandB] ?? 0)).toBe(450);
-    expect(counts[KIND.rung]).toBe(150);
-    expect((counts[KIND.dustA] ?? 0) + (counts[KIND.dustB] ?? 0)).toBe(400);
+    expect((counts[KIND.strandA] ?? 0) + (counts[KIND.strandB] ?? 0)).toBe(500);
+    expect(counts[KIND.rung]).toBe(160);
+    expect((counts[KIND.dustA] ?? 0) + (counts[KIND.dustB] ?? 0)).toBe(340);
   });
 
   it('keeps every particle inside the helix length', () => {
@@ -93,6 +93,21 @@ describe('buildHelix', () => {
       expect(chord).toBeGreaterThanOrEqual(0);
       expect(chord).toBeLessThan(1);
     });
+  });
+
+  it('places every strand particle across its ribbon, crowding the two edges', () => {
+    const h = buildHelix({ count: 20_000 });
+    let strands = 0;
+    let nearEdge = 0;
+    h.kind.forEach((kind, i) => {
+      if (kind !== KIND.strandA && kind !== KIND.strandB) return;
+      const across = h.seed[i * 4] ?? 2;
+      expect(Math.abs(across)).toBeLessThanOrEqual(1);
+      strands += 1;
+      if (Math.abs(across) > 0.9) nearEdge += 1;
+    });
+    // An even spread would put 10% of them in the outer tenth; the edges hold far more.
+    expect(nearEdge / strands).toBeGreaterThan(HELIX.ribbon.edgeShare * 0.8);
   });
 
   it('scatters the entrance positions inside a ball three radii wide', () => {

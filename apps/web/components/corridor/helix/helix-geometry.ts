@@ -21,8 +21,6 @@ export interface HelixBuffers {
    * radial normal for dust.
    */
   seed: Float32Array;
-  /** 4 per particle: three standard normals (3D fuzz) and a uniform 0..1 (dust: halo or mist). */
-  jitter: Float32Array;
   /** 3 per particle: where the particle starts before the entrance assembles it. */
   scatter: Float32Array;
 }
@@ -86,7 +84,6 @@ export function buildHelix({ count, seed = HELIX.seed }: { count: number; seed?:
   const kind = new Float32Array(count);
   const t = new Float32Array(count);
   const seeds = new Float32Array(count * 4);
-  const jitter = new Float32Array(count * 4);
   const scatter = new Float32Array(count * 3);
 
   const { strand, rung } = kindCounts(count);
@@ -118,21 +115,25 @@ export function buildHelix({ count, seed = HELIX.seed }: { count: number; seed?:
     seeds[i * 4 + 2] = rand();
     seeds[i * 4 + 3] = rand();
 
-    jitter[i * 4] = normal();
-    jitter[i * 4 + 1] = normal();
-    jitter[i * 4 + 2] = normal();
-    jitter[i * 4 + 3] = rand();
-
-    // A uniform point in a ball: gaussian direction, cube-root radius.
-    const x = normal();
-    const y = normal();
-    const z = normal();
-    const length = Math.hypot(x, y, z) || 1;
-    const r = reach * Math.cbrt(rand());
-    scatter[i * 3] = (x / length) * r;
-    scatter[i * 3 + 1] = (y / length) * r;
-    scatter[i * 3 + 2] = (z / length) * r;
+    /*
+     * A uniform point in a ball, by rejection from the cube around it: ~1.9
+     * tries of three draws each, and no log, trig or cube root — at Tier A's
+     * count this loop is most of the geometry's cost, and it runs on the main
+     * thread. (Each particle's 3D fuzz is not here at all; the vertex shader
+     * hashes it from the vertex index.)
+     */
+    let x: number;
+    let y: number;
+    let z: number;
+    do {
+      x = rand() * 2 - 1;
+      y = rand() * 2 - 1;
+      z = rand() * 2 - 1;
+    } while (x * x + y * y + z * z > 1);
+    scatter[i * 3] = x * reach;
+    scatter[i * 3 + 1] = y * reach;
+    scatter[i * 3 + 2] = z * reach;
   }
 
-  return { count, kind, t, seed: seeds, jitter, scatter };
+  return { count, kind, t, seed: seeds, scatter };
 }
