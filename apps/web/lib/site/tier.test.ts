@@ -38,7 +38,6 @@ describe('tier selection (§6.3)', () => {
     ['someone paying for their bytes', { saveData: true }],
     ['a 2g connection', { effectiveType: '2g' }],
     ['a slow-2g connection', { effectiveType: 'slow-2g' }],
-    ['a measured downlink under 1.5 Mbit', { downlink: 1.2 }],
     ['a 2 GB device', { memory: 2 }],
   ])('never loads the experience for %s', (_why, override) => {
     expect(tierFromSignals({ ...CAPABLE, ...override })).toBe('C');
@@ -57,8 +56,25 @@ describe('tier selection (§6.3)', () => {
     ['4 GB of memory', { memory: 4 }],
     ['3g', { effectiveType: '3g' }],
     ['a 3 Mbit downlink', { downlink: 3 }],
+    ['a 1.45 Mbit downlink', { downlink: 1.45 }],
+    ['a downlink the browser has no estimate for yet', { downlink: 0 }],
   ])('falls back to Tier B on %s', (_why, override) => {
     expect(tierFromSignals({ ...CAPABLE, ...override })).toBe('B');
+  });
+
+  /*
+   * `navigator.connection.downlink` is a rolling estimate, and it moves under
+   * a reader who is doing nothing: against this page the same machine
+   * reported 9.5, 8.8, 2.7 and 1.45 Mbit as conditions changed. It used to
+   * decide Tier C, so the landing page animated on one load and was entirely
+   * static on the next. A slow link may cost the reader Tier A; it must never
+   * cost them every animation on the page.
+   */
+  it('never lets a moving downlink estimate switch animation off between reloads', () => {
+    const tiers = [9.5, 8.8, 2.7, 1.45, 1.2, 0.4].map((downlink) =>
+      tierFromSignals({ ...CAPABLE, effectiveType: '3g', downlink }),
+    );
+    expect(tiers.every((tier) => tier !== 'C')).toBe(true);
   });
 
   it('treats reduced motion as an exit, not a modifier', () => {
@@ -92,14 +108,25 @@ describe('the frame-rate measurement behind runtime demotion (§6.3)', () => {
    * "sustained 18 fps" and demoted a perfectly capable device — twice over two
    * tab switches, which is Tier C: every animation off until a reload.
    */
-  it('discards a window holding a stall — a hidden tab, a debugger, a pause — as evidence of nothing', () => {
-    expect(windowFps([...frames(1000 / 60, 60), 4000])).toBeNull();
-    expect(windowFps([...frames(1000 / 60, 60), DEMOTION.stallMs + 1])).toBeNull();
+  it('discards a window with too few frames to judge — a hidden tab, a debugger, a pause', () => {
+    expect(windowFps([4000])).toBeNull();
+    expect(windowFps([...frames(1000 / 60, DEMOTION.minFrames - 2), 4000])).toBeNull();
+  });
+
+  /*
+   * The counterpart, and the hole the first version of this had: a device at
+   * 3 fps has nothing but long frames. Throwing away every window that held
+   * one meant it was never scored and never demoted.
+   */
+  it('still measures a device that is slow on every single frame', () => {
+    const crawling = windowFps(frames(330, 6));
+    expect(crawling).not.toBeNull();
+    expect(crawling).toBeLessThan(DEMOTION.minFps);
   });
 
   it('is not dragged down by a few long frames in an otherwise smooth window', () => {
     // A garbage collection, a font swap, the helix building: short hitches, not a slow device.
-    const hitchy = [...frames(1000 / 60, 110), 120, 90, 150, 60, 200];
+    const hitchy = [...frames(1000 / 60, 110), 120, 90, 4000, 60, 200];
     expect(windowFps(hitchy)).toBeGreaterThan(DEMOTION.minFps);
   });
 

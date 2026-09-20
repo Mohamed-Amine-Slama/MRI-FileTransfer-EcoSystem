@@ -63,13 +63,33 @@ export function tierFromSignals(s: Signals): Tier {
    *   reducedMotion  a vestibular condition. §6.8: none, not "smaller".
    *   saveData       "I am paying for these bytes."
    *   2g / slow-2g   the cinema would arrive after they had gone.
-   *   downlink       measured, and below the point where the experience helps.
    *   memory ≤ 2 GB  the device would drop frames rendering it.
+   *
+   * ---------------------------------------------------------------------------
+   * A MEASURED DOWNLINK IS NOT ONE OF THEM, AND USED TO BE.
+   *
+   * `downlink < 1.5` sat here and sent the reader to Tier C — no animation at
+   * all, for the whole visit. But `navigator.connection.downlink` is a rolling
+   * ESTIMATE of the moment, not a property of the device: measured against
+   * this very page, the same machine reported 9.5, 8.8, 2.7 and 1.45 Mbit as
+   * conditions moved, and Chrome quantises it, so 1.45 is a value it really
+   * returns. A reader on a marginal connection therefore got an animated page
+   * on one load and a completely static one on the next, with nothing they
+   * did explaining the difference — "the animations only work when I refresh,
+   * and sometimes they don't".
+   *
+   * Save-Data and the 2g classes already cover "do not spend my bytes", and
+   * they are either an explicit choice or a stable fact about the radio. A
+   * merely slow link is a reason to be SMALLER, not absent: the animation
+   * runtime is lazy and fetched after LCP (§8.2), and every resting state is
+   * already the correct page (§3.5). So the estimate now only decides A vs B,
+   * in the Tier A gate below, where being wrong costs a tier rather than the
+   * whole experience.
+   * ---------------------------------------------------------------------------
    */
   if (s.reducedMotion) return 'C';
   if (s.saveData) return 'C';
   if (s.effectiveType === 'slow-2g' || s.effectiveType === '2g') return 'C';
-  if (s.downlink < 1.5) return 'C';
   if (s.memory <= 2) return 'C';
 
   // Tier A — the full cinematic path. Every clause must hold.
@@ -176,11 +196,13 @@ export const DEMOTION = {
   /** Window over which frame rate is measured, in ms. */
   fpsWindowMs: 2000,
   /**
-   * One frame longer than this is a stall — a background tab (which gets no
-   * frames at all), a minimised window, a debugger, a long GC — not a slow
-   * device. The window it lands in is thrown away rather than scored.
+   * Fewer frames than this in a window and it is thrown away rather than
+   * scored: that is what a background tab, a minimised window, a debugger or
+   * a machine waking from sleep looks like — one enormous gap and nothing to
+   * take a median of. Five intervals still measures a device limping along at
+   * 2.5 fps, which is the case demotion exists for.
    */
-  stallMs: 250,
+  minFrames: 5,
   /**
    * Nothing is measured for this long after the tier takes effect. Load —
    * hydration, the animation runtime arriving, fonts swapping, the helix
@@ -204,8 +226,15 @@ export const DEMOTION = {
  * which is exactly what a median measures.
  */
 export function windowFps(intervals: readonly number[]): number | null {
-  if (intervals.length === 0) return null;
-  if (intervals.some((ms) => ms > DEMOTION.stallMs)) return null;
+  /*
+   * Only the frame COUNT can disqualify a window, never a long frame in it.
+   * Discarding every window that held one was the obvious way to ignore a
+   * hidden tab, and it left a hole: a device at 3 fps has nothing BUT long
+   * frames, so every one of its windows was thrown away and it was never
+   * demoted — the exact device the one-way demotion exists to rescue. The
+   * median below already refuses to let one stall speak for a window.
+   */
+  if (intervals.length < DEMOTION.minFrames) return null;
   const sorted = [...intervals].sort((a, b) => a - b);
   const mid = Math.floor(sorted.length / 2);
   const median = sorted.length % 2 === 1 ? (sorted[mid] ?? 0) : ((sorted[mid - 1] ?? 0) + (sorted[mid] ?? 0)) / 2;

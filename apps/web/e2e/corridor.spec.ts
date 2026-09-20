@@ -1006,13 +1006,60 @@ test.describe('the door track (spec §7.2)', () => {
     expect(Math.abs(during - before), 'the press scrolled the page').toBeLessThan(2);
   });
 
-  test('is a native swipe row when motion is reduced', async ({ page }) => {
+  test('is a native swipe row when motion is reduced', async ({ page, isMobile }) => {
     await page.emulateMedia({ reducedMotion: 'reduce' });
     await page.goto('/fr');
     const viewport = page.locator('#doors .track-viewport');
     await expect(viewport).not.toHaveClass(/is-pinned/);
     await expect(viewport).toHaveCSS('overflow-x', 'auto');
-    await expect(viewport).toHaveCSS('scroll-snap-type', 'x mandatory');
+    // Snapping is the thumb's affordance, so it is gated on a coarse pointer —
+    // see the wheel test below for why it cannot be on for a mouse.
+    await expect(viewport).toHaveCSS('scroll-snap-type', isMobile ? 'x mandatory' : 'none');
     await expect(page.getByTestId('door-doctors')).toBeVisible();
+  });
+
+  /*
+   * Below 900px the track is not pinned, so the doors are only reachable by
+   * scrolling the strip itself. With `scroll-snap-type: x mandatory` a mouse
+   * could not do it: snap points sit one card (~356px) apart, a wheel notch is
+   * ~120px, and each notch is its own gesture — so the strip snapped back to
+   * where it started every time and the two doors, which are the page's two
+   * primary calls to action, were simply unreachable at that width.
+   *
+   * A thumb never hit this because one drag travels far enough to cross the
+   * halfway threshold in a single gesture.
+   */
+  test('a wheel can reach the doors on the unpinned strip (§7.2)', async ({ page, isMobile }) => {
+    test.skip(isMobile, 'a wheel needs a fine pointer; a thumb drags the strip instead');
+    await page.setViewportSize({ width: 412, height: 900 });
+    await page.goto('/fr');
+
+    const viewport = page.locator('#doors .track-viewport');
+    await expect(viewport).not.toHaveClass(/is-pinned/);
+
+    // The strip has to genuinely overflow, or the rest of this proves nothing.
+    const travel = await viewport.evaluate((el) => el.scrollWidth - el.clientWidth);
+    expect(travel, 'the strip does not overflow, so there is nothing to scroll').toBeGreaterThan(200);
+
+    await page.evaluate(() => {
+      const doors = document.getElementById('doors');
+      if (doors !== null) window.scrollTo(0, doors.getBoundingClientRect().top + window.scrollY - 120);
+    });
+    await page.waitForTimeout(1000);
+
+    const box = await viewport.boundingBox();
+    if (box === null) throw new Error('the track viewport has no box');
+    await page.mouse.move(box.x + box.width / 2, box.y + box.height / 2);
+
+    const before = await viewport.evaluate((el) => el.scrollLeft);
+    for (let i = 0; i < 4; i++) {
+      await page.mouse.wheel(120, 0);
+      await page.waitForTimeout(200);
+    }
+    await page.waitForTimeout(600);
+    const after = await viewport.evaluate((el) => el.scrollLeft);
+
+    expect(after - before, 'a wheel over the strip did not move it').toBeGreaterThan(200);
+    await expect(page.getByTestId('door-patients')).toBeInViewport();
   });
 });
