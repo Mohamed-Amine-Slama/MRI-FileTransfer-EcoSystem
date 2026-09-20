@@ -61,12 +61,15 @@ for (const [dir, path] of TARGETS) {
    */
   const scaled = await sharp(png).resize(POSTER.width, POSTER.height, { fit: 'fill' }).toBuffer();
   const { width, height } = await sharp(scaled).metadata();
-  // The 2026-09-19 helix is dense grain, which compresses far worse than the
-  // thin strands before it: quality 30 at 4:4:4 produced 78.4 KB, 30 at 4:2:0
-  // 72.5 KB, 24 at 4:2:0 60.0 KB. 22 at 4:2:0 is ~57 KB and, composited on
-  // the panel, only slightly softer — this is a still the live canvas fades
-  // over within 400 ms, and Tier C's stand-in, not the helix itself.
-  const avif = await sharp(scaled).avif({ quality: 22, effort: 6, chromaSubsampling: '4:2:0' }).toBuffer();
+  /*
+   * Dense grain compresses far worse than the thin strands this helix
+   * replaced, and the 2026-09-20 supersampled render is finer still: at
+   * 4:2:0, quality 30 produced 72.5 KB, 24 produced 60.0 KB, and 22 produced
+   * 62.2 KB once the grain got finer. 19 is ~55 KB and, composited on the
+   * panel, only slightly softer — this is a still the live canvas fades over
+   * within 400 ms, and Tier C's stand-in, not the helix itself.
+   */
+  const avif = await sharp(scaled).avif({ quality: 19, effort: 6, chromaSubsampling: '4:2:0' }).toBuffer();
   writeFileSync(join(OUT, `poster-${dir}.avif`), avif);
 
   const ok = avif.length <= BUDGET;

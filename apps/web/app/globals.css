@@ -61,126 +61,142 @@
  * ---------------------------------------------------------------------------
  */
 :root {
-  --background: #f6f8fa;
-  --foreground: #101826;
+  --background: #eff4f2;
+  --foreground: #0e1a17;
   --card: #ffffff;
-  --card-foreground: #101826;
-  --muted: #eef2f6;
-  --muted-foreground: #52627a;
-  --border: #dbe2ea;
-  --input: #c6d0dc;
+  --card-foreground: #0e1a17;
+  --muted: #e5edea;
+  --muted-foreground: #4a5f59;
+  --border: #d5e0dc;
+  --input: #828e8a;
 
-  --primary: #1d5c9e;
+  --primary: #246f65;
   --primary-foreground: #ffffff;
-  --secondary: #e8eef5;
-  --secondary-foreground: #1d3a5c;
-  --accent: #eaf2fa;
-  --accent-foreground: #174e88;
-  --ring: #1d5c9e;
+  --secondary: #e5f1ed;
+  --secondary-foreground: #054038;
+  --accent: #eaf3f0;
+  --accent-foreground: #1a5d54;
+  --ring: #246f65;
 
-  --destructive: #99231b;
+  --destructive: #b3261e;
   --destructive-foreground: #ffffff;
 
-  --success: #17663a;
-  --success-surface: #e4f3ea;
+  --success: #14663f;
+  --success-surface: #e2f2e9;
   --warning: #7a4b00;
-  --warning-surface: #fdf1df;
-  --danger: #99231b;
+  --warning-surface: #fbf0dc;
+  --danger: #b3261e;
   --danger-surface: #fbe9e7;
-  --info: #174e88;
-  --info-surface: #e7f0fa;
+  --info: #1a5d54;
+  --info-surface: #e4f0ed;
 
   /* The application chrome. Separated from --card so the sidebar can sit a
      step back from the content it frames without every card following it. */
-  --sidebar: #ffffff;
-  --sidebar-foreground: #101826;
+  --sidebar: #f8fbfa;
+  --sidebar-foreground: #0e1a17;
+
+  /* The landing page's lime, as the single per-screen call to action. It is a
+     BACKGROUND, so it carries its own dark foreground rather than borrowing
+     --foreground. Never a status colour: status stays with success/warning/
+     danger/info, which a colour-blind reader can still tell apart. */
+  --highlight: #f8ffb4;
+  --highlight-edge: #e5ed9b;
+  --highlight-foreground: #2a3d00;
 
   /* The marketing register (§4.1 keeps this off clinical screens — see the
      .marketing scope below). Two stops, used for a soft mesh behind the
      landing and pricing heroes. */
-  --marketing-from: #e8f0fb;
-  --marketing-to: #f6f8fa;
-  --marketing-ink: #0d2947;
+  --marketing-from: #e5f1ed;
+  --marketing-to: #eff4f2;
+  --marketing-ink: #054038;
 
-  --radius: 0.5rem;
+  --radius: 0.875rem;
 }
 
 @media (prefers-color-scheme: dark) {
   :root:not([data-theme='light']) {
-    --background: #0e141b;
-    --foreground: #e7ecf2;
-    --card: #161d26;
-    --card-foreground: #e7ecf2;
-    --muted: #1c2530;
-    --muted-foreground: #9db0c3;
-    --border: #2a3542;
-    --input: #374556;
+    --background: #0c1412;
+    --foreground: #e9f1ee;
+    --card: #14201d;
+    --card-foreground: #e9f1ee;
+    --muted: #1a2724;
+    --muted-foreground: #9bb3ac;
+    --border: #26332f;
+    --input: #5f6b67;
 
-    --primary: #6aa8e8;
-    --primary-foreground: #0a2036;
-    --secondary: #21303f;
-    --secondary-foreground: #cfe0f2;
-    --accent: #1a2836;
-    --accent-foreground: #a8cdf5;
-    --ring: #6aa8e8;
+    --primary: #5fb3a3;
+    --primary-foreground: #04211c;
+    --secondary: #1e2e2a;
+    --secondary-foreground: #cfe6df;
+    --accent: #182823;
+    --accent-foreground: #8fd3c4;
+    --ring: #5fb3a3;
 
-    --destructive: #f2a49d;
+    --destructive: #f4a49c;
     --destructive-foreground: #3d0f0b;
 
-    --success: #93d8ab;
-    --success-surface: #10301c;
-    --warning: #f5cf95;
-    --warning-surface: #382a10;
-    --danger: #f2a49d;
+    --success: #8fd6aa;
+    --success-surface: #0f2e1c;
+    --warning: #f2cd93;
+    --warning-surface: #362810;
+    --danger: #f4a49c;
     --danger-surface: #3a1511;
-    --info: #a8cdf5;
-    --info-surface: #122a41;
+    --info: #8fd3c4;
+    --info-surface: #0f2b26;
 
-    --sidebar: #121922;
-    --sidebar-foreground: #e7ecf2;
+    --sidebar: #101a17;
+    --sidebar-foreground: #e9f1ee;
 
-    --marketing-from: #142234;
-    --marketing-to: #0e141b;
-    --marketing-ink: #dbe8f7;
+    --highlight: #e8f59b;
+    --highlight-edge: #cbd97e;
+    --highlight-foreground: #22300a;
+
+    --marketing-from: #12241f;
+    --marketing-to: #0c1412;
+    --marketing-ink: #d9ece6;
   }
 }
 
 :root[data-theme='dark'] {
-  --background: #0e141b;
-  --foreground: #e7ecf2;
-  --card: #161d26;
-  --card-foreground: #e7ecf2;
-  --muted: #1c2530;
-  --muted-foreground: #9db0c3;
-  --border: #2a3542;
-  --input: #374556;
+  --background: #0c1412;
+  --foreground: #e9f1ee;
+  --card: #14201d;
+  --card-foreground: #e9f1ee;
+  --muted: #1a2724;
+  --muted-foreground: #9bb3ac;
+  --border: #26332f;
+  --input: #5f6b67;
 
-  --primary: #6aa8e8;
-  --primary-foreground: #0a2036;
-  --secondary: #21303f;
-  --secondary-foreground: #cfe0f2;
-  --accent: #1a2836;
-  --accent-foreground: #a8cdf5;
-  --ring: #6aa8e8;
+  --primary: #5fb3a3;
+  --primary-foreground: #04211c;
+  --secondary: #1e2e2a;
+  --secondary-foreground: #cfe6df;
+  --accent: #182823;
+  --accent-foreground: #8fd3c4;
+  --ring: #5fb3a3;
 
-  --destructive: #f2a49d;
+  --destructive: #f4a49c;
   --destructive-foreground: #3d0f0b;
 
-  --success: #93d8ab;
-  --success-surface: #10301c;
-  --warning: #f5cf95;
-  --warning-surface: #382a10;
-  --danger: #f2a49d;
+  --success: #8fd6aa;
+  --success-surface: #0f2e1c;
+  --warning: #f2cd93;
+  --warning-surface: #362810;
+  --danger: #f4a49c;
   --danger-surface: #3a1511;
-  --info: #a8cdf5;
-  --info-surface: #122a41;
+  --info: #8fd3c4;
+  --info-surface: #0f2b26;
 
-  --sidebar: #121922;
-  --sidebar-foreground: #e7ecf2;
+  --sidebar: #101a17;
+  --sidebar-foreground: #e9f1ee;
 
-  --marketing-from: #142234;
-  --marketing-to: #0e141b;
-  --marketing-ink: #dbe8f7;
+  --highlight: #e8f59b;
+  --highlight-edge: #cbd97e;
+  --highlight-foreground: #22300a;
+
+  --marketing-from: #12241f;
+  --marketing-to: #0c1412;
+  --marketing-ink: #d9ece6;
 }
 
 /*
@@ -225,6 +241,9 @@
   --color-info-surface: var(--info-surface);
   --color-sidebar: var(--sidebar);
   --color-sidebar-foreground: var(--sidebar-foreground);
+  --color-highlight: var(--highlight);
+  --color-highlight-edge: var(--highlight-edge);
+  --color-highlight-foreground: var(--highlight-foreground);
   --color-marketing-from: var(--marketing-from);
   --color-marketing-to: var(--marketing-to);
   --color-marketing-ink: var(--marketing-ink);

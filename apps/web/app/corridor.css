@@ -1209,9 +1209,22 @@
 .corridor .track-viewport {
   overflow-x: auto;
   overscroll-behavior-x: contain;
-  scroll-snap-type: x mandatory;
   scrollbar-color: var(--c-line) transparent;
   scrollbar-width: thin;
+}
+
+/* Snapping is a thumb's affordance and a mouse's cage, so only a thumb gets it.
+   Snap points sit one card (~356px) apart, a wheel notch is ~120px, and each
+   notch is its own gesture: under `mandatory` every notch snapped straight back
+   to where it started, so below 900px — where the track is NOT pinned and the
+   strip is the only way across — a wheel could not move it one pixel, and both
+   doors (the page's two primary calls to action) were unreachable. A drag
+   crosses the halfway threshold in a single gesture, which is why touch never
+   showed this and why touch keeps the snapping. */
+@media (pointer: coarse) {
+  .corridor .track-viewport {
+    scroll-snap-type: x mandatory;
+  }
 }
 
 .corridor .track-viewport.is-pinned {

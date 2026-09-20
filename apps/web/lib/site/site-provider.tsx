@@ -144,8 +144,8 @@ export function SiteProvider({
    * The load itself (hydration, GSAP arriving, the helix's geometry) did the
    * same on a cold cache. Readers saw animations that "only work after a
    * refresh". So: nothing is scored while hidden or during the warm-up, a
-   * window holding a stall is discarded, and it takes `DEMOTION.strikes`
-   * slow windows in a row to step down.
+   * window with too few frames to take a median of is discarded, and it takes
+   * `DEMOTION.strikes` slow windows in a row to step down.
    * ---------------------------------------------------------------------------
    */
   useEffect(() => {
@@ -185,7 +185,7 @@ export function SiteProvider({
       const fps = windowFps(intervals);
       intervals = [];
       windowStart = now;
-      // A stall says nothing about the device, good or bad.
+      // Too few frames to judge — a stall, not evidence either way.
       if (fps === null) return;
       if (fps >= DEMOTION.minFps) {
         strikes = 0;
