@@ -783,21 +783,21 @@ The header comment still describes "modern institutional" and cites a "§4.1" th
 
 **Keep every comment that explains a MECHANISM**: why the dark palette is written twice, why `color-scheme` is set, the three-step elevation rationale, the reduced-motion block, and the RTL logical-utilities header. All still true.
 
-- [ ] **Step 6: Record the decisions**
+- [ ] **Step 7: Record the decisions**
 
 Append to `docs/decisions.md` an entry dated 2026-09-20 recording D1–D5 from the spec, noting that the marketing/application palette split is retired and that the shared brand-ramp refactor is deferred until the helix work on `mir-32` lands.
 
-- [ ] **Step 7: Correct the spec**
+- [ ] **Step 8: Correct the spec**
 
 In the spec's §5, remove `SectionHeading` from the display-font list and add a line recording that each display target also drops to an in-range weight, with the reason. The spec should describe what shipped.
 
-- [ ] **Step 8: Final verification**
+- [ ] **Step 9: Final verification**
 
 Run: `cd apps/web && pnpm test && pnpm typecheck && pnpm lint && pnpm build`
 
 Expected: all PASS. **Report the actual output.** Do not claim completion without it.
 
-- [ ] **Step 9: Commit**
+- [ ] **Step 10: Commit**
 
 ```bash
 git add apps/web docs
