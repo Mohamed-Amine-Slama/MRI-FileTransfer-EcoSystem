@@ -644,6 +644,22 @@ function buildSeedSql(subs) {
   );
 
   /*
+   * Consent terms (P5.3), without which consent_records foreign key fails.
+   */
+  const termsAr = 'أوافق على نقل صوري الطبية إلى الطبيب المستقبل في تونس.';
+  const termsFr = "J'accepte le transfert de mes images médicales au médecin destinataire en Tunisie.";
+  const hashAr = createHash('sha256').update(termsAr).digest('hex');
+  const hashFr = createHash('sha256').update(termsFr).digest('hex');
+
+  lines.push(
+    `INSERT INTO consent_terms (version, locale, scope, body, content_hash, published_at)
+     VALUES
+       ('v1', 'ar', 'cross_border_transfer', ${q(termsAr)}, ${q(hashAr)}, now()),
+       ('v1', 'fr', 'cross_border_transfer', ${q(termsFr)}, ${q(hashFr)}, now())
+     ON CONFLICT (version, locale, scope) DO NOTHING;`,
+  );
+
+  /*
    * Consent, WITHOUT WHICH THE RECEIVING DOCTOR'S INBOX IS EMPTY.
    *
    * `patients_receiving_doctor` requires BOTH an appointment and an unrevoked
