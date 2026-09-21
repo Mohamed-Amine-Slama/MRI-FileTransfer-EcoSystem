@@ -188,7 +188,9 @@ function PickDoctor(): React.JSX.Element {
             >
               {paying ? t.loading : t.pickDoctorPay}
             </Button>
-            <Button onClick={() => router.push(`/cases/${caseId}`)}>{t.viewDetails}</Button>
+            <Button variant="secondary" onClick={() => router.push(`/cases/${caseId}`)}>
+              {t.viewDetails}
+            </Button>
           </div>
         </Card>
       </Main>
