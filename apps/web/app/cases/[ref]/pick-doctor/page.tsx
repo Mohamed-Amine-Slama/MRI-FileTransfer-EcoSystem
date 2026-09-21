@@ -6,7 +6,7 @@ import { api, type CaseRecord, type DirectoryEntry } from '../../../../lib/api/e
 import { useDateFormat, useLocale, useT } from '../../../../lib/i18n/provider';
 import { SOURCE_ROLES } from '../../../../lib/corridor/registry';
 import { RoleGate } from '../../../../components/RoleGate';
-import { formatMoney } from '../../../../components/case/labels';
+import { formatMoney, specialtyLabel } from '../../../../components/case/labels';
 import {
   Alert,
   Badge,
@@ -69,6 +69,7 @@ function PickDoctor(): React.JSX.Element {
   const [closed, setClosed] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [busyId, setBusyId] = useState<string | null>(null);
+  const [paying, setPaying] = useState(false);
 
   const load = useCallback(async () => {
     setError(null);
@@ -117,6 +118,28 @@ function PickDoctor(): React.JSX.Element {
     }
   };
 
+  const pay = async (): Promise<void> => {
+    setPaying(true);
+    setError(null);
+    try {
+      await api.cases.pay(caseId);
+      router.push(`/cases/${caseId}`);
+    } catch (err) {
+      // 409: the quote lapsed. Reload so the clinic re-picks at a fresh price.
+      setError(isConflict(err) ? t.pickDoctorQuoteLapsed : t.genericError);
+      setPaying(false);
+      await load();
+    }
+  };
+
+  // Past choosing a doctor (paid, accepted, answered…) there is nothing to
+  // pick here; the case page is where that case lives now.
+  const pickable =
+    item === null || ['submitted', 'declined', 'quoted'].includes(item.status);
+  useEffect(() => {
+    if (!pickable) router.replace(`/cases/${caseId}`);
+  }, [pickable, router, caseId]);
+
   if (item === null || doctors === null) return <Spinner label={t.loading} />;
 
   if (item.status === 'quoted' && item.quotedAmountMinor !== null) {
@@ -153,10 +176,19 @@ function PickDoctor(): React.JSX.Element {
             {t.declineNoSecondCharge}
           </p>
 
-          <div className="mt-4 flex gap-2">
-            <Button variant="primary" onClick={() => router.push(`/cases/${caseId}`)}>
-              {t.viewDetails}
+          {/* Paying is what puts the case in front of the doctor. The quote
+              expires server-side, so a 409 here means "choose again", never
+              a silent retry at a different price. */}
+          <div className="mt-4 flex flex-wrap gap-2">
+            <Button
+              variant="primary"
+              data-testid="pay-case"
+              disabled={paying}
+              onClick={() => void pay()}
+            >
+              {paying ? t.loading : t.pickDoctorPay}
             </Button>
+            <Button onClick={() => router.push(`/cases/${caseId}`)}>{t.viewDetails}</Button>
           </div>
         </Card>
       </Main>
@@ -191,7 +223,9 @@ function PickDoctor(): React.JSX.Element {
               {doctors.map((d) => (
                 <TableRow key={d.id} data-testid="directory-row">
                   <TableCell className="font-medium">{d.displayName}</TableCell>
-                  <TableCell className="text-muted-foreground">{d.specialty}</TableCell>
+                  <TableCell className="text-muted-foreground">
+                    {specialtyLabel(t, d.specialty)}
+                  </TableCell>
                   <TableCell>
                     <Badge>{d.tierCode}</Badge>
                   </TableCell>

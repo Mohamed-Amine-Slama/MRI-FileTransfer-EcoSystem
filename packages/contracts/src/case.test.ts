@@ -1,6 +1,7 @@
 import { describe, expect, it } from 'vitest';
 import {
   CASE_STATUSES,
+  CONSULT_SPECIALTIES,
   canTransition,
   canViewCase,
   caseSchema,
@@ -192,5 +193,12 @@ describe('case audience (§5.4 P0, §4.4)', () => {
     const unmatched = caseSchema.parse({ ...item, matchedProviderId: undefined });
     expect(canViewCase(unmatched, { kind: 'provider', providerId: 'prov-b' })).toBe(false);
     expect(canViewCase(unmatched, { kind: 'provider', providerId: 'prov-a' })).toBe(true);
+  });
+});
+
+describe('consult specialties (spec 2026-09-21 §7)', () => {
+  it('are lowercase keys, so profiles, rate cards and the directory compare exactly', () => {
+    expect(CONSULT_SPECIALTIES.length).toBeGreaterThan(0);
+    expect(CONSULT_SPECIALTIES.every((s) => s === s.toLowerCase())).toBe(true);
   });
 });

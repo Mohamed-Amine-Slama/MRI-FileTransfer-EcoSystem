@@ -3,6 +3,7 @@ import {
   toMajorUnits,
   type CaseSide,
   type CaseStatus,
+  type ConsultSpecialty,
   type FileAccessAction,
   type FileRejectionKey,
   type Money,
@@ -335,4 +336,18 @@ export function patientBriefLabel(
   // An unrecognised code renders the age alone rather than the raw letter: a
   // bare "O" in an Arabic interface is not a word in any of the three locales.
   return sexLabel === undefined ? years : `${years} \u00b7 ${sexLabel}`;
+}
+
+/**
+ * A specialty KEY as its translated name. Unknown keys (a case carried over
+ * from before the list existed) render as the key itself rather than blank.
+ */
+export function specialtyLabel(t: Dictionary, specialty: string): string {
+  const labels: Record<ConsultSpecialty, string> = {
+    radiology: t.specialtyRadiology,
+    cardiology: t.specialtyCardiology,
+    neurology: t.specialtyNeurology,
+    oncology: t.specialtyOncology,
+  };
+  return (labels as Record<string, string>)[specialty] ?? specialty;
 }

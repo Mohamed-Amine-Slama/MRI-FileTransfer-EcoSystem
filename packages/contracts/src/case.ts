@@ -18,6 +18,15 @@ import { caseSideSchema } from './corridor';
  * doctor, is a state the pricing rules cannot describe.
  */
 
+/**
+ * The specialties a case can ask for. Lowercase KEYS, never display names: the
+ * doctor profile, the rate card and the directory compare them exactly, and
+ * `Radiology` against `radiology` is precisely the mismatch that hid doctors
+ * from clinics (spec 2026-09-21 §7). Labels come from the dictionary.
+ */
+export const CONSULT_SPECIALTIES = ['radiology', 'cardiology', 'neurology', 'oncology'] as const;
+export type ConsultSpecialty = (typeof CONSULT_SPECIALTIES)[number];
+
 export const CASE_STATUSES = [
   'submitted',
   'quoted',
