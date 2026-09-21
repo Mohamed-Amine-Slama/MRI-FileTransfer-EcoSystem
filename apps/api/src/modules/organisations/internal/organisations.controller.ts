@@ -12,6 +12,7 @@ import { z } from 'zod';
 import {
   endpointSideSchema,
   inviteMemberSchema,
+  isKindAllowedOnSide,
   providerKindSchema,
 } from '@mir/contracts';
 import { RequiresRole } from '../../../shared/authz/access-metadata';
@@ -38,7 +39,13 @@ const createSchema = z.object({
   // renders it and stored as-is (§4.3).
   credentials: z.record(z.string(), z.unknown()).default({}),
   seatCount: z.number().int().min(1).max(500),
-});
+})
+  // Requirements §2: Libya refers through clinics and laboratories, Tunisia
+  // answers through doctors. Enforced HERE — the sign-up form only mirrors it.
+  .refine((v) => isKindAllowedOnSide(v.kind, v.side), {
+    message: 'That kind of organisation cannot register on this side',
+    path: ['kind'],
+  });
 
 const decisionSchema = z.object({
   approve: z.boolean(),

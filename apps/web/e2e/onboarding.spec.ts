@@ -29,6 +29,19 @@ test.describe('provider sign-up (§5.1, §4.3)', () => {
     await expect(page.getByTestId('field-licenceNumber')).toHaveCount(0);
   });
 
+  test('offers clinics and laboratories in Libya, and only doctors in Tunisia (spec 2026-09-21 §2)', async ({
+    page,
+  }) => {
+    await page.goto('/signup/provider');
+    const kinds = page.getByTestId('field-kind').locator('option');
+    await expect(kinds).toHaveCount(2);
+    await expect(page.getByTestId('field-kind')).toHaveValue('clinic');
+
+    await page.getByTestId('field-side').selectOption('destination');
+    await expect(kinds).toHaveCount(1);
+    await expect(page.getByTestId('field-kind')).toHaveValue('doctor');
+  });
+
   test('says plainly that platform staff are not created here (§3)', async ({ page }) => {
     await page.goto('/signup/provider');
     await expect(page.getByTestId('admin-notice')).toBeVisible();

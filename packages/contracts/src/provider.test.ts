@@ -1,7 +1,9 @@
 import { describe, expect, it } from 'vitest';
 import {
   canSubmitCases,
+  isKindAllowedOnSide,
   PROVIDER_KINDS,
+  providerKindsForSide,
   type Provider,
   providerSchema,
   VERIFICATION_STATUSES,
@@ -83,5 +85,22 @@ describe('provider', () => {
 
   it('requires at least one seat, since a clinic with no logins cannot work (§5.5)', () => {
     expect(() => providerSchema.parse({ ...approved, seatCount: 0 })).toThrow();
+  });
+});
+
+describe('kinds per side (spec 2026-09-21 §2)', () => {
+  it('lets only clinics and laboratories refer', () => {
+    expect(providerKindsForSide('source')).toEqual(['clinic', 'laboratory']);
+  });
+
+  it('lets only doctors receive', () => {
+    expect(providerKindsForSide('destination')).toEqual(['doctor']);
+  });
+
+  it('refuses a Libyan doctor, a Tunisian clinic, and hospitals on either side', () => {
+    expect(isKindAllowedOnSide('doctor', 'source')).toBe(false);
+    expect(isKindAllowedOnSide('clinic', 'destination')).toBe(false);
+    expect(isKindAllowedOnSide('hospital', 'source')).toBe(false);
+    expect(isKindAllowedOnSide('hospital', 'destination')).toBe(false);
   });
 });

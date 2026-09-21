@@ -4,9 +4,9 @@ import Link from 'next/link';
 import { useState } from 'react';
 import {
   ENDPOINT_SIDES,
-  PROVIDER_KINDS,
   endpointSideSchema,
   providerKindSchema,
+  providerKindsForSide,
   type EndpointSide,
   type ProviderKind,
 } from '@mir/contracts';
@@ -170,6 +170,9 @@ export default function ProviderSignUpPage(): React.JSX.Element {
               const parsed = endpointSideSchema.safeParse(e.target.value);
               if (!parsed.success) return;
               setSide(parsed.data);
+              // The kind list is per side (§2): a Tunisian applicant can only be
+              // a doctor, so a kind carried over from the other side is reset.
+              setKind(providerKindsForSide(parsed.data)[0] ?? 'clinic');
               setCredentials({});
               setErrors({});
             }}
@@ -218,12 +221,6 @@ export default function ProviderSignUpPage(): React.JSX.Element {
           />
         </Field>
 
-        {kind === 'hospital' && (
-          <Alert tone="info" testId="hospital-hint">
-            {t.signUpHospitalHint}
-          </Alert>
-        )}
-
         <Field label={t.signUpOrgKind}>
           <Select
             value={kind}
@@ -233,7 +230,7 @@ export default function ProviderSignUpPage(): React.JSX.Element {
               if (parsed.success) setKind(parsed.data);
             }}
           >
-            {PROVIDER_KINDS.map((value) => (
+            {providerKindsForSide(side).map((value) => (
               <option key={value} value={value}>
                 {providerKindLabel(t, value)}
               </option>
