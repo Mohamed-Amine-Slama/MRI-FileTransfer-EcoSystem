@@ -465,3 +465,41 @@ describe('the receiving doctor answers', () => {
     ).rejects.toThrow(/not found/i);
   });
 });
+
+describe('what a case read carries (spec 2026-09-21 §9)', () => {
+  it('has its reference and its instants', async () => {
+    const { doctor, patient } = await lab();
+    const item = await runWithContext(ctx(doctor, 'libya_doctor'), () =>
+      cases.submit({ patientId: patient, specialty: 'radiology' }),
+    );
+    expect(item.caseRef).toMatch(/^MIR-\d{4}-\d{4,}$/);
+    expect(item.createdAt).toBeInstanceOf(Date);
+    expect(item.quotedAt).toBeNull();
+    expect(item.updatedAt.getTime()).toBeGreaterThanOrEqual(item.createdAt.getTime());
+  });
+
+  it('moves updatedAt and quotedAt when the case is quoted', async () => {
+    const { doctor, patient } = await lab();
+    const [receiver] = await seedAcceptingDoctors(h.owner, { specialty: 'radiology', count: 1 });
+    const item = await runWithContext(ctx(doctor, 'libya_doctor'), () =>
+      cases.submit({ patientId: patient, specialty: 'radiology' }),
+    );
+    const quoted = await runWithContext(ctx(doctor, 'libya_doctor'), () =>
+      cases.quote(item.id, receiver!),
+    );
+    expect(quoted.quotedAt).toBeInstanceOf(Date);
+    expect(quoted.updatedAt.getTime()).toBeGreaterThanOrEqual(quoted.quotedAt!.getTime());
+  });
+
+  it('is listed for ops, without the patient name', async () => {
+    const { doctor, patient } = await lab();
+    const item = await runWithContext(ctx(doctor, 'libya_doctor'), () =>
+      cases.submit({ patientId: patient, specialty: 'radiology' }),
+    );
+    const ops = await createUser(h.owner, 'admin');
+    const all = await runWithContext(ctx(ops, 'admin'), () => cases.listCases());
+    const seen = all.find((c) => c.id === item.id);
+    expect(seen?.caseRef).toBe(item.caseRef);
+    expect(seen?.patientName).toBeNull();
+  });
+});

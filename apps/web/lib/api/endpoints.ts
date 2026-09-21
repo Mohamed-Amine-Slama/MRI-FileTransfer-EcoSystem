@@ -2,6 +2,7 @@ import type {
   CurrencyCode,
   EndpointSide,
   InviteMemberInput,
+  LedgerEntry,
   Membership,
   ProviderKind,
   PlanCode,
@@ -149,6 +150,12 @@ export interface DirectoryEntry {
  */
 export interface CaseRecord {
   id: string;
+  /** MIR-YYYY-NNNN — what a clinic reads over the phone. */
+  caseRef: string;
+  createdAt: string;
+  quotedAt: string | null;
+  /** The latest instant the row records (created, quoted, accepted, answered, closed). */
+  updatedAt: string;
   patientId: string;
   patientName?: string | null;
   /**
@@ -438,6 +445,17 @@ export const api = {
         method: 'POST',
         body: { approve, reasonKey },
       }),
+  },
+
+  /**
+   * One organisation's ledger. RLS scopes it: a member reads their own
+   * organisation, ops reads any.
+   */
+  ledger: {
+    forOrganisation: (organisationId: string) =>
+      apiFetch<{ entries: LedgerEntry[] }>(
+        `/ledger?organisationId=${encodeURIComponent(organisationId)}`,
+      ),
   },
 
   /** Plans — brief §2, §5.7. */

@@ -58,6 +58,12 @@ export interface Case {
 
 /** A case plus the names the UI needs, so it need not fan out. */
 export interface CaseSummary extends Case {
+  /** MIR-YYYY-NNNN — what a clinic reads over the phone. Empty for the assistant agenda. */
+  caseRef: string;
+  createdAt: Date;
+  quotedAt: Date | null;
+  /** The latest instant the row records: created, quoted, accepted, answered, or closed. */
+  updatedAt: Date;
   patientName: string | null;
   doctorName: string | null;
   /**
@@ -91,6 +97,10 @@ interface CaseRow {
   answer_due_at: Date | null;
   patient_name: string | null;
   doctor_name: string | null;
+  case_ref?: string | null;
+  created_at?: Date | null;
+  quoted_at?: Date | null;
+  updated_at?: Date | null;
   patient_age_years?: number | null;
   patient_sex?: string | null;
   patient_phone?: string;
@@ -115,6 +125,10 @@ function toSummary(row: CaseRow): CaseSummary {
     acceptedAt: row.accepted_at,
     answeredAt: row.answered_at,
     answerDueAt: row.answer_due_at,
+    caseRef: row.case_ref ?? '',
+    createdAt: row.created_at ?? new Date(0),
+    quotedAt: row.quoted_at ?? null,
+    updatedAt: row.updated_at ?? row.created_at ?? new Date(0),
     patientName: row.patient_name,
     patientAgeYears: row.patient_age_years ?? null,
     patientSex: row.patient_sex ?? null,
@@ -128,6 +142,9 @@ const CASE_COLUMNS = `a.id, a.patient_id, a.doctor_id, a.organisation_id, a.spec
                 a.status, a.reason, a.notes,
                 a.quoted_amount_minor, a.quoted_currency, a.quote_expires_at,
                 a.accepted_at, a.answered_at, a.answer_due_at,
+                a.case_ref, a.created_at, a.quoted_at,
+                GREATEST(a.created_at, a.quoted_at, a.accepted_at, a.answered_at, a.terminal_at)
+                  AS updated_at,
                 p.full_name AS patient_name, d.full_name AS doctor_name`;
 
 /**
@@ -391,10 +408,14 @@ export class CasesService {
 
     return this.db.tx(async (tx) => {
       const res = await tx.query<CaseRow>(
-        `SELECT ${CASE_COLUMNS}
+        `SELECT ${CASE_COLUMNS},
+                b.age_years AS patient_age_years, b.sex AS patient_sex
          FROM cases_cases a
          LEFT JOIN patients_patients p ON p.id = a.patient_id
          LEFT JOIN identity_users d ON d.id = a.doctor_id
+         -- The same projection getCase reads: the receiving doctor's worklist
+         -- shows age and sex, never a name (migration 0028).
+         LEFT JOIN LATERAL cases_patient_brief(a.id) b ON true
          WHERE ($1::timestamptz IS NULL OR a.created_at >= $1)
            AND ($2::timestamptz IS NULL OR a.created_at < $2)
          ORDER BY a.created_at DESC`,
