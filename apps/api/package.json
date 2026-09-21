@@ -35,10 +35,10 @@
     "zod": "^4.5.4"
   },
   "devDependencies": {
-    "@nestjs/testing": "^11.2.3",
+    "@nestjs/testing": "^11.2.5",
     "@swc/core": "^1.16.2",
     "@types/express": "^5.0.0",
-    "@types/node": "^26.5.1",
+    "@types/node": "^26.6.1",
     "@types/supertest": "^7.2.1",
     "eslint": "^10.10.0",
     "supertest": "^7.0.0",
