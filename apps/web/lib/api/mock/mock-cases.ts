@@ -108,6 +108,10 @@ function requireCase(ref: string): Case {
 }
 
 export const mockCasesApi: CasesApi = {
+  // The fixture store implements everything, which is what the screens were
+  // built and reviewed against.
+  supports: { messaging: true, fileAccessTrail: true, notifications: true, statusOverride: true },
+
   async listCases(query: ListCasesQuery): Promise<Case[]> {
     return cases.filter(
       (c) =>
