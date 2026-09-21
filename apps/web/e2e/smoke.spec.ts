@@ -12,9 +12,10 @@ import { expect, test } from '@playwright/test';
  * already covers more precisely.
  */
 test('the front door renders (P1.2)', async ({ page }) => {
+  // `/` is the sign-in door while the landing page is hidden (spec 2026-09-21 §1).
   await page.goto('/');
+  await page.waitForURL('**/login');
   await expect(page.getByRole('heading', { level: 1 })).toBeVisible();
-  await expect(page.getByRole('link', { name: 'MIR' })).toBeVisible();
 });
 
 test('document direction is RTL by default (DECISION D4)', async ({ page }) => {

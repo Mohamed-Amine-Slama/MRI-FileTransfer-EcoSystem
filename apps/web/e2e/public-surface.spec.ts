@@ -10,43 +10,26 @@ import { expect, test } from '@playwright/test';
  */
 
 test.describe('public surface (§4.1)', () => {
-  test('an anonymous visitor lands on the marketing page, not a sign-in card', async ({ page }) => {
+  /*
+   * The landing page is hidden for now (spec 2026-09-21 §1): `/` and the
+   * locale routes send a visitor to sign-in. Its files are kept, and the
+   * landing's own suite (corridor.spec.ts) is skipped rather than deleted.
+   */
+  test('an anonymous visitor at / is sent to sign-in', async ({ page }) => {
     await page.goto('/');
-    // The hero's two actions: register, and see how it works.
-    await expect(page.getByTestId('landing-signup')).toBeVisible();
-    await expect(page.getByTestId('landing-how')).toBeVisible();
+    await page.waitForURL('**/login');
+    await expect(page.getByRole('heading', { level: 1 })).toBeVisible();
   });
 
-  test('carries the pricing route through to the closing plate', async ({ page }) => {
-    /*
-     * Pricing moved off the hero and onto Scene 11, where the page makes its
-     * one remaining ask. Below the fold every scene starts at `autoAlpha: 0`
-     * until its focal reveal fires, so it has to be scrolled to first —
-     * asserting visibility without the scroll would fail for a reason that has
-     * nothing to do with the link being there.
-     */
-    await page.goto('/');
-    const pricing = page.getByTestId('landing-pricing');
-    await pricing.scrollIntoViewIfNeeded();
-    await expect(pricing).toBeVisible();
-    await expect(pricing).toHaveAttribute('href', '/pricing');
-  });
-
-  test('states the reference-only limit before anyone signs up', async ({ page }) => {
-    // Not a footnote. The distinction between a transfer service and a
-    // diagnostic one is what keeps this product outside medical-device
-    // regulation, and a prospective customer has to understand it up front.
-    await page.goto('/');
-    // Scene 06 is below the fold, so its reveal has not run yet and the plate
-    // is still transparent. Reach it before reading it.
-    await page.getByTestId('viewer-banner').scrollIntoViewIfNeeded();
-    await expect(page.locator('main')).toContainText(
-      /diagnostic|تشخيص|diagnostique/i,
-    );
+  test('the locale landing routes also go to sign-in', async ({ page }) => {
+    for (const locale of ['ar', 'fr', 'en']) {
+      await page.goto(`/${locale}`);
+      await page.waitForURL('**/login');
+    }
   });
 
   test('scopes the marketing treatment to the public surface only', async ({ page }) => {
-    await page.goto('/');
+    await page.goto('/login');
     await expect(page.locator('.marketing')).toHaveCount(1);
 
     // A gated application route renders the application chrome, which never
@@ -57,7 +40,7 @@ test.describe('public surface (§4.1)', () => {
   });
 
   test('has exactly one main landmark on every public page', async ({ page }) => {
-    for (const path of ['/', '/pricing', '/login', '/signup']) {
+    for (const path of ['/pricing', '/login', '/signup']) {
       await page.goto(path);
       await expect(page.locator('main')).toHaveCount(1);
     }
@@ -85,12 +68,12 @@ test.describe('public surface (§4.1)', () => {
   });
 
   test('keeps the document RTL on the public surface too (D4)', async ({ page }) => {
-    await page.goto('/');
+    await page.goto('/login');
     await expect(page.locator('html')).toHaveAttribute('dir', 'rtl');
   });
 
   test('never scrolls the body horizontally at any width (§4.5)', async ({ page }) => {
-    for (const path of ['/', '/pricing', '/signup']) {
+    for (const path of ['/login', '/pricing', '/signup']) {
       await page.goto(path);
       const overflows = await page.evaluate(
         () => document.documentElement.scrollWidth > document.documentElement.clientWidth + 1,
