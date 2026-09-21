@@ -160,7 +160,9 @@ export default function ViewerPage({ params }: { params: Promise<{ studyUid: str
         viewerRef.current = viewer;
 
         const instance = instances[current];
-        if (instance !== undefined) await viewer.showInstance(instance.sopInstanceUid);
+        if (instance !== undefined) {
+          await viewer.showInstance(instance.sopInstanceUid, instance.seriesInstanceUid);
+        }
         if (!cancelled) setFidelity('full');
       } catch {
         // Keep the thumbnail. A viewer that fails to upgrade is still a
@@ -180,7 +182,9 @@ export default function ViewerPage({ params }: { params: Promise<{ studyUid: str
     const viewer = viewerRef.current;
     const instance = instances[current];
     if (viewer === null || instance === undefined) return;
-    void viewer.showInstance(instance.sopInstanceUid).catch(() => setFidelity('unavailable'));
+    void viewer
+      .showInstance(instance.sopInstanceUid, instance.seriesInstanceUid)
+      .catch(() => setFidelity('unavailable'));
   }, [current, fidelity, instances]);
 
   useEffect(

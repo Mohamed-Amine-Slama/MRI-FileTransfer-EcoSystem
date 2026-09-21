@@ -25,8 +25,11 @@
  */
 
 export interface CornerstoneViewer {
-  /** Display one instance by SOP UID. Fetches via the API's WADO-RS proxy. */
-  showInstance(sopInstanceUid: string): Promise<void>;
+  /**
+   * Display one instance. The SERIES is required: Orthanc's WADO-RS addresses
+   * an instance only under its series, and the series-less form 404s.
+   */
+  showInstance(sopInstanceUid: string, seriesInstanceUid: string): Promise<void>;
   /** Apply window centre/width in the image's own units. */
   setWindow(center: number, width: number): void;
   /** Reset window/level to the values in the DICOM header. */
@@ -108,6 +111,7 @@ async function registerInstanceMetadata(
   loader: typeof import('@cornerstonejs/dicom-image-loader'),
   apiBase: string,
   studyUid: string,
+  seriesInstanceUid: string,
   sopInstanceUid: string,
   imageId: string,
 ): Promise<void> {
@@ -115,6 +119,7 @@ async function registerInstanceMetadata(
 
   const res = await fetch(
     `${apiBase}/dicom-web/studies/${encodeURIComponent(studyUid)}` +
+      `/series/${encodeURIComponent(seriesInstanceUid)}` +
       `/instances/${encodeURIComponent(sopInstanceUid)}/metadata`,
     { credentials: 'include', headers: { accept: 'application/dicom+json' } },
   );
@@ -164,14 +169,22 @@ export async function createViewer(init: ViewerInit): Promise<CornerstoneViewer>
    * bypasses the API. Cornerstone will happily fetch whatever URL it is given,
    * so the URL construction is the control — and it lives here, in one place.
    */
-  const imageIdFor = (sopInstanceUid: string): string =>
-    `wadors:${apiBase}/dicom-web/studies/${init.studyUid}/instances/${sopInstanceUid}/frames/1`;
+  const imageIdFor = (sopInstanceUid: string, seriesInstanceUid: string): string =>
+    `wadors:${apiBase}/dicom-web/studies/${init.studyUid}` +
+    `/series/${seriesInstanceUid}/instances/${sopInstanceUid}/frames/1`;
 
   return {
-    async showInstance(sopInstanceUid: string): Promise<void> {
-      const imageId = imageIdFor(sopInstanceUid);
+    async showInstance(sopInstanceUid: string, seriesInstanceUid: string): Promise<void> {
+      const imageId = imageIdFor(sopInstanceUid, seriesInstanceUid);
       // Metadata first — the frame bytes are meaningless without it.
-      await registerInstanceMetadata(loaderRef, apiBase, init.studyUid, sopInstanceUid, imageId);
+      await registerInstanceMetadata(
+        loaderRef,
+        apiBase,
+        init.studyUid,
+        seriesInstanceUid,
+        sopInstanceUid,
+        imageId,
+      );
       await viewport.setStack([imageId], 0);
       viewport.render();
     },

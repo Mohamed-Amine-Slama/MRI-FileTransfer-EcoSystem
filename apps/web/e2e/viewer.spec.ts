@@ -75,14 +75,14 @@ async function stubApi(page: Page, thumbnail: Buffer, trace: Trace): Promise<voi
   });
 
   // Per-instance metadata — Cornerstone needs this before any frame renders.
-  await page.route('**/api/dicom-web/studies/*/instances/*/metadata', async (route: Route) => {
+  await page.route('**/api/dicom-web/studies/*/series/*/instances/*/metadata', async (route: Route) => {
     const sop = route.request().url().split('/instances/')[1]?.split('/')[0] ?? '';
     trace.metadataRequests.push(sop);
     await route.fulfill({ status: 404, contentType: 'application/json', body: '{}' });
   });
 
   // WADO-RS frames — full-fidelity pixel data.
-  await page.route('**/api/dicom-web/studies/*/instances/*/frames/*', async (route: Route) => {
+  await page.route('**/api/dicom-web/studies/*/series/*/instances/*/frames/*', async (route: Route) => {
     const sop = route.request().url().split('/instances/')[1]?.split('/')[0] ?? '';
     trace.frameRequests.push(sop);
     await route.fulfill({ status: 404, body: '' });
