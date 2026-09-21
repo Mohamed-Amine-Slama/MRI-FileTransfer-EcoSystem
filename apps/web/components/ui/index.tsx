@@ -274,7 +274,7 @@ export function PageHeader({
   return (
     <header className="mb-6 space-y-1">
       <div className="flex flex-wrap items-center justify-between gap-3">
-        <h1 className="text-2xl font-bold tracking-tight">{title}</h1>
+        <h1 className="font-display text-2xl font-normal tracking-tight">{title}</h1>
         {actions !== undefined && <div className="flex flex-wrap items-center gap-2">{actions}</div>}
       </div>
       {description !== undefined && <p className="text-sm text-muted-foreground">{description}</p>}
