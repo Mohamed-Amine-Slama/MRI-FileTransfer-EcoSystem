@@ -284,6 +284,20 @@
   --font-sans:
     var(--font-plex), system-ui, -apple-system, 'Segoe UI', Tahoma,
     'Noto Sans Arabic', sans-serif;
+
+  /*
+   * Display headings — the landing page's face, at the landing page's weight.
+   *
+   * Latin only: Google Sans Flex carries no Arabic, so Arabic headings fall
+   * through to --font-plex at their normal weights. That is the accepted limit
+   * of D3, not a bug; the application loads no weight-300 Arabic.
+   *
+   * Anything wearing this must sit in the 300-500 range — see
+   * lib/theme/display-font.test.ts.
+   */
+  --font-display:
+    var(--font-sans-flex), var(--font-plex), system-ui, -apple-system, 'Segoe UI',
+    'Noto Sans Arabic', sans-serif;
 }
 
 @layer base {

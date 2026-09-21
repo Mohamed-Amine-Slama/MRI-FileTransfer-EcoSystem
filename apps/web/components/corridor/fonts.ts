@@ -1,12 +1,15 @@
 import localFont from 'next/font/local';
+import { sansFlex } from '../../lib/fonts';
 
 /**
  * The landing page's added faces — spec 2026-09-10 §3.2.
  *
  * Plex Sans Arabic's text weights (Regular/Medium/SemiBold/Bold) are declared
  * in `app/layout.tsx` and shared with the whole application. Its Light 300 —
- * the Arabic display weight — lives here instead, with the other two
- * landing-only faces: the application never uses weight 300.
+ * the Arabic display weight — lives here instead, with `plexMono`, the other
+ * landing-only face: the application never uses weight 300. (`sansFlex` is
+ * shared with the application since 2026-09-20 and is declared in
+ * `lib/fonts.ts`.)
  *
  * `sansFlex` is the Latin BODY face (`--f-body`) as well as the Latin display
  * face, so it is preloaded: §8.2 technique 6 preloads the critical body
@@ -26,16 +29,10 @@ import localFont from 'next/font/local';
  */
 
 /** Latin display and body. Variable, weight 300–500. Preloaded: it's the
- *  critical Latin body face. */
-export const sansFlex = localFont({
-  src: '../../app/fonts/GoogleSansFlex-latin.woff2',
-  weight: '300 500',
-  style: 'normal',
-  display: 'swap',
-  preload: true,
-  adjustFontFallback: false,
-  variable: '--font-sans-flex',
-});
+ *  critical Latin body face. Declared in lib/fonts.ts since the application
+ *  started using it for display headings; re-exported so this module stays the
+ *  one place the landing page asks for its faces. */
+export { sansFlex };
 
 /** Data, metadata, DICOM-style readouts. */
 export const plexMono = localFont({

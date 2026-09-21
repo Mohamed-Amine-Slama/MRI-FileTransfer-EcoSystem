@@ -3,6 +3,7 @@ import localFont from 'next/font/local';
 import Script from 'next/script';
 import { LOCALE_DIRECTION, type Locale } from '@mir/contracts';
 import { AppShell } from '../components/AppShell';
+import { sansFlex } from '../lib/fonts';
 import { LocaleProvider } from '../lib/i18n/provider';
 import { SessionProvider } from '../lib/session/session';
 import { ThemeProvider } from '../lib/theme/theme';
@@ -79,7 +80,11 @@ const DEFAULT_LOCALE: Locale = 'ar';
 
 export default function RootLayout({ children }: { children: ReactNode }) {
   return (
-    <html lang={DEFAULT_LOCALE} dir={LOCALE_DIRECTION[DEFAULT_LOCALE]} className={plex.variable}>
+    <html
+      lang={DEFAULT_LOCALE}
+      dir={LOCALE_DIRECTION[DEFAULT_LOCALE]}
+      className={`${plex.variable} ${sansFlex.variable}`}
+    >
       <body>
         {/*
           Applies the stored theme before the first paint.
