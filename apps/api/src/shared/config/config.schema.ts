@@ -165,6 +165,16 @@ export const configSchema = z.object({
    */
   IMAGING_TWIN_RETENTION_DAYS: intFromEnv('IMAGING_TWIN_RETENTION_DAYS', 1, 3650).prefault('90'),
 
+  /**
+   * Whether this process consumes the `imaging` queue (ingest + twin build).
+   * On by default: with it off and no other consumer, uploads never become
+   * studies. Turn it off only where a dedicated worker process runs instead.
+   */
+  IMAGING_WORKER_ENABLED: z
+    .enum(['true', 'false'])
+    .prefault('true')
+    .transform((v) => v === 'true'),
+
   CASES_ANSWER_WINDOW_HOURS: intFromEnv('CASES_ANSWER_WINDOW_HOURS', 1, 720).prefault('72'),
   // Dedicated key for URL signing. Separate from any session secret so the two
   // can be rotated independently — rotating session keys must not silently

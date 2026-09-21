@@ -28,3 +28,17 @@ export interface BuildTwinJob {
    */
   actorId: string;
 }
+
+/**
+ * Enqueued when an uploaded file's checksum verifies (POST
+ * /uploads/files/:id/complete). Until 2026-09-21 nothing enqueued or consumed
+ * this work: files were received and verified, then sat in staging forever,
+ * and no study ever reached a doctor. See ImagingWorker.
+ */
+export const ingestFileJobName = 'imaging.ingestFile';
+
+export interface IngestFileJob {
+  fileId: string;
+  /** The uploading doctor. Ingestion runs under their identity, like the twin. */
+  actorId: string;
+}
