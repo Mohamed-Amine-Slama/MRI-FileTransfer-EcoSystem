@@ -425,6 +425,19 @@ card, where WCAG 2.2 SC 1.4.11 wants 3:1 for the boundary of a control. The new
 values clear it in both themes, and `lib/theme/contrast.test.ts` now asserts 22
 pairs in both palettes so it cannot quietly regress.
 
+## T6 — Where the lime goes
+
+**Decision: the secondary button, as on the landing page.** There, teal is
+`.btn--primary` and lime is `.btn--secondary`: the positive alternative beside the
+primary. The application's primary was already teal after T4, so lime arrives in
+the same role, as `<Button variant="secondary">`.
+
+It is never on its own and never on a refusal. Lime is the most eye-catching
+colour on a screen, and on a clinical decision it must not pull the eye towards
+Decline, Reject or Cancel. Applied, that is one button today — *View details*
+beside *Pay* on the doctor-picking step — which is the honest result of the rule,
+not a shortfall in applying it.
+
 ## What this retires
 
 The comments in `app/globals.css` argued that the marketing and application

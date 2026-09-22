@@ -20,24 +20,29 @@
  * The public landing page's design system — Landing-Page-Specs §3.
  *
  * A separate file because every rule in it is scoped to `.corridor`, and
- * because its palette must NOT reach `:root`: `lib/theme/tokens.test.ts`
+ * because its TOKENS must not reach `:root`: `lib/theme/tokens.test.ts`
  * requires every `:root` token to have a light and a dark value, which is
- * right for the application and wrong for a page that is a darkened reading
- * room in both themes. Keeping the two systems in separate files is what lets
- * that test stay strict.
+ * right for the application and wrong for a page that has one fixed light
+ * register. Keeping the two systems in separate files is what lets that test
+ * stay strict.
+ *
+ * The two share a palette by VALUE, not by reference: the application below is
+ * the corridor's teal, mint and lime (docs/decisions.md, 2026-09-20). A shared
+ * brand ramp both files consume is the deferred next step.
  */
 @import './corridor.css';
 
 /*
- * Design tokens — "modern institutional".
+ * Design tokens — the corridor register, for the application.
  *
  * Two layers: raw values on :root (light) with dark overrides, then an inline
  * @theme mapping so Tailwind utilities (bg-background, text-primary…) resolve
  * through the CSS variables and follow the colour scheme at runtime.
  *
- * Every fg/bg pair below is contrast-checked against WCAG 2.2 AA
- * (>=4.5:1 text, >=3:1 UI): primary #1d5c9e on white is 6.7:1, muted
- * #52627a on white is 6.2:1, and each status fg is >=6.5:1 on its tint.
+ * Contrast is asserted, not claimed here: `lib/theme/contrast.test.ts` holds 22
+ * fg/bg pairs to WCAG 2.2 AA in both palettes (>=4.5:1 text, >=3:1 for control
+ * boundaries and focus rings). Change a value and that test says whether it
+ * still reads.
  *
  * ---------------------------------------------------------------------------
  * WHY THE DARK PALETTE IS WRITTEN TWICE
@@ -95,16 +100,18 @@
   --sidebar: #f8fbfa;
   --sidebar-foreground: #0e1a17;
 
-  /* The landing page's lime, as the single per-screen call to action. It is a
-     BACKGROUND, so it carries its own dark foreground rather than borrowing
-     --foreground. Never a status colour: status stays with success/warning/
-     danger/info, which a colour-blind reader can still tell apart. */
+  /* The landing page's lime, in the role it has there: the SECONDARY button,
+     the positive alternative beside a teal primary (Button variant
+     "secondary"). Never on a refusal, never alone. It is a BACKGROUND, so it
+     carries its own dark foreground rather than borrowing --foreground. Never
+     a status colour: status stays with success/warning/danger/info, which a
+     colour-blind reader can still tell apart. */
   --highlight: #f8ffb4;
   --highlight-edge: #e5ed9b;
   --highlight-foreground: #2a3d00;
 
-  /* The marketing register (§4.1 keeps this off clinical screens — see the
-     .marketing scope below). Two stops, used for a soft mesh behind the
+  /* The marketing register (kept off clinical screens — see the .marketing
+     scope below). Two stops, used for a soft mesh behind the
      landing and pricing heroes. */
   --marketing-from: #e5f1ed;
   --marketing-to: #eff4f2;
@@ -269,10 +276,10 @@
   --shadow-3: 0 8px 16px -4px rgb(16 24 38 / 0.12), 0 16px 32px -8px rgb(16 24 38 / 0.14);
 
   /*
-   * Motion. Fast enough to feel like response rather than animation — §4.1
-   * asks for calm, and a 300ms ease on a status badge reads as decoration on a
-   * screen someone checks forty times a day. Every duration here is overridden
-   * to ~0 under prefers-reduced-motion below.
+   * Motion. Fast enough to feel like response rather than animation — the
+   * application stays calm, and a 300ms ease on a status badge reads as
+   * decoration on a screen someone checks forty times a day. Every duration
+   * here is overridden to ~0 under prefers-reduced-motion below.
    */
   --ease-out: cubic-bezier(0.2, 0, 0, 1);
   --dur-fast: 120ms;
@@ -345,16 +352,17 @@
 }
 
 /*
- * The marketing register — brief §4.1, held to the public surface.
+ * The marketing register, held to the public surface.
  *
- * §4.1 requires the signed-in product to read as "calm, professional, precise,
- * not flashy", because it is used by non-technical clinic staff to move real
- * patient data. A landing page has the opposite job. Both are true, so the
- * expressive treatment is SCOPED rather than global: it only applies beneath
+ * The application and the public pages share one palette (docs/decisions.md,
+ * 2026-09-20), so the line between them is no longer colour. It is treatment:
+ * the signed-in product is used by non-technical clinic staff to move real
+ * patient data, and it stays calm and dense. Gradients and other expressive
+ * treatment are therefore SCOPED rather than global: they only apply beneath
  * `.marketing`, which `PublicChrome` sets and no application screen does.
  *
  * If a gradient ever shows up on a case, file, or money screen, the scope has
- * been broken and §4.1 with it.
+ * been broken.
  */
 @layer components {
   .marketing-hero {
@@ -363,10 +371,14 @@
       linear-gradient(to bottom, var(--color-marketing-from), var(--color-marketing-to));
   }
 
+  /* The landing page's headline voice: its display face, light. 400 rather
+     than the corridor's 300 so it sits with PageHeader; either is inside the
+     face's 300-500 range, where 700 would be a synthesized bold. */
   .marketing-display {
     color: var(--color-marketing-ink);
-    font-weight: 700;
-    letter-spacing: -0.025em;
+    font-family: var(--font-display);
+    font-weight: 400;
+    letter-spacing: -0.01em;
     line-height: 1.08;
     text-wrap: balance;
   }

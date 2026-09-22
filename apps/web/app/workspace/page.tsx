@@ -92,7 +92,7 @@ function Workspace(): React.JSX.Element {
       <div className="grid gap-5 lg:grid-cols-3">
         <div className="space-y-5 lg:col-span-2">
           <Card>
-            <h2 className="mb-3 text-lg font-semibold">{t.workspaceTasks}</h2>
+            <h2 className="mb-3 font-display text-lg font-medium">{t.workspaceTasks}</h2>
             {tasks.length === 0 ? (
               <EmptyState testId="tasks-empty">{t.workspaceTasksEmpty}</EmptyState>
             ) : (
@@ -118,7 +118,7 @@ function Workspace(): React.JSX.Element {
           </Card>
 
           <Card>
-            <h2 className="mb-3 text-lg font-semibold">{t.workspaceActiveCases}</h2>
+            <h2 className="mb-3 font-display text-lg font-medium">{t.workspaceActiveCases}</h2>
             {active.length === 0 ? (
               <EmptyState testId="active-empty">{t.casesEmpty}</EmptyState>
             ) : (
@@ -144,13 +144,13 @@ function Workspace(): React.JSX.Element {
 
         <div className="space-y-5">
           <Card>
-            <h2 className="mb-3 text-lg font-semibold">{t.workspaceSeats}</h2>
+            <h2 className="mb-3 font-display text-lg font-medium">{t.workspaceSeats}</h2>
             {/* §5.5 P0: the account is an organisation with several users, so
                 the seat count is stated rather than implied by whoever is
                 logged in. */}
             <p className="flex items-center gap-2 text-sm">
               <Users className="size-4 text-muted-foreground" aria-hidden="true" />
-              <span className="text-2xl font-bold" data-testid="seat-count">
+              <span className="font-display text-2xl font-medium tabular-nums" data-testid="seat-count">
                 {provider?.seatCount ?? '—'}
               </span>
             </p>
@@ -158,7 +158,7 @@ function Workspace(): React.JSX.Element {
           </Card>
 
           <Card>
-            <h2 className="mb-3 text-lg font-semibold">{t.navCases}</h2>
+            <h2 className="mb-3 font-display text-lg font-medium">{t.navCases}</h2>
             {/* The workspace links into the case list rather than carrying its
                 own copy of it: two views of the same rows competing to be the
                 real one is how they drift apart. */}
