@@ -1,6 +1,6 @@
 'use client';
 
-import { useEffect, useState } from 'react';
+import { useEffect, useMemo, useState } from 'react';
 import type { CaseAudience, CaseSide, Provider, Role } from '@mir/contracts';
 import { api } from '../api/endpoints';
 import { isMockMode } from '../api/cases';
@@ -107,5 +107,15 @@ export function audienceFor(side: CaseSide | null, providerId: string | null): C
 
 export function useCaseAudience(): { audience: CaseAudience | null; loading: boolean } {
   const { side, providerId, loading } = useCurrentProvider();
-  return { audience: audienceFor(side, providerId), loading };
+  /*
+   * MEMOISED, AND THAT IS LOAD-BEARING. `audienceFor` builds a new object on
+   * every call. Screens put the audience in their load callback's
+   * dependencies, so an unmemoised audience re-created the callback on every
+   * render, re-ran the effect, set state, and rendered again — an infinite
+   * fetch loop. On the case page that was hundreds of requests a second and a
+   * tab that stopped responding: the "see details freezes the browser" report
+   * (spec 2026-09-21 §8).
+   */
+  const audience = useMemo(() => audienceFor(side, providerId), [side, providerId]);
+  return { audience, loading };
 }
