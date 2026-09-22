@@ -1,11 +1,13 @@
 'use client';
 
-import { use, useCallback, useEffect, useRef, useState } from 'react';
+import { use, useEffect, useRef, useState } from 'react';
 import { ChevronLeft, ChevronRight, Download } from 'lucide-react';
 import { DiagnosticUseBanner } from '../../../components/DiagnosticUseBanner';
 import { Badge, Button, Main } from '../../../components/ui';
 import { useT } from '../../../lib/i18n/provider';
+import { authedFetch } from '../../../lib/viewer/authed-fetch';
 import { canRenderFullFidelity, type CornerstoneViewer } from '../../../lib/viewer/cornerstone';
+import { withTimeout } from '../../../lib/viewer/with-timeout';
 
 /**
  * Reference viewer — BUILD_SPEC P9.1.
@@ -77,22 +79,24 @@ export default function ViewerPage({ params }: { params: Promise<{ studyUid: str
   const [fidelity, setFidelity] = useState<Fidelity>('thumbnail');
   const [error, setError] = useState<string | null>(null);
 
+  const [thumbnailSrc, setThumbnailSrc] = useState<string | null>(null);
+  const [upgradeTimedOut, setUpgradeTimedOut] = useState(false);
+
   const viewportRef = useRef<HTMLDivElement | null>(null);
   const viewerRef = useRef<CornerstoneViewer | null>(null);
-
-  const thumbnailUrl = useCallback(
-    (sopUid: string) => `/api/dicom-web/studies/${studyUid}/instances/${sopUid}/thumbnail`,
-    [studyUid],
-  );
+  const upgradeStarted = useRef(false);
+  // Read by the upgrade effect without being its dependencies (see below).
+  const instancesRef = useRef<Instance[]>([]);
+  instancesRef.current = instances;
+  const currentRef = useRef(0);
+  currentRef.current = current;
 
   // --- step 2: instance list (UIDs only) ------------------------------------
   useEffect(() => {
     let cancelled = false;
     void (async () => {
       try {
-        const res = await fetch(`/api/dicom-web/studies/${studyUid}/instances`, {
-          credentials: 'include',
-        });
+        const res = await authedFetch(`/api/dicom-web/studies/${studyUid}/instances`);
         if (!res.ok) throw new Error(`study unavailable (${res.status})`);
         const body = (await res.json()) as { instances: Instance[] };
         if (!cancelled) setInstances(body.instances);
@@ -112,9 +116,7 @@ export default function ViewerPage({ params }: { params: Promise<{ studyUid: str
     let cancelled = false;
     void (async () => {
       try {
-        const res = await fetch(`/api/dicom-web/studies/${studyUid}/metadata`, {
-          credentials: 'include',
-        });
+        const res = await authedFetch(`/api/dicom-web/studies/${studyUid}/metadata`);
         if (!res.ok) return;
         const body: unknown = await res.json();
         const dataset = Array.isArray(body) ? (body[0] as unknown) : body;
@@ -134,9 +136,47 @@ export default function ViewerPage({ params }: { params: Promise<{ studyUid: str
     };
   }, [studyUid]);
 
-  // --- step 4: upgrade to full fidelity, AFTER the thumbnail is on screen ---
+  // --- step 3: the preview image, fetched WITH the session -----------------
+  //
+  // A plain <img src> cannot carry the bearer token, so the preview is fetched
+  // as a blob and shown through an object URL. The object URL lives only in
+  // this tab's memory and is revoked when the slice changes — nothing is
+  // written to a cache or to disk (ADR-4, P2.4).
+  const currentSop = instances[current]?.sopInstanceUid;
   useEffect(() => {
-    if (!firstImageReady || fidelity !== 'thumbnail') return;
+    if (currentSop === undefined) return;
+    let cancelled = false;
+    let objectUrl: string | null = null;
+    void (async () => {
+      try {
+        const res = await authedFetch(
+          `/api/dicom-web/studies/${studyUid}/instances/${currentSop}/thumbnail`,
+        );
+        if (!res.ok) throw new Error(String(res.status));
+        const blob = await res.blob();
+        if (cancelled) return;
+        objectUrl = URL.createObjectURL(blob);
+        setThumbnailSrc(objectUrl);
+      } catch {
+        if (!cancelled) setError(t.viewerPreviewFailed);
+      }
+    })();
+    return () => {
+      cancelled = true;
+      if (objectUrl !== null) URL.revokeObjectURL(objectUrl);
+    };
+  }, [studyUid, currentSop, t]);
+
+  // --- step 4: upgrade to full fidelity, ONCE, after the preview is up -------
+  //
+  // It depends on nothing it sets. The previous version listed `fidelity` in
+  // its own dependencies and set it to 'loading-full': the re-run cancelled the
+  // first run, the second returned early, and the page sat on "Loading full
+  // resolution…" forever with the Cornerstone canvas at opacity 0. The
+  // instances and position it needs are read through refs for the same reason.
+  useEffect(() => {
+    if (!firstImageReady || upgradeStarted.current) return;
+    upgradeStarted.current = true;
     if (!canRenderFullFidelity()) {
       // No WebGL2. Do not download a megabyte that can only fail.
       setFidelity('unavailable');
@@ -152,29 +192,40 @@ export default function ViewerPage({ params }: { params: Promise<{ studyUid: str
         const element = viewportRef.current;
         if (cancelled || element === null) return;
 
-        const viewer = await createViewer({ element, studyUid });
+        const viewer = await withTimeout(createViewer({ element, studyUid }), 15_000);
         if (cancelled) {
           viewer.destroy();
           return;
         }
         viewerRef.current = viewer;
 
-        const instance = instances[current];
+        const instance = instancesRef.current[currentRef.current];
         if (instance !== undefined) {
-          await viewer.showInstance(instance.sopInstanceUid, instance.seriesInstanceUid);
+          await withTimeout(
+            viewer.showInstance(instance.sopInstanceUid, instance.seriesInstanceUid),
+            15_000,
+          );
         }
         if (!cancelled) setFidelity('full');
-      } catch {
-        // Keep the thumbnail. A viewer that fails to upgrade is still a
-        // viewer; a blank viewport is not.
-        if (!cancelled) setFidelity('unavailable');
+      } catch (err) {
+        // Keep the preview. A viewer that fails to upgrade is still a viewer;
+        // a blank viewport is not — and a spinner that never ends is worse.
+        if (cancelled) return;
+        setUpgradeTimedOut(err instanceof Error && err.message === 'timeout');
+        setFidelity('unavailable');
       }
     })();
 
     return () => {
+      // React strict mode runs effects twice in development. Resetting the
+      // guard and destroying the engine lets the second run start cleanly and
+      // keeps exactly one engine alive.
       cancelled = true;
+      upgradeStarted.current = false;
+      viewerRef.current?.destroy();
+      viewerRef.current = null;
     };
-  }, [firstImageReady, fidelity, instances, current, studyUid]);
+  }, [firstImageReady, studyUid]);
 
   // --- navigation: one frame at a time, never a prefetch --------------------
   useEffect(() => {
@@ -210,11 +261,10 @@ export default function ViewerPage({ params }: { params: Promise<{ studyUid: str
     if (instance === undefined) return;
     setDownloadError(false);
     try {
-      const res = await fetch(
+      const res = await authedFetch(
         `/api/dicom-web/studies/${studyUid}` +
           `/series/${encodeURIComponent(instance.seriesInstanceUid)}` +
           `/instances/${encodeURIComponent(instance.sopInstanceUid)}`,
-        { credentials: 'include' },
       );
       if (!res.ok) throw new Error(String(res.status));
       const blob = await res.blob();
@@ -286,7 +336,7 @@ export default function ViewerPage({ params }: { params: Promise<{ studyUid: str
           style={{ opacity: fidelity === 'full' ? 1 : 0 }}
         />
 
-        {showThumbnail && currentInstance !== undefined && (
+        {showThumbnail && currentInstance !== undefined && thumbnailSrc !== null && (
           // Plain <img>, deliberately not next/image: the Next image optimiser
           // caches to disk and re-encodes. Caching patient imaging outside the
           // controlled buckets, and re-encoding it, are both unacceptable
@@ -294,13 +344,13 @@ export default function ViewerPage({ params }: { params: Promise<{ studyUid: str
           <img
             data-testid="current-image"
             data-sop-uid={currentInstance.sopInstanceUid}
-            src={thumbnailUrl(currentInstance.sopInstanceUid)}
+            src={thumbnailSrc}
             alt=""
             width={256}
             height={256}
             className="absolute inset-0 m-auto h-auto max-w-full [image-rendering:pixelated]"
             onLoad={() => setFirstImageReady(true)}
-            onError={() => setError('Preview unavailable for this image')}
+            onError={() => setError(t.viewerPreviewFailed)}
           />
         )}
 
@@ -352,6 +402,12 @@ export default function ViewerPage({ params }: { params: Promise<{ studyUid: str
                   : t.viewerFidelityPreview}
           </Badge>
         </span>
+
+        {upgradeTimedOut && (
+          <span role="status" className="text-sm text-muted-foreground" data-testid="full-timeout">
+            {t.viewerFullTimeout}
+          </span>
+        )}
 
         <span className="ms-auto">
           <Button
