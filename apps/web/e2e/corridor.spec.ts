@@ -1,5 +1,9 @@
 import { expect, test, type Page } from '@playwright/test';
 
+// The landing is unrouted for now (spec 2026-09-21 §1); its files are kept.
+// Re-enable this suite when `/` and `/[locale]` render <Corridor> again.
+test.skip(true, 'landing page hidden — docs/superpowers/specs/2026-09-21-platform-corrections-design.md §1');
+
 /**
  * "The Corridor" — the landing page's gates, asserted.
  *

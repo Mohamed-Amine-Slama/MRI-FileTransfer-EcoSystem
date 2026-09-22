@@ -55,17 +55,25 @@ export function Button({
   className,
   ...rest
 }: ButtonHTMLAttributes<HTMLButtonElement> & {
-  variant?: 'default' | 'primary' | 'danger' | 'ghost';
+  /**
+   * `secondary` is the landing page's lime: the positive alternative BESIDE a
+   * `primary`, never on its own and never on a refusal. Decline, Cancel and
+   * Reject stay `default` or `danger` — lime is the most eye-catching colour
+   * on the screen, and it must not pull the eye towards the wrong answer.
+   */
+  variant?: 'default' | 'primary' | 'secondary' | 'danger' | 'ghost';
   size?: 'sm';
 }): React.JSX.Element {
   const mapped =
     variant === 'primary'
       ? 'default'
-      : variant === 'danger'
-        ? 'destructive'
-        : variant === 'ghost'
-          ? 'ghost'
-          : 'outline';
+      : variant === 'secondary'
+        ? 'highlight'
+        : variant === 'danger'
+          ? 'destructive'
+          : variant === 'ghost'
+            ? 'ghost'
+            : 'outline';
   // type defaults to "submit" inside a form, which turns an unrelated button
   // into an accidental submit. Callers opt in to submitting explicitly.
   return (
@@ -274,7 +282,7 @@ export function PageHeader({
   return (
     <header className="mb-6 space-y-1">
       <div className="flex flex-wrap items-center justify-between gap-3">
-        <h1 className="text-2xl font-bold tracking-tight">{title}</h1>
+        <h1 className="font-display text-2xl font-normal tracking-tight">{title}</h1>
         {actions !== undefined && <div className="flex flex-wrap items-center gap-2">{actions}</div>}
       </div>
       {description !== undefined && <p className="text-sm text-muted-foreground">{description}</p>}

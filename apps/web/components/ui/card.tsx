@@ -23,7 +23,7 @@ export function CardTitle({
   className,
   ...props
 }: HTMLAttributes<HTMLHeadingElement>): React.JSX.Element {
-  return <h2 className={cn('text-base font-semibold leading-snug', className)} {...props} />;
+  return <h2 className={cn('font-display text-base font-medium leading-snug', className)} {...props} />;
 }
 
 export function CardDescription({

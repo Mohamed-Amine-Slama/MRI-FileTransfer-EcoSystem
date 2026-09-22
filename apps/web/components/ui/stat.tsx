@@ -35,7 +35,7 @@ export function StatTile({
       {value === null ? (
         <Skeleton className="h-9 w-16" />
       ) : (
-        <p className="text-3xl font-bold leading-none tabular-nums">{value}</p>
+        <p className="font-display text-3xl font-medium leading-none tabular-nums">{value}</p>
       )}
       <p className="text-sm font-medium text-muted-foreground">{label}</p>
       {hint !== undefined && <p className="text-xs text-muted-foreground">{hint}</p>}

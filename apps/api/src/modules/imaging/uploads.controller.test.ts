@@ -32,6 +32,7 @@ import { LocalBlobStore } from '../../shared/storage/local-blob-store';
 import { BLOB_STORE } from '../../shared/storage/storage.module';
 import { UploadService } from './internal/upload.service';
 import { UploadsController } from './internal/uploads.controller';
+import { IMAGING_QUEUE } from '../../shared/jobs/queue.tokens';
 import { corruptByte } from '../../shared/testing/corrupt-byte';
 
 /**
@@ -107,6 +108,9 @@ beforeAll(async () => {
       { provide: APP_CONFIG, useValue: config },
       { provide: DatabaseService, useValue: db },
       { provide: BLOB_STORE, useValue: blobs },
+      // No Redis in this suite: completing a file enqueues ingestion, which is
+      // ImagingWorker's concern and tested in imaging-worker.test.ts.
+      { provide: IMAGING_QUEUE, useValue: { add: async () => undefined } },
       UploadService,
       Reflector,
       { provide: APP_GUARD, useClass: TestAuthGuard },

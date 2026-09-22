@@ -218,16 +218,21 @@ export class DicomWebController {
    * study date, modality and body part are all in here.
    */
   @RequiresRole('tunisia_doctor', 'libya_doctor')
-  @Get('studies/:studyUid/instances/:sopUid/metadata')
+  // THE SERIES IS IN THE PATH because Orthanc's WADO-RS 404s the series-less
+  // form. Until 2026-09-21 this route omitted it, so metadata — and therefore
+  // full-resolution viewing — failed for every caller.
+  @Get('studies/:studyUid/series/:seriesUid/instances/:sopUid/metadata')
   @Header('cache-control', 'no-store')
   async instanceMetadata(
     @Param('studyUid') studyUid: string,
+    @Param('seriesUid') seriesUid: string,
     @Param('sopUid') sopUid: string,
   ): Promise<unknown> {
     const study = await this.access.authoriseStudyAccess(studyUid, 'metadata');
 
     const upstream = await this.orthanc.retrieve(
       `/dicom-web/studies/${encodeURIComponent(study.orthancStudyUid)}` +
+        `/series/${encodeURIComponent(seriesUid)}` +
         `/instances/${encodeURIComponent(sopUid)}/metadata`,
       'application/dicom+json',
     );
@@ -246,9 +251,10 @@ export class DicomWebController {
    * they actually look at.
    */
   @RequiresRole('tunisia_doctor', 'libya_doctor')
-  @Get('studies/:studyUid/instances/:sopUid/frames/:frame')
+  @Get('studies/:studyUid/series/:seriesUid/instances/:sopUid/frames/:frame')
   async frames(
     @Param('studyUid') studyUid: string,
+    @Param('seriesUid') seriesUid: string,
     @Param('sopUid') sopUid: string,
     @Param('frame') frame: string,
     @Res() res: Response,
@@ -263,6 +269,7 @@ export class DicomWebController {
 
     const upstream = await this.orthanc.retrieve(
       `/dicom-web/studies/${encodeURIComponent(study.orthancStudyUid)}` +
+        `/series/${encodeURIComponent(seriesUid)}` +
         `/instances/${encodeURIComponent(sopUid)}` +
         `/frames/${encodeURIComponent(frame)}`,
       'multipart/related; type="application/octet-stream"',

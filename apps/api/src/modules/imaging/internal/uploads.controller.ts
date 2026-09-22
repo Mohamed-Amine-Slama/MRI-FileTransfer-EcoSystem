@@ -3,6 +3,8 @@ import {
   Body,
   Controller,
   Get,
+  Inject,
+  Logger,
   Param,
   ParseIntPipe,
   Post,
@@ -13,6 +15,13 @@ import type { Request } from 'express';
 import { z } from 'zod';
 import { RateLimit } from '../../../shared/ratelimit/rate-limit.guard';
 import { RequiresRole } from '../../../shared/authz/access-metadata';
+import type { Queue } from 'bullmq';
+import { requireContext } from '../../../shared/context/request-context';
+import {
+  IMAGING_QUEUE,
+  ingestFileJobName,
+  type IngestFileJob,
+} from '../../../shared/jobs/queue.tokens';
 import { UploadService, type FileUploadState } from './upload.service';
 
 /**
@@ -51,7 +60,12 @@ const registerFileSchema = z.object({
 
 @Controller('uploads')
 export class UploadsController {
-  constructor(private readonly uploads: UploadService) {}
+  private readonly logger = new Logger(UploadsController.name);
+
+  constructor(
+    private readonly uploads: UploadService,
+    @Inject(IMAGING_QUEUE) private readonly queue: Queue,
+  ) {}
 
   @RequiresRole('libya_doctor')
   // Abuse protection only — the budget (60/min) is far above any real clinic
@@ -116,6 +130,21 @@ export class UploadsController {
   @RequiresRole('libya_doctor')
   @Post('files/:fileId/complete')
   async completeFile(@Param('fileId') fileId: string): Promise<{ verified: true; sha256: string }> {
-    return this.uploads.completeFile(fileId);
+    const result = await this.uploads.completeFile(fileId);
+
+    // Hand the verified file to ingestion (ImagingWorker). The jobId makes a
+    // retried "complete" enqueue once, and ingestion itself is idempotent.
+    // A failed enqueue does not fail the upload — the bytes are safe in
+    // staging — but it is logged as an error, because until it runs the study
+    // does not exist for anyone.
+    const job: IngestFileJob = { fileId, actorId: requireContext().userId };
+    try {
+      await this.queue.add(ingestFileJobName, job, { jobId: `ingest-${fileId}` });
+    } catch (err) {
+      this.logger.error(
+        `ingest not enqueued for file ${fileId}: ${err instanceof Error ? err.message : String(err)}`,
+      );
+    }
+    return result;
   }
 }

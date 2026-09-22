@@ -5,6 +5,7 @@ import { StorageModule } from '../../shared/storage/storage.module';
 import { SignedUrlService } from '../../shared/storage/signed-url.service';
 import { DicomWebController } from './internal/dicomweb.controller';
 import { IngestionService } from './internal/ingestion.service';
+import { ImagingWorker } from './internal/imaging.worker';
 import { OrthancHttpClient } from './internal/orthanc.http-client';
 import { ORTHANC_CLIENT } from './internal/orthanc.client';
 import { StudiesController } from './internal/studies.controller';
@@ -23,6 +24,7 @@ import { UploadsController } from './internal/uploads.controller';
     StudyAccessService,
     ThumbnailService,
     TwinService,
+    ImagingWorker,
     SignedUrlService,
     OrthancHttpClient,
     // The ingestion pipeline depends on the interface, not the HTTP class, so

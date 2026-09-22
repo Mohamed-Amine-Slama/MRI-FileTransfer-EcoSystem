@@ -14,6 +14,12 @@ export const buttonVariants = cva(
     variants: {
       variant: {
         default: 'bg-primary text-primary-foreground shadow-sm hover:bg-primary/90',
+        // The landing page's lime, as its `.btn--secondary`: the positive
+        // alternative beside a teal primary. The border keeps it from
+        // dissolving into a white card; hover deepens to the edge tone rather
+        // than going translucent, because lime thinned over mint turns muddy.
+        highlight:
+          'border border-highlight-edge bg-highlight text-highlight-foreground shadow-sm hover:bg-highlight-edge',
         outline:
           'border border-input bg-card text-foreground shadow-sm hover:border-primary hover:text-primary',
         destructive: 'border border-danger/40 bg-danger-surface text-danger hover:border-danger',

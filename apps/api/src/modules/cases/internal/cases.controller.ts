@@ -69,6 +69,12 @@ const directoryQuerySchema = z.object({ specialty: z.string().min(1).max(64).opt
 
 interface CaseDto {
   id: string;
+  caseRef: string;
+  createdAt: string;
+  quotedAt: string | null;
+  updatedAt: string;
+  patientAgeYears: number | null;
+  patientSex: string | null;
   patientId: string;
   patientName: string | null;
   /** Present only for an assistant, whose job is to ring the patient. */
@@ -92,6 +98,12 @@ interface CaseDto {
 function toDto(a: CaseSummary): CaseDto {
   return {
     id: a.id,
+    caseRef: a.caseRef,
+    createdAt: a.createdAt.toISOString(),
+    quotedAt: a.quotedAt?.toISOString() ?? null,
+    updatedAt: a.updatedAt.toISOString(),
+    patientAgeYears: a.patientAgeYears,
+    patientSex: a.patientSex,
     patientId: a.patientId,
     patientName: a.patientName,
     ...(a.patientPhone === undefined ? {} : { patientPhone: a.patientPhone }),
@@ -162,7 +174,9 @@ export class CasesController {
 
   // --- cases ---------------------------------------------------------------
 
-  @RequiresRole('libya_doctor', 'tunisia_doctor', 'assistant')
+  // `admin` reads the whole pipeline (§5.8); RLS gives ops every row and the
+  // patient join yields no name for them.
+  @RequiresRole('libya_doctor', 'tunisia_doctor', 'assistant', 'admin')
   @Get('cases')
   async list(@Query() query: unknown): Promise<{ cases: CaseDto[] }> {
     const range = rangeQuerySchema.parse(query ?? {});
@@ -170,7 +184,7 @@ export class CasesController {
     return { cases: rows.map(toDto) };
   }
 
-  @RequiresRole('libya_doctor', 'tunisia_doctor', 'assistant')
+  @RequiresRole('libya_doctor', 'tunisia_doctor', 'assistant', 'admin')
   @Get('cases/:id')
   async get(@Param('id', ParseUUIDPipe) id: string): Promise<CaseDto> {
     return toDto(await this.cases.getCase(id));

@@ -2,6 +2,9 @@
 
 import { useEffect, useState } from 'react';
 import type { CaseAudience, CaseSide, Provider, Role } from '@mir/contracts';
+import { api } from '../api/endpoints';
+import { isMockMode } from '../api/cases';
+import { toProvider } from '../api/live/adapt';
 import { casesApi } from '../api/mock';
 import { sideForRole } from '../corridor/registry';
 import { useSession } from '../session/session';
@@ -40,29 +43,49 @@ export interface CurrentProvider {
 export function useCurrentProvider(): CurrentProvider {
   const { role } = useSession();
   const [provider, setProvider] = useState<Provider | null>(null);
+  const [liveProviderId, setLiveProviderId] = useState<string | null>(null);
   const [loading, setLoading] = useState(true);
 
-  const providerId = providerIdForRole(role);
   const side = role === null ? null : sideForRole(role);
+  const mock = isMockMode();
+  // Mock mode maps a side onto a fixture organisation; live mode asks the API
+  // which organisation the caller is actually seated in.
+  const providerId = mock ? providerIdForRole(role) : liveProviderId;
 
   useEffect(() => {
     let cancelled = false;
-    if (providerId === null) {
+
+    if (role === null || side === null || side === 'ops') {
+      // Ops acts for no organisation; an unresolved session has none yet.
       setProvider(null);
-      setLoading(false);
+      setLiveProviderId(null);
+      setLoading(role === null);
       return;
     }
+
     setLoading(true);
-    void casesApi.getProvider(providerId).then((found) => {
-      if (!cancelled) {
+    const resolve = mock
+      ? (() => {
+          const fixtureId = providerIdForRole(role);
+          return fixtureId === null ? Promise.resolve(null) : casesApi.getProvider(fixtureId);
+        })()
+      : api.organisations.mine().then(({ organisation }) =>
+          organisation === null ? null : toProvider(organisation),
+        );
+
+    void resolve
+      .catch(() => null)
+      .then((found) => {
+        if (cancelled) return;
         setProvider(found);
+        setLiveProviderId(found?.id ?? null);
         setLoading(false);
-      }
-    });
+      });
+
     return () => {
       cancelled = true;
     };
-  }, [providerId]);
+  }, [role, side, mock]);
 
   return { loading, providerId, provider, side };
 }

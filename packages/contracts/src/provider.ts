@@ -1,5 +1,5 @@
 import { z } from 'zod';
-import { endpointSideSchema } from './corridor';
+import { endpointSideSchema, type EndpointSide } from './corridor';
 
 /**
  * Providers — brief §3 and §5.1.
@@ -29,6 +29,29 @@ export const PROVISIONING_KINDS: readonly ProviderKind[] = ['hospital'];
 
 export function canProvisionClinicians(kind: ProviderKind): boolean {
   return PROVISIONING_KINDS.includes(kind);
+}
+
+/**
+ * Which kinds may register on which side — requirements §2 and spec
+ * 2026-09-21 §2. Libya refers through clinics and laboratories; Tunisia
+ * answers through individual doctors. Libyan doctors, Tunisian clinics, and
+ * hospitals on either side cannot register.
+ *
+ * `PROVIDER_KINDS` keeps `hospital` and `doctor` so historical rows still
+ * parse; this is the gate on NEW registrations, applied by the API and
+ * mirrored by the sign-up form.
+ */
+const KINDS_BY_SIDE: Record<EndpointSide, readonly ProviderKind[]> = {
+  source: ['clinic', 'laboratory'],
+  destination: ['doctor'],
+};
+
+export function providerKindsForSide(side: EndpointSide): readonly ProviderKind[] {
+  return KINDS_BY_SIDE[side];
+}
+
+export function isKindAllowedOnSide(kind: ProviderKind, side: EndpointSide): boolean {
+  return KINDS_BY_SIDE[side].includes(kind);
 }
 
 /**

@@ -84,7 +84,6 @@ function assertLocal(label, urlish) {
 const ACCOUNTS = [
   { username: 'dev-doctor@example.test',    role: 'libya_doctor',    name: 'Dr Amal Referring',  phone: '+218911000001', password: 'dev-doctor-pass-1234' },
   { username: 'dev-receiver@example.test',  role: 'tunisia_doctor',  name: 'Dr Karim Receiving', phone: '+216711000002', password: 'dev-receiver-pass-1234' },
-  { username: 'dev-patient@example.test',   role: 'patient',         name: 'Sample Patient',     phone: '+218911000003', password: 'dev-patient-pass-1234' },
   { username: 'dev-ops@example.test',       role: 'admin',           name: 'Ops Staff',          phone: '+216711000004', password: 'dev-ops-pass-1234' },
   { username: 'dev-applicant@example.test', role: 'applicant',       name: 'Dr Pending Applicant', phone: '+218911000005', password: 'dev-applicant-pass-1234' },
   { username: 'dev-assistant@example.test', role: 'assistant',       name: 'Salma Reception',    phone: '+216711000006', password: 'dev-assist-pass-1234' },
@@ -125,10 +124,10 @@ const ADMIN_CLIENT = {
  * exists because that rule is easy to break by accident.
  */
 const PATIENTS = [
-  { name: 'Sample Patient',       phone: '+218911000003', dob: '1985-04-12', sex: 'F', claim: true },
-  { name: 'Test Case Alpha',      phone: '+218911000011', dob: '1971-11-03', sex: 'M', claim: false },
-  { name: 'Test Case Beta',       phone: '+218911000012', dob: '1994-06-27', sex: 'F', claim: false },
-  { name: 'Synthetic Record Three', phone: '+218911000013', dob: '2002-01-19', sex: 'M', claim: false },
+  { name: 'Sample Patient',       phone: '+218911000003', dob: '1985-04-12', sex: 'F' },
+  { name: 'Test Case Alpha',      phone: '+218911000011', dob: '1971-11-03', sex: 'M' },
+  { name: 'Test Case Beta',       phone: '+218911000012', dob: '1994-06-27', sex: 'F' },
+  { name: 'Synthetic Record Three', phone: '+218911000013', dob: '2002-01-19', sex: 'M' },
 ];
 
 /**
@@ -208,7 +207,7 @@ async function configureRealm() {
  * registered account authenticates as nobody.
  */
 async function ensureRoles() {
-  for (const name of ['libya_doctor', 'tunisia_doctor', 'patient', 'admin', 'applicant', 'assistant']) {
+  for (const name of ['libya_doctor', 'tunisia_doctor', 'admin', 'applicant', 'assistant']) {
     const found = await kcAdmin(`/${REALM}/roles/${encodeURIComponent(name)}`);
     if (found.ok) continue;
     const res = await kcAdmin(`/${REALM}/roles`, {
@@ -390,6 +389,11 @@ function q(value) {
   return `'${String(value).replace(/'/g, "''")}'`;
 }
 
+/** Hex sha256, for the seeded hashes that must look like real ones. */
+function sha(text) {
+  return createHash('sha256').update(text).digest('hex');
+}
+
 /**
  * The whole seed as ONE idempotent script.
  *
@@ -403,7 +407,6 @@ function buildSeedSql(subs) {
   const id = (username) => subs[username];
   const doctor = id('dev-doctor@example.test');
   const receiver = id('dev-receiver@example.test');
-  const patientUser = id('dev-patient@example.test');
   const applicant = id('dev-applicant@example.test');
   const ops = id('dev-ops@example.test');
   const assistant = id('dev-assistant@example.test');
@@ -476,10 +479,10 @@ function buildSeedSql(subs) {
     const from = stale(a.username);
     lines.push(
       `UPDATE patients_patients SET created_by_doctor = ${to} WHERE created_by_doctor IN ${from};`,
-      `UPDATE patients_patients SET claimed_by_user = ${to} WHERE claimed_by_user IN ${from};`,
-      `UPDATE scheduling_appointments SET doctor_id = ${to} WHERE doctor_id IN ${from};`,
-      `UPDATE scheduling_availability SET doctor_id = ${to} WHERE doctor_id IN ${from};`,
+      `UPDATE cases_cases SET doctor_id = ${to} WHERE doctor_id IN ${from};`,
+      `UPDATE cases_cases SET created_by = ${to} WHERE created_by IN ${from};`,
       `UPDATE consent_records SET granted_to = ${to} WHERE granted_to IN ${from};`,
+      `UPDATE consent_records SET attested_by = ${to} WHERE attested_by IN ${from};`,
       // Deleted, not re-pointed: (organisation_id, user_id) is the primary key,
       // so moving a stale seat onto a user who already holds one collides. The
       // seat carries nothing worth preserving and the INSERTs below recreate it.
@@ -488,256 +491,156 @@ function buildSeedSql(subs) {
     );
   }
 
+  // --- organisations: one clinic (source), one practice per doctor (destination)
+  //
+  // Requirements §2 / spec 2026-09-21 §2: Libya refers through clinics and
+  // laboratories, Tunisia answers through individual doctors. Each receiving
+  // doctor is their own `doctor` organisation, which is what the ledger bills
+  // and pays against.
+  const clinic = 'Sample Referring Clinic';
+  const pendingLab = 'Sample Pending Laboratory';
+  const doctors = [
+    { user: receiver, name: 'Receiving Practice — Karim', specialty: 'radiology', accepting: true, lic: 'DEV-TN-0002' },
+    { user: radiologist, name: 'Receiving Practice — Nadia', specialty: 'radiology', accepting: false, lic: 'DEV-TN-0007' },
+    { user: cardiologist, name: 'Receiving Practice — Sami', specialty: 'cardiology', accepting: false, lic: 'DEV-TN-0008' },
+  ];
+  const orgRef = (name) => `(SELECT id FROM identity_organisations WHERE legal_name = ${q(name)})`;
+
   lines.push(
-    `INSERT INTO identity_doctor_profiles (user_id, country, license_number, specialty, clinic_name)
-     VALUES (${q(doctor)}::uuid, 'LY', 'DEV-LY-0001', 'Radiology', 'Sample Referring Clinic'),
-            (${q(receiver)}::uuid, 'TN', 'DEV-TN-0002', 'Radiology', 'Sample Receiving Clinic')
-     ON CONFLICT (user_id) DO NOTHING;`,
+    `INSERT INTO identity_organisations
+       (kind, legal_name, corridor_id, side, verification_status, decided_at, decided_by, seat_count, credentials)
+     SELECT 'clinic', ${q(clinic)}, 'ly-tn', 'source', 'approved', now(), ${q(ops)}::uuid, 5,
+            '{"licenceNumber":"DEV-LY-0001"}'::jsonb
+     WHERE NOT EXISTS (SELECT 1 FROM identity_organisations WHERE legal_name = ${q(clinic)});`,
+    `INSERT INTO identity_organisations
+       (kind, legal_name, corridor_id, side, verification_status, seat_count, credentials)
+     SELECT 'laboratory', ${q(pendingLab)}, 'ly-tn', 'source', 'pending', 2,
+            '{"licenceNumber":"DEV-LY-9999"}'::jsonb
+     WHERE NOT EXISTS (SELECT 1 FROM identity_organisations WHERE legal_name = ${q(pendingLab)});`,
+    // Earlier seeds put the pending laboratory on the destination side, which
+    // §2 no longer allows. Move it rather than leave a row the UI refuses.
+    `UPDATE identity_organisations SET side = 'source'
+      WHERE legal_name = ${q(pendingLab)} AND side <> 'source';`,
+    `INSERT INTO identity_memberships (organisation_id, user_id, seat_role)
+     SELECT ${orgRef(clinic)}, ${q(doctor)}::uuid, 'owner' ON CONFLICT DO NOTHING;`,
+    // The assistant is seated in the clinic, so app_assists_doctor() holds for
+    // the clinic's doctor.
+    `INSERT INTO identity_memberships (organisation_id, user_id, seat_role)
+     SELECT ${orgRef(clinic)}, ${q(assistant)}::uuid, 'assistant' ON CONFLICT DO NOTHING;`,
+    `INSERT INTO identity_memberships (organisation_id, user_id, seat_role)
+     SELECT ${orgRef(pendingLab)}, ${q(applicant)}::uuid, 'owner' ON CONFLICT DO NOTHING;`,
   );
 
-  /*
-   * Insert-if-absent by phone, NOT `ON CONFLICT (phone_e164)`.
-   *
-   * That column is deliberately not unique. Two people sharing a number — a
-   * family, a clinic switchboard — is common enough that P3.3 forbids treating
-   * a phone match as identity; the controller returns `confirmation_required`
-   * and lets the doctor decide. A seed that declared it a key would assert the
-   * opposite.
-   */
+  for (const d of doctors) {
+    lines.push(
+      `INSERT INTO identity_organisations
+         (kind, legal_name, corridor_id, side, verification_status, decided_at, decided_by, seat_count, credentials)
+       SELECT 'doctor', ${q(d.name)}, 'ly-tn', 'destination', 'approved', now(), ${q(ops)}::uuid, 1,
+              ${q(JSON.stringify({ cnomNumber: d.lic }))}::jsonb
+       WHERE NOT EXISTS (SELECT 1 FROM identity_organisations WHERE legal_name = ${q(d.name)});`,
+      `INSERT INTO identity_memberships (organisation_id, user_id, seat_role, specialty)
+       SELECT ${orgRef(d.name)}, ${q(d.user)}::uuid, 'owner', ${q(d.specialty)}
+       ON CONFLICT (organisation_id, user_id) DO UPDATE SET specialty = EXCLUDED.specialty;`,
+      // Verified, lowercase specialty key: the directory, the quote check and
+      // the headcount all filter on verified_at and compare specialty exactly.
+      `INSERT INTO identity_doctor_profiles
+         (user_id, country, license_number, specialty, clinic_name, verified_at, verified_by, accepting_cases)
+       VALUES (${q(d.user)}::uuid, 'TN', ${q(d.lic)}, ${q(d.specialty)}, ${q(d.name)}, now(), ${q(ops)}::uuid, ${q(d.accepting)})
+       ON CONFLICT (user_id) DO UPDATE
+         SET specialty = EXCLUDED.specialty, clinic_name = EXCLUDED.clinic_name,
+             verified_at = COALESCE(identity_doctor_profiles.verified_at, EXCLUDED.verified_at),
+             verified_by = COALESCE(identity_doctor_profiles.verified_by, EXCLUDED.verified_by);`,
+    );
+  }
+
+  // --- patients (synthetic, ADR-7), created by the clinic's doctor
+  //
+  // Insert-if-absent by phone, NOT `ON CONFLICT (phone_e164)`: that column is
+  // deliberately not unique (P3.3 — a family or a switchboard shares a number).
   for (const p of PATIENTS) {
     lines.push(
-      `INSERT INTO patients_patients
-         (phone_e164, full_name, date_of_birth, sex, created_by_doctor, claimed_by_user)
-       SELECT ${q(p.phone)}, ${q(p.name)}, ${q(p.dob)}::date, ${q(p.sex)},
-              ${q(doctor)}::uuid, ${p.claim ? `${q(patientUser)}::uuid` : 'NULL'}
+      `INSERT INTO patients_patients (phone_e164, full_name, date_of_birth, sex, created_by_doctor)
+       SELECT ${q(p.phone)}, ${q(p.name)}, ${q(p.dob)}::date, ${q(p.sex)}, ${q(doctor)}::uuid
        WHERE NOT EXISTS (SELECT 1 FROM patients_patients WHERE phone_e164 = ${q(p.phone)});`,
     );
   }
 
-  lines.push(
-    `INSERT INTO scheduling_availability (doctor_id, starts_at, ends_at, slot_minutes)
-     SELECT ${q(receiver)}::uuid, now() + interval '1 day', now() + interval '1 day 6 hours', 30
-     WHERE NOT EXISTS (SELECT 1 FROM scheduling_availability WHERE doctor_id = ${q(receiver)}::uuid);`,
-  );
-
-  // A spread of statuses, so the tiles and the receiving doctor's inbox are not
-  // all one number. Dated relative to now, so "upcoming" is never in the past.
-  const appointments = [
-    { phone: PATIENTS[0].phone, days: 2, status: 'confirmed' },
-    { phone: PATIENTS[1].phone, days: 3, status: 'authorised' },
-    { phone: PATIENTS[2].phone, days: 5, status: 'authorised' },
-    { phone: PATIENTS[3].phone, days: 9, status: 'pending_payment' },
-    { phone: PATIENTS[1].phone, days: -6, status: 'completed' },
-  ];
-  for (const a of appointments) {
-    const patientRef = `(SELECT id FROM patients_patients WHERE phone_e164 = ${q(a.phone)} LIMIT 1)`;
-    lines.push(
-      `INSERT INTO scheduling_appointments (patient_id, doctor_id, starts_at, ends_at, status)
-       SELECT ${patientRef}, ${q(receiver)}::uuid,
-              now() + interval '${a.days} days',
-              now() + interval '${a.days} days' + interval '30 minutes', ${q(a.status)}
-       WHERE ${patientRef} IS NOT NULL
-         AND NOT EXISTS (
-           SELECT 1 FROM scheduling_appointments
-           WHERE patient_id = ${patientRef} AND status = ${q(a.status)});`,
-    );
-  }
-
-  /*
-   * A HOSPITAL, so the provisioning and routing features have something to
-   * stand on.
-   *
-   * The seeded clinic above is the referring side's. This is a receiving-side
-   * HOSPITAL: it owns clinicians of different specialties, and the assistant is
-   * seated in it so `app_assists_doctor` resolves for all of them. Without this
-   * the clinician picker on the booking screen has exactly one name in it and
-   * the specialty filter demonstrates nothing.
-   */
-  const hospitalName = 'Sample Receiving Hospital';
-  lines.push(
-    `INSERT INTO identity_organisations
-       (kind, legal_name, corridor_id, side, verification_status, decided_at, seat_count, credentials)
-     SELECT 'hospital', ${q(hospitalName)}, 'ly-tn', 'destination', 'approved', now(), 20,
-            '{"cnomNumber":"DEV-TN-0002"}'::jsonb
-     WHERE NOT EXISTS (SELECT 1 FROM identity_organisations WHERE legal_name = ${q(hospitalName)});`,
-  );
-
-  const hospitalRef = `(SELECT id FROM identity_organisations WHERE legal_name = ${q(hospitalName)})`;
-  const seat = (user, role, specialty) =>
-    `INSERT INTO identity_memberships (organisation_id, user_id, seat_role, specialty)
-     SELECT ${hospitalRef}, ${q(user)}::uuid, ${q(role)}, ${specialty === null ? 'NULL' : q(specialty)}
-     ON CONFLICT (organisation_id, user_id) DO UPDATE SET specialty = EXCLUDED.specialty;`;
-
-  lines.push(
-    seat(receiver, 'owner', 'General medicine'),
-    seat(radiologist, 'member', 'Radiology'),
-    seat(cardiologist, 'member', 'Cardiology'),
-    seat(assistant, 'assistant', null),
-  );
-
-  // Doctor profiles, so `listDoctors` (which filters on verified_at) offers the
-  // specialists to a referring doctor as well.
-  for (const [who, specialty] of [
-    [radiologist, 'Radiology'],
-    [cardiologist, 'Cardiology'],
-  ]) {
-    lines.push(
-      `INSERT INTO identity_doctor_profiles
-         (user_id, country, license_number, specialty, clinic_name, verified_at, verified_by)
-       SELECT ${q(who)}::uuid, 'TN', 'DEV-TN-LIC-' || substr(${q(who)}, 1, 8), ${q(specialty)},
-              ${q(hospitalName)}, now(), ${q(ops)}::uuid
-       ON CONFLICT (user_id) DO UPDATE SET specialty = EXCLUDED.specialty;`,
-    );
-  }
-
-  /*
-   * TODAY'S AGENDA.
-   *
-   * The appointments above are all days away, so /schedule — whose whole job is
-   * "who is coming today" — opened empty on a freshly seeded database and looked
-   * broken. These are anchored to today's date at fixed local hours, with a
-   * spread of statuses so the per-row actions have something to act on.
-   */
-  const todayAt = (hour, minutes) =>
-    `date_trunc('day', now()) + interval '${hour} hours ${minutes} minutes'`;
-
-  const todays = [
-    { phone: PATIENTS[0].phone, doctor: receiver, hour: 9, status: 'confirmed', kind: 'follow_up', reason: 'Reviewing last scan' },
-    { phone: PATIENTS[1].phone, doctor: radiologist, hour: 10, status: 'confirmed', kind: 'imaging', reason: 'Chest imaging' },
-    { phone: PATIENTS[2].phone, doctor: cardiologist, hour: 11, status: 'confirmed', kind: 'consultation', reason: 'Palpitations' },
-    { phone: PATIENTS[3].phone, doctor: receiver, hour: 8, status: 'completed', kind: 'consultation', reason: 'Routine review' },
-    { phone: PATIENTS[0].phone, doctor: radiologist, hour: 7, status: 'no_show', kind: 'imaging', reason: 'Follow-up imaging' },
-  ];
-  for (const a of todays) {
-    const patientRef = `(SELECT id FROM patients_patients WHERE phone_e164 = ${q(a.phone)} LIMIT 1)`;
-    lines.push(
-      `INSERT INTO scheduling_appointments
-         (patient_id, doctor_id, starts_at, ends_at, status, kind, reason)
-       SELECT ${patientRef}, ${q(a.doctor)}::uuid, ${todayAt(a.hour, 0)},
-              ${todayAt(a.hour, 30)}, ${q(a.status)}, ${q(a.kind)}, ${q(a.reason)}
-       WHERE ${patientRef} IS NOT NULL
-         AND NOT EXISTS (
-           SELECT 1 FROM scheduling_appointments
-           WHERE doctor_id = ${q(a.doctor)}::uuid AND starts_at = ${todayAt(a.hour, 0)});`,
-    );
-  }
-
-  /*
-   * Opening hours for the specialists, and one RECURRING rule, so the
-   * availability tab shows both shapes it supports.
-   */
-  for (const who of [radiologist, cardiologist]) {
-    lines.push(
-      `INSERT INTO scheduling_availability (doctor_id, starts_at, ends_at, slot_minutes)
-       SELECT ${q(who)}::uuid, date_trunc('day', now()) + interval '1 day 8 hours',
-              date_trunc('day', now()) + interval '1 day 13 hours', 30
-       WHERE NOT EXISTS (SELECT 1 FROM scheduling_availability WHERE doctor_id = ${q(who)}::uuid);`,
-    );
-  }
-
-  lines.push(
-    `INSERT INTO scheduling_availability_rules
-       (doctor_id, weekday, start_time, end_time, timezone, slot_minutes, valid_from)
-     SELECT ${q(receiver)}::uuid, 2, '09:00', '12:00', 'Africa/Tunis', 30, CURRENT_DATE
-     WHERE NOT EXISTS (
-       SELECT 1 FROM scheduling_availability_rules WHERE doctor_id = ${q(receiver)}::uuid);`,
-  );
-
-  /*
-   * Consent terms (P5.3), without which consent_records foreign key fails.
-   */
+  // --- consent terms, and an attested consent per patient for Karim
+  //
+  // Without consent the receiving doctor can see a case but not its imaging:
+  // app_can_see_study requires app_has_consent_for(). The attestation fields
+  // point at a document that does not exist — this is a dev seed, and the
+  // consent PDF is never fetched by anything the viewer does.
   const termsAr = 'أوافق على نقل صوري الطبية إلى الطبيب المستقبل في تونس.';
   const termsFr = "J'accepte le transfert de mes images médicales au médecin destinataire en Tunisie.";
-  const hashAr = createHash('sha256').update(termsAr).digest('hex');
-  const hashFr = createHash('sha256').update(termsFr).digest('hex');
-
   lines.push(
     `INSERT INTO consent_terms (version, locale, scope, body, content_hash, published_at)
      VALUES
-       ('v1', 'ar', 'cross_border_transfer', ${q(termsAr)}, ${q(hashAr)}, now()),
-       ('v1', 'fr', 'cross_border_transfer', ${q(termsFr)}, ${q(hashFr)}, now())
+       ('v1', 'ar', 'cross_border_transfer', ${q(termsAr)}, ${q(sha(termsAr))}, now()),
+       ('v1', 'fr', 'cross_border_transfer', ${q(termsFr)}, ${q(sha(termsFr))}, now())
      ON CONFLICT (version, locale, scope) DO NOTHING;`,
   );
-
-  /*
-   * Consent, WITHOUT WHICH THE RECEIVING DOCTOR'S INBOX IS EMPTY.
-   *
-   * `patients_receiving_doctor` requires BOTH an appointment and an unrevoked
-   * `cross_border_transfer` consent granted to that doctor. The appointment
-   * list joins the patient row, so with no consent the join yields nothing and
-   * the inbox looks broken when it is in fact working exactly as designed —
-   * the receiving side cannot see a patient it has no consent for.
-   *
-   * Seeded for the two patients with upcoming appointments, so the inbox has
-   * something in it and the gate is still visible on the others.
-   */
-  for (const phone of [PATIENTS[0].phone, PATIENTS[1].phone]) {
-    const patientRef = `(SELECT id FROM patients_patients WHERE phone_e164 = ${q(phone)} LIMIT 1)`;
+  for (const p of PATIENTS) {
+    const patientRef = `(SELECT id FROM patients_patients WHERE phone_e164 = ${q(p.phone)} LIMIT 1)`;
     lines.push(
       `INSERT INTO consent_records
-         (patient_id, scope, granted_to, terms_version, terms_locale, evidence_hash)
+         (patient_id, scope, granted_to, terms_version, terms_locale, evidence_hash,
+          attested_by, document_object_key, document_sha256)
        SELECT ${patientRef}, 'cross_border_transfer', ${q(receiver)}::uuid, 'v1', 'ar',
-              encode(sha256(('dev-seed:' || ${q(phone)})::bytea), 'hex')
-       WHERE ${patientRef} IS NOT NULL
-         AND NOT EXISTS (
-           SELECT 1 FROM consent_records
-           WHERE patient_id = ${patientRef}
-             AND granted_to = ${q(receiver)}::uuid
-             AND scope = 'cross_border_transfer');`,
+              ${q(sha(`dev-seed:${p.phone}`))}, ${q(doctor)}::uuid,
+              ${q(`dev-seed/consent/${p.phone}.pdf`)}, ${q(sha(`dev-seed-doc:${p.phone}`))}
+       WHERE NOT EXISTS (
+         SELECT 1 FROM consent_records
+          WHERE patient_id = ${patientRef} AND granted_to = ${q(receiver)}::uuid
+            AND scope = 'cross_border_transfer' AND revoked_at IS NULL);`,
     );
   }
 
-  // An APPROVED organisation for the referring doctor, so /verification,
-  // /settings/team and /settings/billing render something — and a PENDING one
-  // for the applicant, so the ops queue is not empty.
-  const approved = 'Sample Referring Clinic';
-  const pending = 'Sample Pending Laboratory';
-  lines.push(
-    `INSERT INTO identity_organisations
-       (kind, legal_name, corridor_id, side, verification_status, decided_at, seat_count, credentials)
-     SELECT 'clinic', ${q(approved)}, 'ly-tn', 'source', 'approved', now(), 5,
-            '{"licenceNumber":"DEV-LY-0001"}'::jsonb
-     WHERE NOT EXISTS (SELECT 1 FROM identity_organisations WHERE legal_name = ${q(approved)});`,
-    `INSERT INTO identity_organisations
-       (kind, legal_name, corridor_id, side, verification_status, seat_count, credentials)
-     SELECT 'laboratory', ${q(pending)}, 'ly-tn', 'destination', 'pending', 2,
-            '{"cnomNumber":"DEV-TN-9999"}'::jsonb
-     WHERE NOT EXISTS (SELECT 1 FROM identity_organisations WHERE legal_name = ${q(pending)});`,
-    `INSERT INTO identity_memberships (organisation_id, user_id, seat_role)
-     SELECT o.id, ${q(doctor)}::uuid, 'owner' FROM identity_organisations o
-     WHERE o.legal_name = ${q(approved)} ON CONFLICT DO NOTHING;`,
-    `INSERT INTO identity_memberships (organisation_id, user_id, seat_role)
-     SELECT o.id, ${q(receiver)}::uuid, 'member' FROM identity_organisations o
-     WHERE o.legal_name = ${q(approved)} ON CONFLICT DO NOTHING;`,
-    `INSERT INTO identity_memberships (organisation_id, user_id, seat_role)
-     SELECT o.id, ${q(applicant)}::uuid, 'owner' FROM identity_organisations o
-     WHERE o.legal_name = ${q(pending)} ON CONFLICT DO NOTHING;`,
-    // The assistant shares the approved clinic with BOTH doctors seated above,
-    // which is what makes app_assists_doctor() true for either of them.
-    `INSERT INTO identity_memberships (organisation_id, user_id, seat_role)
-     SELECT o.id, ${q(assistant)}::uuid, 'assistant' FROM identity_organisations o
-     WHERE o.legal_name = ${q(approved)} ON CONFLICT DO NOTHING;`,
-    `INSERT INTO billing_subscriptions
-       (organisation_id, plan_code, status, seats, period_start, period_end)
-     SELECT o.id, 'clinic', 'active', 5, date_trunc('month', now()),
-            date_trunc('month', now()) + interval '1 month'
-     FROM identity_organisations o WHERE o.legal_name = ${q(approved)}
-     ON CONFLICT (organisation_id) DO NOTHING;`,
-  );
+  // --- one case per status, keyed by reason so re-runs are no-ops
+  //
+  // `seed:accepted` and `seed:answered` share a patient: scripts/dev-seed-imaging.mjs
+  // uploads one MR series for that patient and links it to both, so the viewer
+  // and the (later) report have pixels behind them.
+  const caseRows = [
+    { reason: 'seed:submitted', phone: PATIENTS[1].phone, status: 'submitted' },
+    { reason: 'seed:quoted',    phone: PATIENTS[2].phone, status: 'quoted' },
+    { reason: 'seed:paid',      phone: PATIENTS[3].phone, status: 'paid' },
+    { reason: 'seed:accepted',  phone: PATIENTS[0].phone, status: 'accepted' },
+    { reason: 'seed:answered',  phone: PATIENTS[0].phone, status: 'answered' },
+  ];
+  for (const c of caseRows) {
+    const patientRef = `(SELECT id FROM patients_patients WHERE phone_e164 = ${q(c.phone)} LIMIT 1)`;
+    const priced = c.status !== 'submitted';
+    const taken = c.status === 'accepted' || c.status === 'answered';
+    lines.push(
+      `INSERT INTO cases_cases
+         (patient_id, organisation_id, specialty, status, reason, created_by, doctor_id,
+          quoted_amount_minor, quoted_currency, quoted_at, quote_expires_at,
+          accepted_at, answer_due_at, answered_at)
+       SELECT ${patientRef}, ${orgRef(clinic)}, 'radiology', ${q(c.status)}, ${q(c.reason)}, ${q(doctor)}::uuid,
+              ${priced ? `${q(receiver)}::uuid` : 'NULL'},
+              ${priced ? '10000' : 'NULL'}, ${priced ? `'USD'` : 'NULL'},
+              ${priced ? 'now()' : 'NULL'}, ${priced ? `now() + interval '1 day'` : 'NULL'},
+              ${taken ? 'now()' : 'NULL'},
+              ${taken ? `now() + interval '72 hours'` : 'NULL'},
+              ${c.status === 'answered' ? 'now()' : 'NULL'}
+       WHERE NOT EXISTS (SELECT 1 FROM cases_cases WHERE reason = ${q(c.reason)});`,
+    );
+  }
 
-  /*
-   * A few audit rows so the admin dashboard's allowed/denied tiles are not both
-   * zero. There is NO `outcome` column: audit.service.ts derives it from
-   * `metadata->>'granted'`, because a denial carries no subject_id — the row
-   * was invisible, which is the point. Only an explicit false reads as denied.
-   */
+  // --- a subscription and a few audit rows, so the billing and admin tiles are
+  // not empty. There is NO `outcome` column on audit_events: audit.service.ts
+  // derives it from `metadata->>'granted'`.
   lines.push(
+    `INSERT INTO billing_subscriptions (organisation_id, plan_code, status, seats, period_start, period_end)
+     SELECT ${orgRef(clinic)}, 'src_clinic', 'active', 5, date_trunc('month', now()),
+            date_trunc('month', now()) + interval '1 month'
+     ON CONFLICT (organisation_id) DO NOTHING;`,
     `INSERT INTO audit_events (actor_id, actor_role, action, subject_type, metadata, occurred_at)
      SELECT ${q(doctor)}::uuid, 'libya_doctor', a.action, 'patient',
             jsonb_build_object('granted', a.granted), now() - (a.n || ' hours')::interval
      FROM (VALUES ('patient.create', true, 1), ('study.view', true, 2),
-                  ('study.view', false, 3), ('patient.search', true, 4))
-          AS a(action, granted, n)
+                  ('study.view', false, 3), ('patient.search', true, 4)) AS a(action, granted, n)
      WHERE NOT EXISTS (SELECT 1 FROM audit_events WHERE actor_id = ${q(doctor)}::uuid);`,
   );
 
@@ -805,7 +708,8 @@ async function main() {
 
   console.log('\nDatabase');
   await seed(subs);
-  console.log('  seeded     users, patients, appointments, organisations, subscription, audit');
+  console.log('  seeded     users, organisations, doctor profiles, patients, consent, cases, subscription, audit');
+  console.log('\nNext: node scripts/dev-seed-imaging.mjs  (needs the API running)');
 
   console.log('\nSign in at http://localhost:3001/login with any of:\n');
   for (const a of ACCOUNTS) {

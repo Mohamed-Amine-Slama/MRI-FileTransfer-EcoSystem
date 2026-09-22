@@ -4,18 +4,23 @@ import Link from 'next/link';
 import { use, useCallback, useEffect, useState } from 'react';
 import { Paperclip, Send } from 'lucide-react';
 import type { Case, CaseEvent, FileAccessEvent, Message, Provider } from '@mir/contracts';
+import { isMockMode } from '../../../lib/api/cases';
+import { api, type CaseRecord, type Study } from '../../../lib/api/endpoints';
+import { findCaseRecord } from '../../../lib/api/live/live-cases';
 import { casesApi } from '../../../lib/api/mock';
 import { rolesForSides } from '../../../lib/corridor/registry';
 import { useCaseAudience, useCurrentProvider } from '../../../lib/provider/current-provider';
 import { useDateFormat, useT } from '../../../lib/i18n/provider';
+import type { Dictionary } from '../../../lib/i18n/dictionary';
 import { useSession } from '../../../lib/session/session';
 import { RoleGate } from '../../../components/RoleGate';
 import { CaseStatusBadge } from '../../../components/case/CaseStatusBadge';
 import { CaseTimeline } from '../../../components/case/CaseTimeline';
 import { FileAccessNote } from '../../../components/case/FileAccessNote';
-import { nextActionLabel, sideLabel } from '../../../components/case/labels';
+import { nextActionLabel, sideLabel, specialtyLabel } from '../../../components/case/labels';
 import {
   Alert,
+  Badge,
   Button,
   Card,
   EmptyState,
@@ -32,6 +37,18 @@ import {
  * These live on one screen rather than three because the clinic's question is
  * always about a case, never about a subsystem: "where is MIR-2026-0417, what
  * did they say, and are the films there?"
+ *
+ * THE ROUTE PARAM IS A CASE ID OR A REFERENCE. The doctor's inbox links by id,
+ * the case list by reference; both resolve (spec 2026-09-21 §9).
+ *
+ * THE NEXT STEP IS A BUTTON, NOT A SENTENCE. The clinic chooses a doctor and
+ * pays from here; the doctor accepts or declines from here. Before 2026-09-21
+ * the page named the next step and offered no way to take it.
+ *
+ * STUDIES ARE LINKED BY THE UID THIS CALLER MAY ADDRESS. `GET /studies?caseId=`
+ * returns the de-identified twin's uid to a receiving doctor and the original's
+ * to the clinic; the viewer refuses the other one. Linking by the database id,
+ * as this page used to, opened a viewer that could not find its study.
  */
 const CASE_VIEWER_ROLES = rolesForSides(['source', 'destination', 'ops']);
 
@@ -43,9 +60,24 @@ export default function CaseDetailPage({
   const { ref } = use(params);
   return (
     <RoleGate allow={CASE_VIEWER_ROLES}>
-      <CaseDetail caseRef={ref} />
+      <CaseDetail caseRef={decodeURIComponent(ref)} />
     </RoleGate>
   );
+}
+
+/** Intake keys the case layer produces, as the dictionary names them. */
+function intakeLabel(t: Dictionary, key: string): string {
+  const labels: Record<string, string> = {
+    specialty: t.caseNewSpecialty,
+    referralReason: t.fieldReferralReason,
+    notes: t.colNotes,
+  };
+  return labels[key] ?? key;
+}
+
+function intakeValue(t: Dictionary, key: string, value: unknown): string {
+  if (key === 'specialty' && typeof value === 'string') return specialtyLabel(t, value);
+  return String(value);
 }
 
 function CaseDetail({ caseRef }: { caseRef: string }): React.JSX.Element {
@@ -56,8 +88,11 @@ function CaseDetail({ caseRef }: { caseRef: string }): React.JSX.Element {
   // Who is asking. Until it resolves, nothing is fetched — §5.4 P0 is not a
   // filter applied to data already on screen.
   const { audience, loading: audienceLoading } = useCaseAudience();
+  const live = !isMockMode();
 
   const [item, setItem] = useState<Case | null | 'missing'>(null);
+  const [record, setRecord] = useState<CaseRecord | null>(null);
+  const [studies, setStudies] = useState<Study[]>([]);
   const [events, setEvents] = useState<CaseEvent[]>([]);
   const [messages, setMessages] = useState<Message[]>([]);
   const [access, setAccess] = useState<FileAccessEvent[]>([]);
@@ -67,13 +102,37 @@ function CaseDetail({ caseRef }: { caseRef: string }): React.JSX.Element {
   });
   const [draft, setDraft] = useState('');
   const [sending, setSending] = useState(false);
+  const [acting, setActing] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
   const load = useCallback(async () => {
     if (audience === null) return;
-    // A case that exists but is not the viewer's returns null here, exactly as
-    // an unknown reference does. The screen shows the same "not found" for
-    // both, so a guessed reference cannot be confirmed by the response.
+
+    if (live) {
+      // One read of the real case; everything else on the page derives from
+      // it. A case that exists but is not the caller's is null here, exactly
+      // like an unknown reference, so a guessed reference confirms nothing.
+      const r = await findCaseRecord(caseRef);
+      if (r === null) {
+        setItem('missing');
+        return;
+      }
+      setRecord(r);
+      const found = await casesApi.getCase(r.id, audience);
+      if (found === null) {
+        setItem('missing');
+        return;
+      }
+      setItem(found);
+      const [timeline, linked] = await Promise.all([
+        casesApi.listCaseEvents(r.id, audience),
+        api.imaging.studiesForCase(r.id).catch(() => ({ studies: [] as Study[] })),
+      ]);
+      setEvents(timeline);
+      setStudies(linked.studies);
+      return;
+    }
+
     const found = await casesApi.getCase(caseRef, audience);
     if (found === null) {
       setItem('missing');
@@ -93,7 +152,7 @@ function CaseDetail({ caseRef }: { caseRef: string }): React.JSX.Element {
     setMessages(thread);
     setAccess(trail);
     setParties({ from, to });
-  }, [caseRef, audience]);
+  }, [caseRef, audience, live]);
 
   useEffect(() => {
     if (audienceLoading) return;
@@ -113,6 +172,23 @@ function CaseDetail({ caseRef }: { caseRef: string }): React.JSX.Element {
       setError(t.genericError);
     } finally {
       setSending(false);
+    }
+  };
+
+  /** The receiving doctor's decisions on a paid case, and the answer on an accepted one. */
+  const act = async (what: 'accept' | 'decline' | 'answer'): Promise<void> => {
+    if (record === null) return;
+    setActing(true);
+    setError(null);
+    try {
+      if (what === 'accept') await api.cases.accept(record.id);
+      else if (what === 'decline') await api.cases.decline(record.id);
+      else await api.cases.answer(record.id);
+      await load();
+    } catch {
+      setError(t.genericError);
+    } finally {
+      setActing(false);
     }
   };
 
@@ -137,6 +213,8 @@ function CaseDetail({ caseRef }: { caseRef: string }): React.JSX.Element {
     );
   }
 
+  const pickable = item.status === 'submitted' || item.status === 'declined';
+
   return (
     <Main>
       <PageHeader
@@ -153,6 +231,54 @@ function CaseDetail({ caseRef }: { caseRef: string }): React.JSX.Element {
         </Alert>
       )}
 
+      {record !== null && (
+        <div className="flex flex-wrap gap-2" data-testid="next-step">
+          {side === 'source' && pickable && (
+            <Link
+              href={`/cases/${record.id}/pick-doctor`}
+              className={buttonVariants()}
+              data-testid="next-pick-doctor"
+            >
+              {t.caseNextPickDoctor}
+            </Link>
+          )}
+          {side === 'source' && item.status === 'quoted' && (
+            <Link
+              href={`/cases/${record.id}/pick-doctor`}
+              className={buttonVariants()}
+              data-testid="next-pay"
+            >
+              {t.caseNextPay}
+            </Link>
+          )}
+          {side === 'destination' && item.status === 'paid' && (
+            <>
+              <Button
+                variant="primary"
+                data-testid="accept-case"
+                disabled={acting}
+                onClick={() => void act('accept')}
+              >
+                {t.inboxAccept}
+              </Button>
+              <Button data-testid="decline-case" disabled={acting} onClick={() => void act('decline')}>
+                {t.inboxDecline}
+              </Button>
+            </>
+          )}
+          {side === 'destination' && item.status === 'accepted' && (
+            <Button
+              variant="primary"
+              data-testid="answer-case"
+              disabled={acting}
+              onClick={() => void act('answer')}
+            >
+              {t.inboxAnswer}
+            </Button>
+          )}
+        </div>
+      )}
+
       <div className="grid gap-5 lg:grid-cols-3">
         <div className="space-y-5 lg:col-span-2">
           <Card>
@@ -160,8 +286,8 @@ function CaseDetail({ caseRef }: { caseRef: string }): React.JSX.Element {
             <dl className="grid gap-x-6 gap-y-2 sm:grid-cols-2">
               {Object.entries(item.intake).map(([key, value]) => (
                 <div key={key}>
-                  <dt className="text-xs text-muted-foreground">{key}</dt>
-                  <dd className="text-sm">{String(value)}</dd>
+                  <dt className="text-xs text-muted-foreground">{intakeLabel(t, key)}</dt>
+                  <dd className="text-sm">{intakeValue(t, key, value)}</dd>
                 </div>
               ))}
             </dl>
@@ -169,7 +295,43 @@ function CaseDetail({ caseRef }: { caseRef: string }): React.JSX.Element {
 
           <Card>
             <h2 className="mb-3 text-lg font-semibold">{t.caseFilesTitle}</h2>
-            {item.studyIds.length === 0 ? (
+            {live ? (
+              studies.length === 0 ? (
+                <EmptyState testId="files-empty">{t.caseFilesEmpty}</EmptyState>
+              ) : (
+                <ul className="space-y-2" data-testid="case-studies">
+                  {studies.map((study) => (
+                    <li key={study.id} className="rounded-md border p-3 text-sm">
+                      <div className="flex flex-wrap items-center justify-between gap-3">
+                        <span className="flex items-center gap-2">
+                          <Paperclip className="size-4 text-muted-foreground" />
+                          <span>
+                            {study.description ?? study.modality}
+                            {study.studyDate !== null && (
+                              <span className="text-muted-foreground tabular-nums">
+                                {' '}
+                                · {study.studyDate}
+                              </span>
+                            )}
+                          </span>
+                        </span>
+                        {study.status === 'ready' ? (
+                          <Link
+                            href={`/viewer/${encodeURIComponent(study.studyInstanceUid)}`}
+                            className="font-semibold text-primary hover:underline"
+                            data-testid="open-study"
+                          >
+                            {t.caseOpenStudy}
+                          </Link>
+                        ) : (
+                          <Badge>{t.caseStudyProcessing}</Badge>
+                        )}
+                      </div>
+                    </li>
+                  ))}
+                </ul>
+              )
+            ) : item.studyIds.length === 0 ? (
               <EmptyState testId="files-empty">{t.caseFilesEmpty}</EmptyState>
             ) : (
               <ul className="space-y-2">
@@ -180,8 +342,6 @@ function CaseDetail({ caseRef }: { caseRef: string }): React.JSX.Element {
                         <Paperclip className="size-4 text-muted-foreground" />
                         <bdi className="font-mono text-xs">{studyId}</bdi>
                       </span>
-                      {/* Deep link into the existing viewer: the case owns the
-                          study, it does not replace the imaging pipeline. */}
                       <Link
                         href={`/viewer/${studyId}`}
                         className="font-semibold text-primary hover:underline"
@@ -192,82 +352,98 @@ function CaseDetail({ caseRef }: { caseRef: string }): React.JSX.Element {
                     {/* §4.4: the audit trail is surfaced to the user, beside
                         the file it belongs to rather than in a separate log
                         nobody opens. */}
-                    <div className="mt-2">
-                      <FileAccessNote events={access} studyId={studyId} />
-                    </div>
+                    {casesApi.supports.fileAccessTrail && (
+                      <div className="mt-2">
+                        <FileAccessNote events={access} studyId={studyId} />
+                      </div>
+                    )}
                   </li>
                 ))}
               </ul>
             )}
-            <div className="mt-4">
-              <Link
-                href={`/upload?case=${encodeURIComponent(item.ref)}`}
-                className={buttonVariants({ variant: 'outline' })}
+            {/* Only the referring side uploads; a doctor adding files to a
+                case they are reading would be a second, unconsented source. */}
+            {side === 'source' && (
+              <div className="mt-4">
+                <Link
+                  href={`/upload?case=${encodeURIComponent(item.ref)}`}
+                  className={buttonVariants({ variant: 'outline' })}
+                >
+                  {t.caseFilesUpload}
+                </Link>
+              </div>
+            )}
+          </Card>
+
+          {/* Messaging has no backend yet (spec 2026-09-21 D7). A thread that
+              vanished on reload would be worse than no thread. */}
+          {casesApi.supports.messaging && (
+            <Card>
+              <h2 className="mb-3 text-lg font-semibold">{t.caseMessagesTitle}</h2>
+              {messages.length === 0 ? (
+                <EmptyState testId="messages-empty">{t.caseMessagesEmpty}</EmptyState>
+              ) : (
+                <ul className="space-y-3" data-testid="message-thread">
+                  {messages.map((message) => (
+                    <li key={message.id} className="rounded-md border p-3">
+                      <p className="text-xs text-muted-foreground">
+                        {message.authorDisplayName} · {sideLabel(t, message.authorSide)} ·{' '}
+                        {formatDate(message.sentAt)}
+                      </p>
+                      <p className="mt-1 text-sm">{message.body}</p>
+                      <p className="mt-1 text-xs text-muted-foreground">
+                        {message.readAt !== undefined
+                          ? t.caseMessageRead
+                          : message.deliveredAt !== undefined
+                            ? t.caseMessageDelivered
+                            : t.caseMessageSent}
+                      </p>
+                    </li>
+                  ))}
+                </ul>
+              )}
+
+              <form
+                className="mt-4 flex flex-col gap-2 sm:flex-row"
+                onSubmit={(e) => {
+                  e.preventDefault();
+                  void send();
+                }}
               >
-                {t.caseFilesUpload}
-              </Link>
-            </div>
-          </Card>
-
-          <Card>
-            <h2 className="mb-3 text-lg font-semibold">{t.caseMessagesTitle}</h2>
-            {messages.length === 0 ? (
-              <EmptyState testId="messages-empty">{t.caseMessagesEmpty}</EmptyState>
-            ) : (
-              <ul className="space-y-3" data-testid="message-thread">
-                {messages.map((message) => (
-                  <li key={message.id} className="rounded-md border p-3">
-                    <p className="text-xs text-muted-foreground">
-                      {message.authorDisplayName} · {sideLabel(t, message.authorSide)} ·{' '}
-                      {formatDate(message.sentAt)}
-                    </p>
-                    <p className="mt-1 text-sm">{message.body}</p>
-                    <p className="mt-1 text-xs text-muted-foreground">
-                      {message.readAt !== undefined
-                        ? t.caseMessageRead
-                        : message.deliveredAt !== undefined
-                          ? t.caseMessageDelivered
-                          : t.caseMessageSent}
-                    </p>
-                  </li>
-                ))}
-              </ul>
-            )}
-
-            <form
-              className="mt-4 flex flex-col gap-2 sm:flex-row"
-              onSubmit={(e) => {
-                e.preventDefault();
-                void send();
-              }}
-            >
-              <input
-                value={draft}
-                onChange={(e) => setDraft(e.target.value)}
-                placeholder={t.caseMessagePlaceholder}
-                aria-label={t.caseMessagePlaceholder}
-                data-testid="message-input"
-                className="h-10 w-full rounded-md border bg-background px-3 text-sm outline-none focus-visible:ring-2 focus-visible:ring-ring"
-              />
-              <Button type="submit" disabled={sending || draft.trim() === '' || side === null}>
-                <Send className="size-4 rtl:-scale-x-100" />
-                {t.caseMessageSend}
-              </Button>
-            </form>
-          </Card>
+                <input
+                  value={draft}
+                  onChange={(e) => setDraft(e.target.value)}
+                  placeholder={t.caseMessagePlaceholder}
+                  aria-label={t.caseMessagePlaceholder}
+                  data-testid="message-input"
+                  className="h-10 w-full rounded-md border bg-background px-3 text-sm outline-none focus-visible:ring-2 focus-visible:ring-ring"
+                />
+                <Button type="submit" disabled={sending || draft.trim() === '' || side === null}>
+                  <Send className="size-4 rtl:-scale-x-100" />
+                  {t.caseMessageSend}
+                </Button>
+              </form>
+            </Card>
+          )}
         </div>
 
         <div className="space-y-5">
           <Card>
             <h2 className="mb-3 text-lg font-semibold">{t.caseParties}</h2>
             <dl className="space-y-3 text-sm">
-              <div>
-                <dt className="text-xs text-muted-foreground">{t.caseSubmittedBy}</dt>
-                <dd>{parties.from?.legalName ?? '—'}</dd>
-              </div>
+              {!live && (
+                <div>
+                  <dt className="text-xs text-muted-foreground">{t.caseSubmittedBy}</dt>
+                  <dd>{parties.from?.legalName ?? '—'}</dd>
+                </div>
+              )}
               <div>
                 <dt className="text-xs text-muted-foreground">{t.caseMatchedWith}</dt>
-                <dd>{parties.to?.legalName ?? t.caseUnmatched}</dd>
+                <dd data-testid="matched-with">
+                  {live
+                    ? (record?.doctorName ?? t.caseUnmatched)
+                    : (parties.to?.legalName ?? t.caseUnmatched)}
+                </dd>
               </div>
               <div>
                 <dt className="text-xs text-muted-foreground">{t.colUpdated}</dt>

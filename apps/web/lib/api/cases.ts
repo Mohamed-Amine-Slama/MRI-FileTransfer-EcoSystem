@@ -62,7 +62,21 @@ export interface CaseDraft {
   savedAt: string;
 }
 
+/**
+ * What an implementation can actually do. The live API has no messaging,
+ * per-file access trail, in-app notifications, or ops status override yet, so
+ * screens hide those panels rather than show a thread that vanishes on reload
+ * (spec 2026-09-21 D7).
+ */
+export interface CasesApiSupports {
+  messaging: boolean;
+  fileAccessTrail: boolean;
+  notifications: boolean;
+  statusOverride: boolean;
+}
+
 export interface CasesApi {
+  readonly supports: CasesApiSupports;
   listCases(query: ListCasesQuery): Promise<Case[]>;
   /**
    * Returns null both for "no such case" and for "not yours" — §5.4 P0.

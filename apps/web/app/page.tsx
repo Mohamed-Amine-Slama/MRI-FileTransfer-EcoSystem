@@ -2,6 +2,7 @@
 
 import Link from 'next/link';
 import { useEffect, useState } from 'react';
+import { useRouter } from 'next/navigation';
 import {
   Banknote,
   Briefcase,
@@ -15,18 +16,18 @@ import {
 } from 'lucide-react';
 import type { Role } from '@mir/contracts';
 import { api, type CaseRecord, type AuditEvent } from '../lib/api/endpoints';
-import { useLocale, useT } from '../lib/i18n/provider';
+import { useT } from '../lib/i18n/provider';
 import type { Dictionary } from '../lib/i18n/dictionary';
 import { sideForRole } from '../lib/corridor/registry';
 import { useSession } from '../lib/session/session';
 import { CaseStatusBadge } from '../components/case/CaseStatusBadge';
-import { Corridor } from '../components/corridor/Corridor';
 import {
   Card,
   EmptyState,
   PageHeader,
   Main,
   SectionHeading,
+  Spinner,
   StatGrid,
   StatTile,
   Table,
@@ -50,27 +51,29 @@ import {
  */
 export default function Home(): React.JSX.Element {
   const t = useT();
-  const { locale } = useLocale();
   const { status, role } = useSession();
+  const router = useRouter();
 
   /*
-   * `/` IS TWO PAGES. A visitor gets the landing page; a signed-in user gets
-   * their dashboard. AppShell picks the chrome off the same distinction, so the
-   * marketing header and the application sidebar never appear together.
+   * `/` is the sign-in door while the landing page is hidden (spec 2026-09-21
+   * §1). The landing's files are kept — components/corridor/, lib/site/, and
+   * app/[locale]/CorridorRoute.tsx — and restoring it is reverting this block
+   * and app/[locale]/page.tsx.
    *
-   * The loading state renders the landing page rather than a spinner: it is
-   * correct for everyone who is not signed in, it is what most arrivals at this
-   * URL are, and a spinner on the front door is a worse first impression than a
-   * page that is briefly replaced.
+   * The loading state is a spinner, NOT the landing. It used to render the
+   * landing while the session resolved, which mounted the WebGL helix and its
+   * GSAP timelines on every signed-in user's way to their dashboard.
    */
+  useEffect(() => {
+    if (status === 'anonymous') router.replace('/login');
+  }, [status, router]);
+
   if (status !== 'authenticated') {
-    /*
-     * The landing page renders in the locale THIS BROWSER has chosen, and
-     * links out to the canonical per-locale routes. `/ar`, `/fr` and `/en` are
-     * the shareable, prerendered, hreflang-carrying versions (§10); `/` is the
-     * front door, and which page it is depends on who is standing at it.
-     */
-    return <Corridor locale={locale} hrefFor={(code) => `/${code}`} />;
+    return (
+      <Main>
+        <Spinner label={t.loading} />
+      </Main>
+    );
   }
 
   return (

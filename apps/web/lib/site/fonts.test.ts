@@ -15,6 +15,7 @@ const read = (path: string): string => readFileSync(join(WEB_ROOT, path), 'utf8'
 
 const referenced = [
   ...read('components/corridor/fonts.ts').matchAll(/app\/fonts\/([\w.-]+\.woff2)/g),
+  ...read('lib/fonts.ts').matchAll(/app\/fonts\/([\w.-]+\.woff2)/g),
   ...read('app/layout.tsx').matchAll(/\.\/fonts\/([\w.-]+\.woff2)/g),
 ].map((match) => match[1] ?? '');
 
