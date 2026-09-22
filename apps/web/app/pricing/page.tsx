@@ -125,7 +125,7 @@ function PlanCard({
         featured && 'border-primary shadow-md',
       )}
     >
-      <h2 className="text-lg font-bold">{planName(t, tier)}</h2>
+      <h2 className="font-display text-lg font-medium">{planName(t, tier)}</h2>
       <p className="mt-1 min-h-10 text-sm text-muted-foreground">{planBlurb(t, tier)}</p>
 
       <p className="mt-5 flex items-baseline gap-1.5">

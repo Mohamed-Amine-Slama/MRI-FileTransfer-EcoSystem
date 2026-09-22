@@ -86,7 +86,7 @@ function SectionHeading({
   return (
     <div className="mb-3 flex flex-wrap items-start justify-between gap-3">
       <div className="min-w-0">
-        <h2 className="text-lg font-semibold">{title}</h2>
+        <h2 className="font-display text-lg font-medium">{title}</h2>
         <p className="text-sm text-muted-foreground">{note}</p>
         <div className="mt-2 flex flex-wrap items-center gap-3 text-sm">
           <CurrencyTotals totals={totals} locale={locale} />

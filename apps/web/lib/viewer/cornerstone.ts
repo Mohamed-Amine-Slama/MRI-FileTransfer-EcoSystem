@@ -24,6 +24,8 @@
  * regulation.
  */
 
+import { authHeaders, authedFetch } from './authed-fetch';
+
 export interface CornerstoneViewer {
   /**
    * Display one instance. The SERIES is required: Orthanc's WADO-RS addresses
@@ -70,8 +72,15 @@ async function ensureInitialised(apiBase: string): Promise<{
       // audited by the API (P8.2). An unauthenticated fetch would 401, and —
       // worse — a request that somehow succeeded without the session would be
       // an access with no audit row.
-      beforeSend: (xhr: XMLHttpRequest) => {
-        xhr.withCredentials = true;
+      //
+      // RETURN the header, do not set it on the xhr. The loader merges what
+      // this returns into the request headers, and its streaming path calls
+      // beforeSend with `xhr === null` — touching the xhr there throws.
+      // Until 2026-09-21 this only set `withCredentials` (a cookie this stack
+      // never issues), so every frame request went out unauthenticated.
+      beforeSend: (xhr: XMLHttpRequest | null) => {
+        if (xhr !== null) xhr.withCredentials = true;
+        return authHeaders();
       },
       // Decoding happens in web workers. On a clinic laptop, decoding a
       // 512x512 16-bit frame on the main thread visibly freezes the UI.
@@ -117,11 +126,11 @@ async function registerInstanceMetadata(
 ): Promise<void> {
   if (metadataRegistered.has(imageId)) return;
 
-  const res = await fetch(
+  const res = await authedFetch(
     `${apiBase}/dicom-web/studies/${encodeURIComponent(studyUid)}` +
       `/series/${encodeURIComponent(seriesInstanceUid)}` +
       `/instances/${encodeURIComponent(sopInstanceUid)}/metadata`,
-    { credentials: 'include', headers: { accept: 'application/dicom+json' } },
+    { headers: { accept: 'application/dicom+json' } },
   );
   if (!res.ok) throw new Error(`metadata unavailable (${res.status})`);
 

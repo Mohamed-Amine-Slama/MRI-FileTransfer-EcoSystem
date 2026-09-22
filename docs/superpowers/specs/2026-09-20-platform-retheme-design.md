@@ -194,10 +194,21 @@ without touching weights. All three were wrong:
 
 ### 5.1 Where the lime goes
 
-The lime highlight is the landing page's signature and the easiest thing to overuse. It is
-allowed on **one element per screen**: the primary call to action. It is not a status
-colour, not a hover state, and not a background. Status stays with
+The lime highlight is the landing page's signature and the easiest thing to overuse. It
+goes where the landing page puts it: on the **secondary** button, the positive alternative
+beside a teal primary (`.btn--secondary` there; `<Button variant="secondary">` here). It
+is never on its own, never on a refusal (Decline, Reject, Cancel), not a status colour,
+not a hover state, and not a background. Status stays with
 `--success/--warning/--danger/--info`.
+
+Applied, that puts lime on exactly one button today: *View details* beside *Pay* on
+`cases/[ref]/pick-doctor`. Every other secondary action in the app is a refusal or stands
+alone.
+
+**Corrected 2026-09-21.** This section first said lime was "the primary call to action".
+The landing page never uses it that way — its primary button is teal — and the
+application's primary was already teal after the palette re-point. The owner chose the
+landing page's actual roles.
 
 ## 6. Surface sweep
 

@@ -616,6 +616,8 @@ const ar = {
   caseOpenStudy: 'فتح الصور',
   colNotes: 'ملاحظات',
   caseStudyProcessing: 'قيد المعالجة',
+  viewerFullTimeout: 'استغرق تحميل الدقة الكاملة وقتًا طويلًا؛ تُعرض المعاينة.',
+  viewerPreviewFailed: 'تعذّر عرض هذه الصورة.',
 } as const;
 
 export type Dictionary = { readonly [K in keyof typeof ar]: string };
@@ -1216,6 +1218,8 @@ const fr: Dictionary = {
   caseOpenStudy: 'Ouvrir l’examen',
   colNotes: 'Notes',
   caseStudyProcessing: 'En cours de traitement',
+  viewerFullTimeout: 'La pleine résolution a pris trop de temps ; l’aperçu est affiché.',
+  viewerPreviewFailed: 'Impossible d’afficher cette image.',
 };
 
 /**
@@ -1835,6 +1839,8 @@ const en: Dictionary = {
   caseOpenStudy: 'Open study',
   colNotes: 'Notes',
   caseStudyProcessing: 'Processing',
+  viewerFullTimeout: 'Full resolution took too long; showing the preview.',
+  viewerPreviewFailed: 'This image could not be displayed.',
 };
 
 export const DICTIONARIES: Record<UiLocale, Dictionary> = { ar, fr, en };

@@ -282,7 +282,7 @@ function CaseDetail({ caseRef }: { caseRef: string }): React.JSX.Element {
       <div className="grid gap-5 lg:grid-cols-3">
         <div className="space-y-5 lg:col-span-2">
           <Card>
-            <h2 className="mb-3 text-lg font-semibold">{t.caseIntakeTitle}</h2>
+            <h2 className="mb-3 font-display text-lg font-medium">{t.caseIntakeTitle}</h2>
             <dl className="grid gap-x-6 gap-y-2 sm:grid-cols-2">
               {Object.entries(item.intake).map(([key, value]) => (
                 <div key={key}>
@@ -294,7 +294,7 @@ function CaseDetail({ caseRef }: { caseRef: string }): React.JSX.Element {
           </Card>
 
           <Card>
-            <h2 className="mb-3 text-lg font-semibold">{t.caseFilesTitle}</h2>
+            <h2 className="mb-3 font-display text-lg font-medium">{t.caseFilesTitle}</h2>
             {live ? (
               studies.length === 0 ? (
                 <EmptyState testId="files-empty">{t.caseFilesEmpty}</EmptyState>
@@ -379,7 +379,7 @@ function CaseDetail({ caseRef }: { caseRef: string }): React.JSX.Element {
               vanished on reload would be worse than no thread. */}
           {casesApi.supports.messaging && (
             <Card>
-              <h2 className="mb-3 text-lg font-semibold">{t.caseMessagesTitle}</h2>
+              <h2 className="mb-3 font-display text-lg font-medium">{t.caseMessagesTitle}</h2>
               {messages.length === 0 ? (
                 <EmptyState testId="messages-empty">{t.caseMessagesEmpty}</EmptyState>
               ) : (
@@ -429,7 +429,7 @@ function CaseDetail({ caseRef }: { caseRef: string }): React.JSX.Element {
 
         <div className="space-y-5">
           <Card>
-            <h2 className="mb-3 text-lg font-semibold">{t.caseParties}</h2>
+            <h2 className="mb-3 font-display text-lg font-medium">{t.caseParties}</h2>
             <dl className="space-y-3 text-sm">
               {!live && (
                 <div>
@@ -453,7 +453,7 @@ function CaseDetail({ caseRef }: { caseRef: string }): React.JSX.Element {
           </Card>
 
           <Card>
-            <h2 className="mb-3 text-lg font-semibold">{t.caseTimelineTitle}</h2>
+            <h2 className="mb-3 font-display text-lg font-medium">{t.caseTimelineTitle}</h2>
             <CaseTimeline events={events} />
           </Card>
         </div>

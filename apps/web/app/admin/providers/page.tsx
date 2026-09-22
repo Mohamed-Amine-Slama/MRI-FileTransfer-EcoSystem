@@ -130,7 +130,7 @@ function AdminProviders(): React.JSX.Element {
       {error !== null && <Alert tone="danger">{error}</Alert>}
 
       <Card>
-        <h2 className="mb-3 text-lg font-semibold">{t.adminQueueTitle}</h2>
+        <h2 className="mb-3 font-display text-lg font-medium">{t.adminQueueTitle}</h2>
         {queue.length === 0 ? (
           <EmptyState testId="queue-empty">{t.adminQueueEmpty}</EmptyState>
         ) : (
@@ -206,7 +206,7 @@ function AdminProviders(): React.JSX.Element {
       </Card>
 
       <Card>
-        <h2 className="mb-3 text-lg font-semibold">{t.adminProvidersTitle}</h2>
+        <h2 className="mb-3 font-display text-lg font-medium">{t.adminProvidersTitle}</h2>
         {/* §5.8 P1. Matches the legal name, which is the only thing an ops
             user has when a clinic calls in — they do not know our ids. */}
         <div className="mb-3 max-w-sm">
