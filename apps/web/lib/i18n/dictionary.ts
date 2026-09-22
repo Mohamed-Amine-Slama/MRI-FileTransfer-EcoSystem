@@ -611,6 +611,11 @@ const ar = {
   caseNewUploadFirst: 'رفع الصور',
   pickDoctorPay: 'ادفع وأرسل إلى الطبيب',
   pickDoctorQuoteLapsed: 'انتهت صلاحية هذا السعر. اختر الطبيب مجددًا للحصول على سعر جديد.',
+  caseNextPickDoctor: 'اختر طبيبًا',
+  caseNextPay: 'راجع السعر وادفع',
+  caseOpenStudy: 'فتح الصور',
+  colNotes: 'ملاحظات',
+  caseStudyProcessing: 'قيد المعالجة',
 } as const;
 
 export type Dictionary = { readonly [K in keyof typeof ar]: string };
@@ -1206,6 +1211,11 @@ const fr: Dictionary = {
   caseNewUploadFirst: 'Téléverser des examens',
   pickDoctorPay: 'Payer et envoyer au médecin',
   pickDoctorQuoteLapsed: 'Ce tarif a expiré. Choisissez à nouveau le médecin pour un nouveau devis.',
+  caseNextPickDoctor: 'Choisir un médecin',
+  caseNextPay: 'Vérifier le tarif et payer',
+  caseOpenStudy: 'Ouvrir l’examen',
+  colNotes: 'Notes',
+  caseStudyProcessing: 'En cours de traitement',
 };
 
 /**
@@ -1820,6 +1830,11 @@ const en: Dictionary = {
   caseNewUploadFirst: 'Upload studies',
   pickDoctorPay: 'Pay and send to the doctor',
   pickDoctorQuoteLapsed: 'This price has expired. Choose the doctor again for a fresh quote.',
+  caseNextPickDoctor: 'Choose a doctor',
+  caseNextPay: 'Review price and pay',
+  caseOpenStudy: 'Open study',
+  colNotes: 'Notes',
+  caseStudyProcessing: 'Processing',
 };
 
 export const DICTIONARIES: Record<UiLocale, Dictionary> = { ar, fr, en };

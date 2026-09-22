@@ -364,3 +364,74 @@ under a real identity usually means the model is wrong; this one can.
 - It does not de-identify for research or model training. That is a separate
   consent basis, which BUILD_SPEC already notes under future work, and no
   such pipeline exists.
+
+# Revision — 2026-09-20: the application takes the corridor register
+
+The landing page moved to a light clinical register on 2026-09-10: white ground,
+mint panels, one teal accent, one lime highlight. The signed-in application kept
+the original institutional blue, so the product read as two different pieces of
+software either side of sign-in. Since 2026-09-21 `/` sends signed-out visitors
+straight to `/login`, which puts that seam on the front door.
+
+Full design: `docs/superpowers/specs/2026-09-20-platform-retheme-design.md`.
+Numbered T1–T5 here; the spec calls them D1–D5, which would collide with this
+file's own D-series.
+
+## T1 — How literal the match is
+
+**Decision: bridged.** The corridor's palette and its display face, but not its
+shape language. Radii are 14px rather than 24–48px, weights stay readable at
+12–14px, and no padding is added anywhere.
+
+The corridor's proportions were built for a page someone scrolls once. A case
+list is read forty times a day at forty rows a screen, and the density that makes
+that possible is the one thing this revision does not trade away.
+
+## T2 — Dark mode
+
+**Decision: kept, with a counterpart derived from the same family.** The corridor
+is light-only; the application's light/dark/system toggle is a shipped feature,
+and radiology staff work in dimmed rooms. The dark palette is teal and mint in
+the dark, not the old blue: a toggle that switched identity as well as brightness
+would be two products again.
+
+## T3 — Typography
+
+**Decision: display face on headings, Latin only.** Page titles, card titles and
+stat figures use Google Sans Flex; body, tables, labels and forms stay on IBM
+Plex. Arabic headings stay on Plex as well. The Arabic display weight (Plex Light
+300) remains landing-only, which `lib/site/fonts.test.ts` still asserts, so RTL
+gets the palette and shape match but not the display face.
+
+Sans Flex is vendored at 300–500 only, so every heading that takes it also drops
+to an in-range weight: 600 or 700 would be a synthesized bold.
+`lib/theme/display-font.test.ts` holds that line.
+
+## T4 — Re-point, not rename
+
+**Decision: token names and the `@theme` mapping are unchanged; only values
+move.** No screen contains a literal colour, so this re-themes every route from
+one file.
+
+A shared brand ramp that `.corridor` and `:root` both consume is the better end
+state and is **deferred, not rejected**. It edits `app/corridor.css` and the test
+that parses it while the helix work is still in flight, and it can land later as
+a refactor with no visual change.
+
+## T5 — `--input` contrast
+
+**Decision: fixed while re-pointing.** The old `--input` measured 1.56:1 against a
+card, where WCAG 2.2 SC 1.4.11 wants 3:1 for the boundary of a control. The new
+values clear it in both themes, and `lib/theme/contrast.test.ts` now asserts 22
+pairs in both palettes so it cannot quietly regress.
+
+## What this retires
+
+The comments in `app/globals.css` argued that the marketing and application
+registers must differ in palette, citing a §4.1 that no live spec contains. That
+argument is retired, and the comments are rewritten to say so. The header of
+`app/corridor.css` still makes the old claim; it is corrected when the shared
+ramp in T4 lands, since that is the change that edits the file.
+
+The line between the two surfaces is now density and motion, not colour. No
+case, file or money screen gains a gradient, WebGL, or scroll choreography.

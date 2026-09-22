@@ -163,16 +163,34 @@ loads" assertion would fail on a face that is in fact loaded. The fix is to add
 
 ## 5. Component changes
 
-Colour needs no component edits (D4). These five files cover everything values cannot
+Colour needs no component edits (D4). These files cover everything values cannot
 express:
 
 | File | Change |
 |---|---|
 | `components/ui/button.tsx` | New `highlight` variant: `bg-highlight text-highlight-foreground border-highlight-edge`, for the primary CTA. `rounded-md` follows the new scale. |
-| `components/ui/card.tsx` | `CardTitle` gains `font-display`. |
-| `components/ui/index.tsx` | `PageHeader` title and `SectionHeading` gain `font-display`. |
-| `components/ui/stat.tsx` | `StatTile` figure gains `font-display`; **keeps `tabular-nums`** so counts do not jitter. |
-| `components/shell/AppChrome.tsx`, `components/shell/PublicChrome.tsx` | Nav active state moves to the teal-on-mint treatment (`bg-secondary text-secondary-foreground`). |
+| `components/ui/index.tsx` | `PageHeader` title gains `font-display` and drops `font-bold` (700) to `font-normal` (400). The compatibility `Button` gains `variant="cta"`, mapped to `highlight`: pages use this wrapper, so without it the new variant is unreachable. |
+| `components/ui/card.tsx` | `CardTitle` gains `font-display` and drops `font-semibold` (600) to `font-medium` (500). |
+| `components/ui/stat.tsx` | `StatTile` figure gains `font-display` and drops `font-bold` (700) to `font-medium` (500); **keeps `tabular-nums`** so counts do not jitter. `SectionHeading`, in the same file, is deliberately unchanged. |
+| `components/shell/AppChrome.tsx`, `components/shell/PublicChrome.tsx` | **No change — see below.** |
+
+**Corrected 2026-09-21, from reading the components.** An earlier version of this table
+gave `SectionHeading` the display face, placed it in `index.tsx`, and applied the face
+without touching weights. All three were wrong:
+
+- `SectionHeading` is `text-sm font-semibold uppercase tracking-wide` — a 14px uppercase
+  label, not a heading. The display face at that size is thinner than it is legible, which
+  is the opposite of D1. It lives in `stat.tsx`.
+- Google Sans Flex is vendored at `weight: '300 500'`. Every target used 600 or 700, which
+  the browser would render as a synthesized bold on the largest text on each screen. Each
+  now takes an in-range weight, and `lib/theme/display-font.test.ts` guards the range.
+- The shell row asked the nav active state to move to `bg-secondary`. It needed nothing.
+  `AppChrome`'s active item already uses `bg-accent text-accent-foreground`, which the
+  palette re-point made teal-on-mint (6.79:1 light, 8.99:1 dark). `bg-accent` is also the
+  app's shared "active surface" — the dropzone's drag-over and the signup-verify step use
+  it — so moving the nav alone to `secondary` would have split one idea across two tokens.
+  `PublicChrome` has no active state at all; adding one would be new behaviour, not a
+  re-theme.
 
 ### 5.1 Where the lime goes
 
