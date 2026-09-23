@@ -50,10 +50,10 @@ const quote = async (specialty: string, doctorId: string) =>
     pricing.quoteFor({ corridorId: 'ly-tn', specialty, doctorId }),
   );
 
-describe('PricingService', () => {
-  it('quotes base x tier x surge', async () => {
-    // Five accepting radiologists — the densest rung, x1.00 — one of whom is
-    // the senior the lab picked.
+describe('PricingService — the flat consult (spec 2026-09-21 §3)', () => {
+  it('quotes the corridor price and its split, whatever the tier', async () => {
+    // A senior doctor in a well-staffed specialty used to cost 4000 x 1.20.
+    // Now every consult on the corridor is the same $100.
     await seedAcceptingDoctors(h.owner, { specialty: 'radiology', count: 4 });
     const doctorId = await seedDoctor(h.owner, {
       specialty: 'radiology',
@@ -63,26 +63,24 @@ describe('PricingService', () => {
 
     const q = await quote('radiology', doctorId);
 
-    expect(q.amountMinor).toBe(4800); // 4000 x 1.20 x 1.00
-    expect(q.currency).toBe('USD');
-    expect(q.tierBp).toBe(12_000);
-    expect(q.surgeBp).toBe(10_000);
-    expect(q.acceptingCount).toBe(5);
+    expect(q).toMatchObject({
+      amountMinor: 10000,
+      currency: 'USD',
+      clinicShareMinor: 3000,
+      doctorShareMinor: 2000,
+    });
   });
 
-  it('surges when the specialty thins out', async () => {
-    await seedAcceptingDoctors(h.owner, { specialty: 'radiology', count: 1 });
+  it('does not surge when the specialty thins out', async () => {
     const doctorId = await seedDoctor(h.owner, {
-      specialty: 'radiology',
+      specialty: 'cardiology',
       tier: 'standard',
       accepting: true,
     });
 
-    const q = await quote('radiology', doctorId);
+    const q = await quote('cardiology', doctorId);
 
-    expect(q.acceptingCount).toBe(2);
-    expect(q.surgeBp).toBe(13_000);
-    expect(q.amountMinor).toBe(5200); // 4000 x 1.00 x 1.30
+    expect(q.amountMinor).toBe(10000);
   });
 
   /**
@@ -94,25 +92,20 @@ describe('PricingService', () => {
     await expect(quote('oncology', doctorId)).rejects.toBeInstanceOf(SpecialtyClosedError);
   });
 
-  it('refuses a specialty with no rate rather than inventing one', async () => {
-    await seedAcceptingDoctors(h.owner, { specialty: 'dermatology', count: 5 });
-    const doctorId = await seedDoctor(h.owner, {
-      specialty: 'dermatology',
-      accepting: true,
-    });
-    await expect(quote('dermatology', doctorId)).rejects.toThrow(/no active rate/i);
-  });
-
-  /**
-   * A doctor who has switched off is still quotable — the lab may be looking at
-   * a directory entry that went dark a second ago — but the price must not
-   * silently become free because their profile row was unreadable.
-   */
-  it('falls back to the base tier rather than to a free consult', async () => {
-    await seedAcceptingDoctors(h.owner, { specialty: 'radiology', count: 5 });
-    const unknown = '00000000-0000-7000-8000-000000000000';
-    const q = await quote('radiology', unknown);
-    expect(q.tierBp).toBe(10_000);
-    expect(q.amountMinor).toBe(4000);
+  it('refuses a corridor with no consult price rather than inventing one', async () => {
+    // A doctor accepting on a corridor that has no price row: open, but unpriced.
+    // Moves ONE practice rather than deleting the seeded price, which is
+    // configuration that truncateAll does not restore.
+    const doctorId = await seedDoctor(h.owner, { specialty: 'radiology', accepting: true });
+    await h.owner.query(
+      `UPDATE identity_organisations SET corridor_id = 'ly-eg'
+        WHERE id IN (SELECT organisation_id FROM identity_memberships WHERE user_id = $1)`,
+      [doctorId],
+    );
+    await expect(
+      runWithContext(asLab(doctorId), () =>
+        pricing.quoteFor({ corridorId: 'ly-eg', specialty: 'radiology', doctorId }),
+      ),
+    ).rejects.toThrow(/no consult price/i);
   });
 });

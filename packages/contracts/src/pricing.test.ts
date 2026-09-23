@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { BP_ONE, quoteAmountMinor, surgeMultiplierBp, SURGE_LADDER } from './pricing';
+import { BP_ONE, quoteAmountMinor, splitOf, surgeMultiplierBp, SURGE_LADDER } from './pricing';
 
 describe('surge ladder', () => {
   it('is flat when the specialty is well staffed', () => {
@@ -73,5 +73,27 @@ describe('quoteAmountMinor', () => {
     expect(() => quoteAmountMinor(1.5, BP_ONE, BP_ONE)).toThrow(/baseMinor/);
     expect(() => quoteAmountMinor(100, 0, BP_ONE)).toThrow(/tierBp/);
     expect(() => quoteAmountMinor(100, BP_ONE, 0)).toThrow(/surgeBp/);
+  });
+});
+
+describe('the consult split (spec 2026-09-21 §3)', () => {
+  it('gives the platform what the clinic and doctor do not take', () => {
+    expect(splitOf(10000, 3000, 2000, 'USD')).toEqual({
+      amountMinor: 10000,
+      clinicShareMinor: 3000,
+      doctorShareMinor: 2000,
+      platformShareMinor: 5000,
+      clinicRemitsMinor: 7000,
+      currency: 'USD',
+    });
+  });
+
+  it('refuses shares larger than the price', () => {
+    expect(() => splitOf(10000, 6000, 5000, 'USD')).toThrow(RangeError);
+  });
+
+  it('refuses fractional or negative minor units', () => {
+    expect(() => splitOf(10000, 0.5, 2000, 'USD')).toThrow(RangeError);
+    expect(() => splitOf(10000, -1, 2000, 'USD')).toThrow(RangeError);
   });
 });

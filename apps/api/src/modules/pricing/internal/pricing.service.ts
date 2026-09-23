@@ -1,6 +1,23 @@
 import { ConflictException, Injectable, NotFoundException } from '@nestjs/common';
-import { BP_ONE, quoteAmountMinor, surgeMultiplierBp, type CurrencyCode } from '@mir/contracts';
+import type { CurrencyCode } from '@mir/contracts';
 import { DatabaseService } from '../../../shared/db/database.service';
+
+/**
+ * What a consult costs — spec 2026-09-21 §3.
+ *
+ * ONE PRICE PER CORRIDOR. Every consult on `ly-tn` is $100: the Libyan clinic
+ * keeps $30 of what it collects, remits $70, and the platform pays the
+ * Tunisian doctor $20 and keeps $50. The price and both shares come from
+ * `pricing_consult_price` (migration 0032), so changing them is an UPDATE and
+ * not a deploy.
+ *
+ * WHAT THIS REPLACED was specialty base × the doctor's seniority tier × a
+ * scarcity surge (migration 0026). Those tables are still in the schema; this
+ * service no longer reads them.
+ *
+ * The quote is LOCKED onto the case by `CasesService.quote` — amount and both
+ * shares — and never recomputed; payment and payout read the case.
+ */
 
 export interface QuoteInput {
   corridorId: string;
@@ -11,72 +28,55 @@ export interface QuoteInput {
 export interface Quote {
   amountMinor: number;
   currency: CurrencyCode;
-  tierBp: number;
-  surgeBp: number;
-  acceptingCount: number;
+  clinicShareMinor: number;
+  doctorShareMinor: number;
 }
 
-/**
- * Nobody in this specialty is accepting work. A 409 rather than a 404: the
- * specialty exists and is priced, it is simply closed right now, and the lab's
- * correct move is to come back or choose another specialty.
- */
 export class SpecialtyClosedError extends ConflictException {
   constructor(specialty: string) {
     super(`No doctor is currently accepting ${specialty} cases`);
   }
 }
 
-/**
- * What a consult costs — consult-model spec Part 2.
- *
- * The arithmetic lives in `@mir/contracts` so the web app quotes the same
- * indicative price the API charges; this service only supplies the three
- * inputs. Two of them come through SECURITY DEFINER functions (migration 0026)
- * because the lab asking for a price has no policy granting it sight of the
- * doctors it is being priced against.
- */
 @Injectable()
 export class PricingService {
   constructor(private readonly db: DatabaseService) {}
 
   async quoteFor(input: QuoteInput): Promise<Quote> {
     return this.db.tx(async (tx) => {
-      const rate = await tx.query<{ amount_minor: string; currency: CurrencyCode }>(
-        `SELECT amount_minor, currency
-           FROM pricing_specialty_rates
-          WHERE corridor_id = $1 AND specialty = $2 AND active`,
-        [input.corridorId, input.specialty],
-      );
-      const row = rate.rows[0];
-      if (row === undefined) {
-        throw new NotFoundException(
-          `No active rate for ${input.specialty} on corridor ${input.corridorId}`,
-        );
-      }
-
+      // Closed is still closed: nobody accepting means there is no consult to
+      // price, and the lab is told so rather than quoted a price nobody can
+      // answer. The headcount comes through a definer function — the lab
+      // cannot see doctor profiles — and it returns a number, never a row.
       const counted = await tx.query<{ n: number }>(
         `SELECT pricing_accepting_count($1, $2) AS n`,
         [input.corridorId, input.specialty],
       );
-      const acceptingCount = counted.rows[0]?.n ?? 0;
+      if ((counted.rows[0]?.n ?? 0) < 1) throw new SpecialtyClosedError(input.specialty);
 
-      const surgeBp = surgeMultiplierBp(acceptingCount);
-      if (surgeBp === null) throw new SpecialtyClosedError(input.specialty);
+      const price = await tx.query<{
+        amount_minor: string;
+        currency: CurrencyCode;
+        clinic_share_minor: string;
+        doctor_share_minor: string;
+      }>(
+        `SELECT amount_minor, currency, clinic_share_minor, doctor_share_minor
+           FROM pricing_consult_price
+          WHERE corridor_id = $1`,
+        [input.corridorId],
+      );
+      const row = price.rows[0];
+      if (row === undefined) {
+        throw new NotFoundException(`No consult price for corridor ${input.corridorId}`);
+      }
 
-      const tiered = await tx.query<{ bp: number }>(`SELECT pricing_tier_bp($1) AS bp`, [
-        input.doctorId,
-      ]);
-      // A doctor with no profile row cannot be quoted against; fall back to the
-      // base tier rather than to a free consult.
-      const tierBp = tiered.rows[0]?.bp ?? BP_ONE;
-
+      // bigint arrives as a string from pg; Number is exact far beyond any
+      // plausible consult price in minor units.
       return {
-        amountMinor: quoteAmountMinor(Number(row.amount_minor), tierBp, surgeBp),
+        amountMinor: Number(row.amount_minor),
         currency: row.currency,
-        tierBp,
-        surgeBp,
-        acceptingCount,
+        clinicShareMinor: Number(row.clinic_share_minor),
+        doctorShareMinor: Number(row.doctor_share_minor),
       };
     });
   }
