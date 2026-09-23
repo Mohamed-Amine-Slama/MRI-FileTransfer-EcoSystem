@@ -163,6 +163,30 @@ function PickDoctor(): React.JSX.Element {
                 })}
               </dd>
             </div>
+            {/* The clinic collects the full consult from the patient, keeps
+                its share, and owes the platform the rest. */}
+            {item.clinicShareMinor != null && (
+              <>
+                <div>
+                  <dt className="text-xs text-muted-foreground">{t.pickDoctorYouKeep}</dt>
+                  <dd className="tabular-nums" data-testid="quoted-clinic-share">
+                    {formatMoney(locale, {
+                      amountMinor: item.clinicShareMinor,
+                      currency: item.quotedCurrency ?? 'USD',
+                    })}
+                  </dd>
+                </div>
+                <div>
+                  <dt className="text-xs text-muted-foreground">{t.pickDoctorYouRemit}</dt>
+                  <dd className="font-semibold tabular-nums" data-testid="quoted-remittance">
+                    {formatMoney(locale, {
+                      amountMinor: item.quotedAmountMinor - item.clinicShareMinor,
+                      currency: item.quotedCurrency ?? 'USD',
+                    })}
+                  </dd>
+                </div>
+              </>
+            )}
           </dl>
 
           {/* The two facts. Both from the dictionary — this copy is the

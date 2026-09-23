@@ -2,7 +2,7 @@ import { ConflictException, Inject, Injectable, Logger, NotFoundException } from
 import { caseStatusSchema, isTerminalStatus } from '@mir/contracts';
 import { APP_CONFIG } from '../../../shared/config/config.module';
 import type { AppConfig } from '../../../shared/config/config.schema';
-import { requireContext } from '../../../shared/context/request-context';
+import { requireContext, runWithContext, systemContext } from '../../../shared/context/request-context';
 import { DatabaseService } from '../../../shared/db/database.service';
 import type { DomainEventBase } from '../../../shared/events/domain-events';
 import { EventBus } from '../../../shared/events/event-bus';
@@ -50,6 +50,9 @@ export interface Case {
   notes: string | null;
   quotedAmountMinor: number | null;
   quotedCurrency: string | null;
+  /** The consult split locked at quote (spec 2026-09-21 §3). Null before a quote. */
+  clinicShareMinor: number | null;
+  doctorShareMinor: number | null;
   quoteExpiresAt: Date | null;
   acceptedAt: Date | null;
   answeredAt: Date | null;
@@ -91,6 +94,8 @@ interface CaseRow {
   notes: string | null;
   quoted_amount_minor: string | null;
   quoted_currency: string | null;
+  clinic_share_minor?: string | null;
+  doctor_share_minor?: string | null;
   quote_expires_at: Date | null;
   accepted_at: Date | null;
   answered_at: Date | null;
@@ -121,6 +126,8 @@ function toSummary(row: CaseRow): CaseSummary {
     // free consult.
     quotedAmountMinor: row.quoted_amount_minor === null ? null : Number(row.quoted_amount_minor),
     quotedCurrency: row.quoted_currency,
+    clinicShareMinor: row.clinic_share_minor == null ? null : Number(row.clinic_share_minor),
+    doctorShareMinor: row.doctor_share_minor == null ? null : Number(row.doctor_share_minor),
     quoteExpiresAt: row.quote_expires_at,
     acceptedAt: row.accepted_at,
     answeredAt: row.answered_at,
@@ -141,6 +148,7 @@ function toSummary(row: CaseRow): CaseSummary {
 const CASE_COLUMNS = `a.id, a.patient_id, a.doctor_id, a.organisation_id, a.specialty,
                 a.status, a.reason, a.notes,
                 a.quoted_amount_minor, a.quoted_currency, a.quote_expires_at,
+                a.clinic_share_minor, a.doctor_share_minor,
                 a.accepted_at, a.answered_at, a.answer_due_at,
                 a.case_ref, a.created_at, a.quoted_at,
                 GREATEST(a.created_at, a.quoted_at, a.accepted_at, a.answered_at, a.terminal_at)
@@ -328,11 +336,23 @@ export class CasesService {
                 quoted_currency = $4,
                 quoted_at = now(),
                 quote_expires_at = now() + ($5 || ' minutes')::interval,
+                -- The split is locked with the price (spec 2026-09-21 §3):
+                -- payment and payout read these, never the price table.
+                clinic_share_minor = $6,
+                doctor_share_minor = $7,
                 status = 'quoted'
           WHERE id = $1
             AND status IN ('submitted', 'declined')
             AND cases_doctor_accepting($2)`,
-        [caseId, doctorId, quote.amountMinor, quote.currency, this.config.CASES_QUOTE_TTL_MINUTES],
+        [
+          caseId,
+          doctorId,
+          quote.amountMinor,
+          quote.currency,
+          this.config.CASES_QUOTE_TTL_MINUTES,
+          quote.clinicShareMinor,
+          quote.doctorShareMinor,
+        ],
       );
       return res.rowCount ?? 0;
     });
@@ -366,9 +386,15 @@ export class CasesService {
       throw new ConflictException('This quote has lapsed; request a new one');
     }
 
-    // The referring side's fee. Accrued on payment rather than on submission:
-    // a case the lab abandons before paying costs it nothing.
-    await this.ledger.accrueCoordinationFee(caseId, 'source');
+    // The referring clinic's remittance fee. Accrued on payment rather than
+    // on submission: a case the lab abandons before paying costs it nothing.
+    //
+    // As the system role: the ledger's INSERT policy admits nobody else, so
+    // run as the clinic this silently accrued nothing. The caller has already
+    // proved the right to move the case; the entry is the platform's record.
+    await runWithContext(systemContext('case-accrual'), () =>
+      this.ledger.accrueClinicRemittance(caseId),
+    );
   }
 
   /**
@@ -536,12 +562,6 @@ export class CasesService {
     });
     if (accepted === undefined) throw new NotFoundException('Case not found');
 
-    // The receiving side's fee, accrued on acceptance rather than on
-    // assignment: the destination organisation owes for a referral it took on,
-    // and a declined one costs it nothing. `decline` deliberately accrues
-    // neither side's — see the plan's split.
-    await this.ledger.accrueCoordinationFee(caseId, 'destination');
-
     // Published where PaymentSucceeded used to be. The card's capture is what
     // told audit and notifications a booking was confirmed; the doctor's
     // acceptance says it now. Emitted only when a row actually changed, so a
@@ -612,6 +632,10 @@ export class CasesService {
     await this.db.tx(async (tx) => {
       await tx.query(`UPDATE cases_cases SET answered_at = now() WHERE id = $1`, [caseId]);
     });
+    // As the system role, for the reason given in `markPaid`.
+    await runWithContext(systemContext('case-accrual'), () =>
+      this.ledger.accrueDoctorPayout(caseId),
+    );
   }
 
 

@@ -88,6 +88,8 @@ interface CaseDto {
   notes: string | null;
   quotedAmountMinor: number | null;
   quotedCurrency: string | null;
+  clinicShareMinor: number | null;
+  doctorShareMinor: number | null;
   quoteExpiresAt: string | null;
   acceptedAt: string | null;
   answeredAt: string | null;
@@ -116,6 +118,8 @@ function toDto(a: CaseSummary): CaseDto {
     notes: a.notes,
     quotedAmountMinor: a.quotedAmountMinor,
     quotedCurrency: a.quotedCurrency,
+    clinicShareMinor: a.clinicShareMinor,
+    doctorShareMinor: a.doctorShareMinor,
     quoteExpiresAt: a.quoteExpiresAt?.toISOString() ?? null,
     acceptedAt: a.acceptedAt?.toISOString() ?? null,
     answeredAt: a.answeredAt?.toISOString() ?? null,

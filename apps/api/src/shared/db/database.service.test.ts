@@ -5,7 +5,7 @@ import {
   runWithContext,
   type RequestContext,
 } from '../context/request-context';
-import { DatabaseService } from './database.service';
+import { DatabaseService, sslOptions } from './database.service';
 import {
   appUrl,
   createPatient,
@@ -157,5 +157,24 @@ describe('DatabaseService RLS context', () => {
       }),
     );
     expect(result).toBe(userId);
+  });
+});
+
+describe('database TLS (DATABASE_SSL)', () => {
+  it('is off unless asked for, which is what the harness relies on', () => {
+    expect(sslOptions({ DATABASE_SSL: 'off' } as AppConfig)).toBe(false);
+    expect(sslOptions({} as AppConfig)).toBe(false);
+  });
+
+  it('require encrypts without checking the certificate', () => {
+    expect(sslOptions({ DATABASE_SSL: 'require' } as AppConfig)).toEqual({
+      rejectUnauthorized: false,
+    });
+  });
+
+  it('verify checks the certificate', () => {
+    expect(sslOptions({ DATABASE_SSL: 'verify' } as AppConfig)).toEqual({
+      rejectUnauthorized: true,
+    });
   });
 });

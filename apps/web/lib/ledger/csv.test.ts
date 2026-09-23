@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest';
 import { ledgerEntrySchema, type LedgerEntry } from '@mir/contracts';
-import { coordinationFeeCsv, csvField, subscriptionCsv } from './csv';
+import { coordinationFeeCsv, csvField, doctorPayoutCsv, subscriptionCsv } from './csv';
 
 const entries: LedgerEntry[] = [
   ledgerEntrySchema.parse({
@@ -20,6 +20,14 @@ const entries: LedgerEntry[] = [
     amount: { amountMinor: 99000, currency: 'TND' },
     status: 'overdue',
   }),
+  ledgerEntrySchema.parse({
+    kind: 'doctor_payout',
+    id: 'led-3',
+    caseRef: 'MIR-2026-0418',
+    occurredAt: '2026-08-07T09:00:00.000Z',
+    amount: { amountMinor: 2000, currency: 'USD' },
+    status: 'pending',
+  }),
 ];
 
 describe('ledger CSV export (§5.7)', () => {
@@ -27,6 +35,15 @@ describe('ledger CSV export (§5.7)', () => {
     const csv = coordinationFeeCsv(entries);
     expect(csv.split('\r\n')[0]).toBe('id,date,case_ref,amount,currency,payment_status');
     expect(csv).toContain('led-1,2026-08-06,MIR-2026-0417,250.00,USD,pending');
+  });
+
+  it('exports doctor payouts on their own, never among the clinic fees', () => {
+    const csv = doctorPayoutCsv(entries);
+    expect(csv.split('\r\n')).toEqual([
+      'id,date,case_ref,amount,currency,payment_status',
+      'led-3,2026-08-07,MIR-2026-0418,20.00,USD,pending',
+    ]);
+    expect(coordinationFeeCsv(entries)).not.toContain('led-3');
   });
 
   it('exports subscriptions with their billing period', () => {

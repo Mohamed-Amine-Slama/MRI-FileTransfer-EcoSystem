@@ -187,6 +187,12 @@ export interface CaseRecord {
   quotedAmountMinor: number | null;
   quotedCurrency: CurrencyCode | null;
   quoteExpiresAt: string | null;
+  /**
+   * The split locked with the quote (spec 2026-09-21 §3): what the clinic keeps
+   * and what the doctor is paid. The platform's share is derived, never sent.
+   */
+  clinicShareMinor?: number | null;
+  doctorShareMinor?: number | null;
   acceptedAt: string | null;
   answeredAt: string | null;
   answerDueAt: string | null;

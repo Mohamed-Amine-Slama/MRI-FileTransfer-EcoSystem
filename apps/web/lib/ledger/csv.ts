@@ -68,6 +68,21 @@ export function coordinationFeeCsv(entries: readonly LedgerEntry[]): string {
   return toCsv(['id', 'date', 'case_ref', 'amount', 'currency', 'payment_status'], rows);
 }
 
+/** What the platform owes a receiving doctor, one row per answered case. */
+export function doctorPayoutCsv(entries: readonly LedgerEntry[]): string {
+  const rows = entries
+    .filter((entry) => entry.kind === 'doctor_payout')
+    .map((entry) => [
+      entry.id,
+      isoDate(entry.occurredAt),
+      entry.caseRef,
+      amountCell(entry.amount),
+      entry.amount.currency,
+      entry.status,
+    ]);
+  return toCsv(['id', 'date', 'case_ref', 'amount', 'currency', 'payment_status'], rows);
+}
+
 export function subscriptionCsv(entries: readonly LedgerEntry[]): string {
   const rows = entries
     .filter((entry) => entry.kind === 'saas_subscription')

@@ -1,11 +1,34 @@
 import './pg-types';
+import { readFileSync } from 'node:fs';
 import { Inject, Injectable, type OnModuleDestroy } from '@nestjs/common';
-import { Pool, type PoolClient } from 'pg';
+import { Pool, type PoolClient, type PoolConfig } from 'pg';
 import { APP_CONFIG } from '../config/config.module';
 import type { AppConfig } from '../config/config.schema';
 import { requireContext, type RequestContext } from '../context/request-context';
 
 export type Tx = PoolClient;
+
+/**
+ * The pool's `ssl` option from DATABASE_SSL. Unset (as in the test harness,
+ * which builds a partial config) means off.
+ */
+export function sslOptions(
+  config: Pick<AppConfig, 'DATABASE_SSL' | 'DATABASE_SSL_CA_FILE'>,
+): PoolConfig['ssl'] {
+  switch (config.DATABASE_SSL) {
+    case 'require':
+      return { rejectUnauthorized: false };
+    case 'verify':
+      return {
+        rejectUnauthorized: true,
+        ...(config.DATABASE_SSL_CA_FILE === undefined
+          ? {}
+          : { ca: readFileSync(config.DATABASE_SSL_CA_FILE, 'utf8') }),
+      };
+    default:
+      return false;
+  }
+}
 
 /**
  * Database access under row-level security — BUILD_SPEC P4.2, ADR-6.
@@ -33,6 +56,7 @@ export class DatabaseService implements OnModuleDestroy {
     this.pool = new Pool({
       connectionString: config.DATABASE_URL,
       max: config.DATABASE_POOL_MAX,
+      ssl: sslOptions(config),
       // A request that cannot get a connection should fail fast rather than
       // pile up behind a saturated pool during an upload burst.
       connectionTimeoutMillis: 5_000,

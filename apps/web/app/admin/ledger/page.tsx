@@ -5,7 +5,12 @@ import { Download } from 'lucide-react';
 import { summariseLedger, type LedgerEntry, type Provider } from '@mir/contracts';
 import { casesApi } from '../../../lib/api/mock';
 import { rolesForSides } from '../../../lib/corridor/registry';
-import { coordinationFeeCsv, downloadCsv, subscriptionCsv } from '../../../lib/ledger/csv';
+import {
+  coordinationFeeCsv,
+  doctorPayoutCsv,
+  downloadCsv,
+  subscriptionCsv,
+} from '../../../lib/ledger/csv';
 import { useLocale, useT } from '../../../lib/i18n/provider';
 import { RoleGate } from '../../../components/RoleGate';
 import { CurrencyTotals } from '../../../components/ledger/CurrencyTotals';
@@ -116,6 +121,14 @@ function AdminLedger(): React.JSX.Element {
             </Button>
             <Button
               size="sm"
+              data-testid="export-payouts"
+              onClick={() => downloadCsv('payouts-all.csv', doctorPayoutCsv(all))}
+            >
+              <Download className="size-4" />
+              {t.ledgerDoctorPayouts}
+            </Button>
+            <Button
+              size="sm"
               data-testid="export-subs"
               onClick={() => downloadCsv('subscriptions-all.csv', subscriptionCsv(all))}
             >
@@ -140,6 +153,7 @@ function AdminLedger(): React.JSX.Element {
             <TableRow>
               <TableHead>{t.colProvider}</TableHead>
               <TableHead>{t.ledgerCoordinationFees}</TableHead>
+              <TableHead>{t.ledgerDoctorPayouts}</TableHead>
               <TableHead>{t.ledgerSubscriptions}</TableHead>
               <TableHead>{t.ledgerOutstanding}</TableHead>
             </TableRow>
@@ -148,7 +162,9 @@ function AdminLedger(): React.JSX.Element {
             {rows.map((row) => {
               const summary = summariseLedger(row.entries);
               const outstanding =
-                summary.outstanding.coordination_fee + summary.outstanding.saas_subscription;
+                summary.outstanding.coordination_fee +
+                summary.outstanding.saas_subscription +
+                summary.outstanding.doctor_payout;
               return (
                 <TableRow key={row.providerId}>
                   <TableCell className="font-medium">
@@ -156,6 +172,9 @@ function AdminLedger(): React.JSX.Element {
                   </TableCell>
                   <TableCell>
                     <CurrencyTotals totals={summary.coordinationFees} locale={locale} />
+                  </TableCell>
+                  <TableCell>
+                    <CurrencyTotals totals={summary.doctorPayouts} locale={locale} />
                   </TableCell>
                   <TableCell>
                     <CurrencyTotals totals={summary.subscriptions} locale={locale} />

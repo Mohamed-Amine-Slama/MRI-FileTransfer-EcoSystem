@@ -68,6 +68,10 @@ afterAll(async () => {
 
 beforeEach(async () => {
   await truncateAll(h.owner);
+  // Reference data survives the truncate; one test reprices the corridor.
+  await h.owner.query(
+    "UPDATE pricing_consult_price SET amount_minor = 10000, clinic_share_minor = 3000, doctor_share_minor = 2000 WHERE corridor_id = 'ly-tn'",
+  );
 });
 
 /** A referring lab, seated in a source organisation, with one patient. */
@@ -218,8 +222,10 @@ describe('quoting and paying', () => {
 
     expect(quoted.status).toBe('quoted');
     expect(quoted.doctorId).toBe(senior);
-    expect(quoted.quotedAmountMinor).toBe(4800); // 4000 x 1.20 x 1.00
+    expect(quoted.quotedAmountMinor).toBe(10000); // flat $100, whatever the tier
     expect(quoted.quotedCurrency).toBe('USD');
+    expect(quoted.clinicShareMinor).toBe(3000);
+    expect(quoted.doctorShareMinor).toBe(2000);
     expect(quoted.quoteExpiresAt).not.toBeNull();
   });
 
@@ -233,17 +239,18 @@ describe('quoting and paying', () => {
     const caseId = await submitted(lab, patient);
     await runWithContext(ctx(lab, 'libya_doctor'), () => cases.quote(caseId, senior));
 
-    // The doctor is promoted between the quote and the payment.
+    // Ops reprices the corridor between the quote and the payment.
     await h.owner.query(
-      "UPDATE identity_doctor_profiles SET tier_code = 'expert' WHERE user_id = $1",
-      [senior],
+      "UPDATE pricing_consult_price SET amount_minor = 20000, clinic_share_minor = 5000, doctor_share_minor = 5000 WHERE corridor_id = 'ly-tn'",
     );
 
     await runWithContext(ctx(lab, 'libya_doctor'), () => cases.markPaid(caseId));
     const after = await runWithContext(ctx(lab, 'libya_doctor'), () => cases.getCase(caseId));
 
     expect(after.status).toBe('paid');
-    expect(after.quotedAmountMinor).toBe(4800);
+    expect(after.quotedAmountMinor).toBe(10000);
+    expect(after.clinicShareMinor).toBe(3000);
+    expect(after.doctorShareMinor).toBe(2000);
   });
 
   it('refuses to pay against a lapsed quote', async () => {
@@ -297,11 +304,10 @@ describe('quoting and paying', () => {
   });
 
   /**
-   * A decline sends the case back to the lab, and the next doctor may sit on a
-   * different tier — so the re-pick is re-quoted rather than inheriting a price
-   * that was computed against someone else's multiplier.
+   * A decline sends the case back to the lab, and the re-pick is quoted afresh
+   * rather than inheriting the previous doctor's quote.
    */
-  it('re-quotes on a re-pick after a decline, at the new doctor\'s tier', async () => {
+  it('re-quotes on a re-pick after a decline', async () => {
     const { lab, patient, senior } = await market();
     const caseId = await submitted(lab, patient);
     await runWithContext(ctx(lab, 'libya_doctor'), () => cases.quote(caseId, senior));
@@ -320,7 +326,52 @@ describe('quoting and paying', () => {
 
     expect(requoted.status).toBe('quoted');
     expect(requoted.doctorId).toBe(standard);
-    expect(requoted.quotedAmountMinor).toBe(4000); // 4000 x 1.00 x 1.00
+    expect(requoted.quotedAmountMinor).toBe(10000);
+  });
+
+  /**
+   * The split — spec 2026-09-21 §3. The clinic collects $100 and keeps $30, so
+   * it owes the platform $70 once it pays; the platform owes the doctor $20
+   * only once the answer exists.
+   */
+  async function ledgerOf(caseId: string): Promise<{ kind: string; amount: number }[]> {
+    const { rows } = await h.owner.query<{ kind: string; amount_minor: string }>(
+      'SELECT kind, amount_minor FROM billing_ledger_entries WHERE case_id = $1 ORDER BY kind',
+      [caseId],
+    );
+    return rows.map((r) => ({ kind: r.kind, amount: Number(r.amount_minor) }));
+  }
+
+  it('paying accrues the clinic remittance of $70, and accepting accrues nothing', async () => {
+    const { lab, patient, senior } = await market();
+    const caseId = await submitted(lab, patient);
+    await runWithContext(ctx(lab, 'libya_doctor'), () => cases.quote(caseId, senior));
+    await runWithContext(ctx(lab, 'libya_doctor'), () => cases.markPaid(caseId));
+
+    expect(await ledgerOf(caseId)).toEqual([{ kind: 'coordination_fee', amount: 7000 }]);
+
+    await runWithContext(ctx(senior, 'tunisia_doctor'), () => cases.accept(caseId));
+    expect(await ledgerOf(caseId)).toEqual([{ kind: 'coordination_fee', amount: 7000 }]);
+  });
+
+  it('answering accrues one $20 doctor payout, and only one', async () => {
+    const { lab, patient, senior } = await market();
+    const caseId = await submitted(lab, patient);
+    await runWithContext(ctx(lab, 'libya_doctor'), () => cases.quote(caseId, senior));
+    await runWithContext(ctx(lab, 'libya_doctor'), () => cases.markPaid(caseId));
+    await runWithContext(ctx(senior, 'tunisia_doctor'), () => cases.accept(caseId));
+    await runWithContext(ctx(senior, 'tunisia_doctor'), () => cases.markAnswered(caseId));
+
+    expect(await ledgerOf(caseId)).toEqual([
+      { kind: 'coordination_fee', amount: 7000 },
+      { kind: 'doctor_payout', amount: 2000 },
+    ]);
+
+    // A repeated answer (a retried request) must not pay the doctor twice.
+    await runWithContext(ctx(senior, 'tunisia_doctor'), () => cases.markAnswered(caseId)).catch(
+      () => undefined,
+    );
+    expect((await ledgerOf(caseId)).filter((e) => e.kind === 'doctor_payout')).toHaveLength(1);
   });
 
   it('will not re-quote a case that is already paid for', async () => {
