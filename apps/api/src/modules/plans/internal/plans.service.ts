@@ -1,5 +1,6 @@
 import { Injectable, NotFoundException } from '@nestjs/common';
 import {
+  billingIntervalSchema,
   endpointSideSchema,
   entitlementSchema,
   planCodeSchema,
@@ -15,8 +16,8 @@ import { DatabaseService } from '../../../shared/db/database.service';
 /**
  * Subscription tiers — brief §2, §5.7.
  *
- * ⚠ THE SEEDED CATALOGUE IS PLACEHOLDER DATA. See migration 0011 and
- * PLACEHOLDER_CATALOGUE in the contract.
+ * The catalogue on sale is migration 0033's two yearly plans, mirrored by
+ * PLAN_CATALOGUE in the contract.
  *
  * NOTHING HERE TAKES MONEY. Blocking item L7 is unresolved — whether a Libyan
  * payer can lawfully pay a Tunisian-facing platform, and where the receiving
@@ -53,6 +54,7 @@ interface DbPlan {
   side: string;
   price_minor: string | null;
   currency: string | null;
+  billing_interval: string;
   seat_limit: number | null;
   monthly_case_limit: number | null;
   entitlements: string[];
@@ -80,6 +82,11 @@ function toTier(row: DbPlan): PlanTier | null {
   const side = endpointSideSchema.safeParse(row.side);
   if (!side.success) return null;
 
+  // Same rule: an interval the contract does not know would render a price
+  // with no "per …", which reads as a one-off charge.
+  const interval = billingIntervalSchema.safeParse(row.billing_interval);
+  if (!interval.success) return null;
+
   // An entitlement the contract does not know about is DROPPED, not passed
   // through. The pricing table and the places that gate on an entitlement have
   // to agree; a string that reaches the UI and matches nothing would render as
@@ -95,12 +102,13 @@ function toTier(row: DbPlan): PlanTier | null {
     side: side.data,
     labelKey,
     blurbKey,
-    priceMonthly:
+    price:
       row.price_minor === null || row.currency === null
         ? null
         : // bigint arrives as a string from pg; Number is exact well past any
-          // plausible monthly price in minor units.
+          // plausible price in minor units.
           { amountMinor: Number(row.price_minor), currency: row.currency as never },
+    interval: interval.data,
     seatLimit: row.seat_limit,
     monthlyCaseLimit: row.monthly_case_limit,
     entitlements,
@@ -228,9 +236,21 @@ export class PlansService {
       await tx.query(
         `INSERT INTO billing_subscriptions
            (organisation_id, plan_code, status, seats, period_start, period_end)
-         VALUES ($1, $2, 'trialing', 1, now(), now() + interval '1 month')
+         VALUES ($1, $2, 'trialing', 1, now(),
+                 now() + (SELECT CASE billing_interval WHEN 'year' THEN interval '1 year'
+                                                      ELSE interval '1 month' END
+                            FROM billing_plans WHERE code = $2))
          ON CONFLICT (organisation_id) DO UPDATE
-         SET plan_code = EXCLUDED.plan_code, updated_at = now()`,
+         SET plan_code = EXCLUDED.plan_code,
+             -- A new plan starts a new period of ITS interval; re-choosing the
+             -- same plan keeps the period it is in.
+             period_start = CASE WHEN billing_subscriptions.plan_code = EXCLUDED.plan_code
+                                 THEN billing_subscriptions.period_start
+                                 ELSE EXCLUDED.period_start END,
+             period_end   = CASE WHEN billing_subscriptions.plan_code = EXCLUDED.plan_code
+                                 THEN billing_subscriptions.period_end
+                                 ELSE EXCLUDED.period_end END,
+             updated_at = now()`,
         [organisationId, planCode],
       );
     });

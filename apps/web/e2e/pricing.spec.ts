@@ -5,41 +5,36 @@ import { expect, test } from '@playwright/test';
  *
  * The catalogue is stubbed rather than served, because the e2e suite runs the
  * web app alone. Stubbing keeps the assertions about what this page GUARANTEES
- * — the separation of charges, the placeholder warning, the exponent-correct
- * money — rather than about whether a backend happened to be up.
+ * — the separation of charges, the yearly price, the exponent-correct money
+ * — rather than about whether a backend happened to be up.
  */
 
 const CATALOGUE = {
   plans: [
     {
-      code: 'solo',
-      labelKey: 'planSoloName',
-      blurbKey: 'planSoloBlurb',
-      priceMonthly: { amountMinor: 4900, currency: 'USD' },
-      seatLimit: 1,
-      monthlyCaseLimit: 10,
-      entitlements: ['csvExport'],
+      code: 'src_clinic_yearly',
+      side: 'source',
+      labelKey: 'planSrcClinicYearlyName',
+      blurbKey: 'planSrcClinicYearlyBlurb',
+      price: { amountMinor: 100000, currency: 'USD' },
+      interval: 'year',
+      seatLimit: null,
+      monthlyCaseLimit: null,
+      entitlements: ['csvExport', 'prioritySupport', 'auditTrailRetention'],
       sort: 0,
     },
     {
-      code: 'clinic',
-      labelKey: 'planClinicName',
-      blurbKey: 'planClinicBlurb',
-      priceMonthly: { amountMinor: 19900, currency: 'USD' },
-      seatLimit: 10,
-      monthlyCaseLimit: 100,
-      entitlements: ['csvExport', 'prioritySupport'],
-      sort: 1,
-    },
-    {
-      code: 'network',
-      labelKey: 'planNetworkName',
-      blurbKey: 'planNetworkBlurb',
-      priceMonthly: null,
+      code: 'dst_doctor_yearly',
+      side: 'destination',
+      labelKey: 'planDstDoctorYearlyName',
+      blurbKey: 'planDstDoctorYearlyBlurb',
+      // TND has three decimals: this is 1,000 dinars, not 10,000.
+      price: { amountMinor: 1000000, currency: 'TND' },
+      interval: 'year',
       seatLimit: null,
       monthlyCaseLimit: null,
-      entitlements: ['csvExport', 'prioritySupport', 'multiCorridor'],
-      sort: 2,
+      entitlements: ['csvExport', 'prioritySupport', 'auditTrailRetention'],
+      sort: 0,
     },
   ],
 };
@@ -59,16 +54,19 @@ test.describe('pricing (§5.7)', () => {
 
   test('renders every tier the catalogue returns', async ({ page }) => {
     await page.goto('/pricing');
-    await expect(page.getByTestId('plan-solo')).toBeVisible();
-    await expect(page.getByTestId('plan-clinic')).toBeVisible();
-    await expect(page.getByTestId('plan-network')).toBeVisible();
+    await expect(page.getByTestId('plan-src_clinic_yearly')).toBeVisible();
+    await expect(page.getByTestId('plan-dst_doctor_yearly')).toBeVisible();
   });
 
-  test('marks the invented figures as provisional', async ({ page }) => {
-    // TODO(pricing) removes this notice, and this test with it. Until then a
-    // visitor must not read placeholder numbers as an offer.
+  test('prices each plan per year, in its own currency', async ({ page }) => {
     await page.goto('/pricing');
-    await expect(page.getByTestId('pricing-placeholder')).toBeVisible();
+    const clinic = page.getByTestId('plan-src_clinic_yearly');
+    await expect(clinic).toContainText(/1[,.\u202f\u00a0]?000/);
+    await expect(clinic).toContainText(/year|an|سنوي/i);
+    // 1000000 TND minor units must read as 1,000 dinars, never 10,000.
+    const doctor = page.getByTestId('plan-dst_doctor_yearly');
+    await expect(doctor).toContainText(/1[,.\u202f\u00a0]?000/);
+    await expect(doctor).not.toContainText(/10[,.\u202f\u00a0]?000/);
   });
 
   test('says that changing plan takes no payment', async ({ page }) => {
@@ -86,18 +84,9 @@ test.describe('pricing (§5.7)', () => {
     await expect(page.locator('body')).toContainText(/coordination|تنسيق|coordination/i);
   });
 
-  test('offers a contact route rather than a number for the priced-on-application tier', async ({
-    page,
-  }) => {
-    await page.goto('/pricing');
-    // `null` is a real tier state. Rendering it as 0, or as a blank, would both
-    // be wrong in ways a customer would notice.
-    await expect(page.getByTestId('plan-network')).not.toContainText('$0');
-  });
-
   test('sends a signed-out visitor to sign-up, not to a dead checkout', async ({ page }) => {
     await page.goto('/pricing');
-    await expect(page.getByTestId('plan-cta-clinic')).toHaveAttribute('href', '/signup');
+    await expect(page.getByTestId('plan-cta-src_clinic_yearly')).toHaveAttribute('href', '/signup');
   });
 
   test('scrolls the comparison table inside its own container (§4.5)', async ({ page }) => {

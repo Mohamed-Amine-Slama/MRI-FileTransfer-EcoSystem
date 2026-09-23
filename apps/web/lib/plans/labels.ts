@@ -24,6 +24,11 @@ export function planName(t: Dictionary, tier: PlanTier): string {
   return fromDictionary(t, tier.labelKey, tier.code);
 }
 
+/** "per month" / "per year" — what a tier's price buys. */
+export function perIntervalLabel(t: Dictionary, interval: PlanTier['interval']): string {
+  return interval === 'year' ? t.pricingPerYear : t.pricingPerMonth;
+}
+
 export function planBlurb(t: Dictionary, tier: PlanTier): string {
   return fromDictionary(t, tier.blurbKey, '');
 }

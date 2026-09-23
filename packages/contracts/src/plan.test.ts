@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest';
 import {
-  PLACEHOLDER_CATALOGUE,
+  PLAN_CATALOGUE,
   PLAN_CODES,
   findTier,
   hasEntitlement,
@@ -13,15 +13,33 @@ import {
 import { endpointSideSchema } from './corridor';
 import { toMajorUnits } from './ledger';
 
-describe('the placeholder catalogue', () => {
+describe('the catalogue', () => {
   it('parses — a tier that cannot be validated cannot be rendered', () => {
-    for (const tier of PLACEHOLDER_CATALOGUE) {
+    for (const tier of PLAN_CATALOGUE) {
       expect(() => planTierSchema.parse(tier)).not.toThrow();
     }
   });
 
-  it('covers every plan code exactly once', () => {
-    expect(PLACEHOLDER_CATALOGUE.map((t) => t.code).sort()).toEqual([...PLAN_CODES].sort());
+  /** Spec 2026-09-21 §4: one yearly plan per side, at the owner's prices. */
+  it('sells exactly one yearly plan per side', () => {
+    expect(PLAN_CATALOGUE.map((t) => t.code)).toEqual(['src_clinic_yearly', 'dst_doctor_yearly']);
+    for (const tier of PLAN_CATALOGUE) expect(tier.interval).toBe('year');
+  });
+
+  it('prices the clinic plan at 1000 USD and the doctor plan at 1000 TND', () => {
+    const clinic = findTier(PLAN_CATALOGUE, 'src_clinic_yearly')!;
+    const doctor = findTier(PLAN_CATALOGUE, 'dst_doctor_yearly')!;
+    expect(clinic.price).toEqual({ amountMinor: 100000, currency: 'USD' });
+    expect(toMajorUnits(clinic.price!)).toBe(1000);
+    // TND has three decimals: 1000 dinars is 1000000 minor units, not 100000.
+    expect(doctor.price).toEqual({ amountMinor: 1000000, currency: 'TND' });
+    expect(toMajorUnits(doctor.price!)).toBe(1000);
+  });
+
+  it('keeps the retired codes parseable, for subscriptions still on them', () => {
+    for (const code of ['src_solo', 'src_clinic', 'dst_network']) {
+      expect(PLAN_CODES).toContain(code);
+    }
   });
 
   /**
@@ -30,14 +48,10 @@ describe('the placeholder catalogue', () => {
    * nobody has smuggled a sentence through it.
    */
   it('names tiers by dictionary key, never by copy', () => {
-    for (const tier of PLACEHOLDER_CATALOGUE) {
+    for (const tier of PLAN_CATALOGUE) {
       expect(tier.labelKey).not.toContain(' ');
       expect(tier.blurbKey).not.toContain(' ');
     }
-  });
-
-  it('offers at least one priced-on-application tier', () => {
-    expect(PLACEHOLDER_CATALOGUE.some((t) => t.priceMonthly === null)).toBe(true);
   });
 });
 
@@ -63,7 +77,7 @@ describe('entitlements and lookup', () => {
   it('answers from the tier, so two screens cannot disagree about a feature', () => {
     // Asserted with a bang rather than an early return: a `return` on a null
     // tier turns a renamed code into a test that passes by not running.
-    const clinic = findTier(PLACEHOLDER_CATALOGUE, 'src_clinic')!;
+    const clinic = findTier(PLAN_CATALOGUE, 'src_clinic_yearly')!;
     expect(clinic).not.toBeNull();
     expect(hasEntitlement(clinic, 'prioritySupport')).toBe(true);
     expect(hasEntitlement(clinic, 'multiCorridor')).toBe(false);
@@ -100,7 +114,7 @@ describe('money', () => {
    * grow a field that looks summable against a ledger entry.
    */
   it('carries no balance, total, or amount-owed field', () => {
-    for (const tier of PLACEHOLDER_CATALOGUE) {
+    for (const tier of PLAN_CATALOGUE) {
       expect(tier).not.toHaveProperty('total');
       expect(tier).not.toHaveProperty('balance');
       expect(tier).not.toHaveProperty('amountOwed');
@@ -108,9 +122,6 @@ describe('money', () => {
   });
 
   it('divides through toMajorUnits, which knows each currency exponent', () => {
-    const solo = findTier(PLACEHOLDER_CATALOGUE, 'src_solo')!;
-    expect(solo.priceMonthly).not.toBeNull();
-    expect(toMajorUnits(solo.priceMonthly!)).toBe(49);
     // The trap this guards: a dinar tier priced the same way. TND has an ISO
     // exponent of 3, so a hardcoded /100 would overstate it tenfold.
     expect(toMajorUnits({ amountMinor: 4900, currency: 'TND' })).toBe(4.9);
@@ -127,23 +138,23 @@ describe('money', () => {
  */
 describe('side-scoped tiers', () => {
   it('every catalogue entry declares a side', () => {
-    for (const tier of PLACEHOLDER_CATALOGUE) {
+    for (const tier of PLAN_CATALOGUE) {
       expect(endpointSideSchema.safeParse(tier.side).success).toBe(true);
     }
   });
 
   it('a tier without a side does not parse', () => {
-    const { side: _omitted, ...withoutSide } = PLACEHOLDER_CATALOGUE[0]!;
+    const { side: _omitted, ...withoutSide } = PLAN_CATALOGUE[0]!;
     expect(planTierSchema.safeParse(withoutSide).success).toBe(false);
   });
 
   it('tiersForSide returns only the requested side', () => {
-    const source = tiersForSide(PLACEHOLDER_CATALOGUE, 'source');
-    expect(source.length).toBe(3);
+    const source = tiersForSide(PLAN_CATALOGUE, 'source');
+    expect(source.length).toBe(1);
     expect(source.every((t) => t.side === 'source')).toBe(true);
 
-    const destination = tiersForSide(PLACEHOLDER_CATALOGUE, 'destination');
-    expect(destination.length).toBe(3);
+    const destination = tiersForSide(PLAN_CATALOGUE, 'destination');
+    expect(destination.length).toBe(1);
     expect(destination.every((t) => t.side === 'destination')).toBe(true);
   });
 
@@ -152,7 +163,7 @@ describe('side-scoped tiers', () => {
   });
 
   it('preserves sort order within a side', () => {
-    const sorts = tiersForSide(PLACEHOLDER_CATALOGUE, 'source').map((t) => t.sort);
+    const sorts = tiersForSide(PLAN_CATALOGUE, 'source').map((t) => t.sort);
     expect(sorts).toEqual([...sorts].sort((a, b) => a - b));
   });
 });

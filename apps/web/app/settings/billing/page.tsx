@@ -14,7 +14,13 @@ import { useDateFormat, useLocale, useT } from '../../../lib/i18n/provider';
 import type { Dictionary } from '../../../lib/i18n/dictionary';
 import { PROVIDER_ROLES } from '../../../lib/corridor/registry';
 import { useSession } from '../../../lib/session/session';
-import { casesLabel, formatPrice, planName, seatsLabel } from '../../../lib/plans/labels';
+import {
+  casesLabel,
+  formatPrice,
+  perIntervalLabel,
+  planName,
+  seatsLabel,
+} from '../../../lib/plans/labels';
 import {
   Alert,
   Badge,
@@ -245,9 +251,9 @@ function BillingPanel(): React.JSX.Element {
                 {/* Through formatPrice, which applies the CURRENCY'S exponent.
                     A hardcoded /100 overstates every TND and LYD figure
                     tenfold — on this corridor's own local currencies. */}
-                {tier.priceMonthly === null
+                {tier.price === null
                   ? ''
-                  : ` — ${formatPrice(tier.priceMonthly, localeTag)}`}
+                  : ` — ${formatPrice(tier.price, localeTag)} ${perIntervalLabel(t, tier.interval)}`}
               </option>
             ))}
           </Select>
