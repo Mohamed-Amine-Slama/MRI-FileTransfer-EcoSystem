@@ -14,6 +14,8 @@
   "dependencies": {
     "@cornerstonejs/core": "^5.10.6",
     "@cornerstonejs/dicom-image-loader": "^5.10.6",
+    "@cornerstonejs/metadata": "^5.10.10",
+    "@cornerstonejs/utils": "^5.10.10",
     "@mir/contracts": "workspace:*",
     "@radix-ui/react-dialog": "^1.1.23",
     "@radix-ui/react-direction": "^1.1.4",

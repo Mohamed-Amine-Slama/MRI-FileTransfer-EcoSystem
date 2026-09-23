@@ -14,7 +14,7 @@
  */
 
 import { execFileSync } from 'node:child_process';
-import { writeFileSync, rmSync, mkdirSync } from 'node:fs';
+import { writeFileSync, rmSync, mkdirSync, readFileSync } from 'node:fs';
 import { dirname, join, resolve } from 'node:path';
 import { fileURLToPath } from 'node:url';
 
@@ -45,12 +45,22 @@ const FIXTURES = [
   },
 ];
 
+// Resolved through the package's own `bin` map, not a hardcoded file: 18.4
+// renamed bin/dependency-cruise.mjs to bin/dependency-cruiser.mjs, and a
+// hardcoded path turned a minor bump into a MODULE_NOT_FOUND that this script
+// reported as "the repository has boundary violations".
+const CRUISER_DIR = join(REPO, 'node_modules', 'dependency-cruiser');
+const CRUISER_BIN = join(
+  CRUISER_DIR,
+  JSON.parse(readFileSync(join(CRUISER_DIR, 'package.json'), 'utf8')).bin['dependency-cruise'],
+);
+
 function runCruiser() {
   try {
     const stdout = execFileSync(
       'node',
       [
-        join(REPO, 'node_modules', 'dependency-cruiser', 'bin', 'dependency-cruise.mjs'),
+        CRUISER_BIN,
         '--config',
         '.dependency-cruiser.cjs',
         'apps/api/src',
