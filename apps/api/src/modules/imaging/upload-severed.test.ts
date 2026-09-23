@@ -94,10 +94,19 @@ class TestAuthGuard {
 class SeverableProxy {
   private server?: Server;
   private readonly sockets = new Set<Socket>();
+  private severed = false;
   port = 0;
 
   async listen(targetPort: number): Promise<void> {
     this.server = createServer((client) => {
+      // The link stays down once cut. Without this, undici could notice its
+      // pooled socket had died, dial a fresh connection, and send every
+      // remaining chunk through — the test then failed with no transport
+      // error at all, depending on which side of that race it landed.
+      if (this.severed) {
+        client.destroy();
+        return;
+      }
       const upstream = connect(targetPort, '127.0.0.1');
       this.sockets.add(client);
       this.sockets.add(upstream);
@@ -128,6 +137,7 @@ class SeverableProxy {
 
   /** Sever every live connection with an RST. */
   sever(): void {
+    this.severed = true;
     for (const socket of this.sockets) socket.destroy();
     this.sockets.clear();
   }
