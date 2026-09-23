@@ -30,6 +30,7 @@ import {
 import { GlobalExceptionFilter } from '../../shared/errors/global-exception.filter';
 import { LocalBlobStore } from '../../shared/storage/local-blob-store';
 import { BLOB_STORE } from '../../shared/storage/storage.module';
+import { IMAGING_QUEUE } from '../../shared/jobs/queue.tokens';
 import { UploadService } from './internal/upload.service';
 import { UploadsController } from './internal/uploads.controller';
 import { IMAGING_QUEUE } from '../../shared/jobs/queue.tokens';
