@@ -20,9 +20,12 @@ permissions:
   contents: read
 
 env:
-  # BUILD_SPEC §4 pins Node 20 LTS. CI is the authority on the runtime version;
-  # a developer's local Node may be newer.
-  NODE_VERSION: '20'
+  # BUILD_SPEC §4 pinned Node 20 LTS, which went end-of-life on 2026-04-30.
+  # 22 is what apps/api and apps/web's Dockerfiles already ship, and CI must
+  # test the runtime production runs — it is the authority on that version;
+  # a developer's local Node may be newer. (dependency-cruiser 18 also
+  # refuses to start on 20.)
+  NODE_VERSION: '22'
 
 jobs:
   # --------------------------------------------------------------------------
@@ -100,6 +103,13 @@ jobs:
 
       - name: Install
         run: pnpm install --frozen-lockfile
+
+      # @mir/contracts and @mir/dicom-utils publish their types from dist/,
+      # which is gitignored. Without this every import of them is TS2307 in a
+      # clean checkout — green locally only because a stale dist/ is lying
+      # around from an earlier build.
+      - name: Build shared packages
+        run: pnpm --filter "./packages/*" build
 
       - name: Typecheck
         run: pnpm typecheck
@@ -213,9 +223,10 @@ jobs:
         run: pnpm install --frozen-lockfile
 
       # Built before the Playwright job so a slow build cannot surface as a
-      # webServer timeout.
+      # webServer timeout. @mir/api too: e2e/viewer.spec.ts renders its
+      # fixtures with the API's real ThumbnailService from apps/api/dist.
       - name: Build web app
-        run: pnpm --filter @mir/web... build
+        run: pnpm --filter @mir/web... --filter @mir/api... build
 
       # P8.2: no path from the browser to Orthanc that bypasses the API.
       # Runs against the built bundle, so it must follow the build step.
