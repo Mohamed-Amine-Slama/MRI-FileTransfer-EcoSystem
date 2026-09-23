@@ -14,6 +14,7 @@ import {
 import type { Role } from '@mir/contracts';
 import { DESTINATION_ROLES, PROVIDER_ROLES, SOURCE_ROLES, rolesForSides } from '../../lib/corridor/registry';
 import type { Dictionary } from '../../lib/i18n/dictionary';
+import { isMockMode } from '../../lib/api/cases';
 
 /**
  * The application's navigation, as data.
@@ -116,13 +117,19 @@ export const NAV_SECTIONS: readonly NavSection[] = [
         roles: DESTINATION_ROLES,
         Icon: CalendarClock,
       },
-      {
-        href: '/notifications',
-        labelKey: 'navNotifications',
-        descriptionKey: 'notificationsDescription',
-        roles: NOTIFIED_ROLES,
-        Icon: Bell,
-      },
+      // In-app notifications have no backend yet (spec 2026-09-21 D7): the
+      // live case layer sends them by email only. The entry returns with one.
+      ...(isMockMode()
+        ? [
+            {
+              href: '/notifications',
+              labelKey: 'navNotifications',
+              descriptionKey: 'notificationsDescription',
+              roles: NOTIFIED_ROLES,
+              Icon: Bell,
+            } satisfies NavItem,
+          ]
+        : []),
     ],
   },
   {

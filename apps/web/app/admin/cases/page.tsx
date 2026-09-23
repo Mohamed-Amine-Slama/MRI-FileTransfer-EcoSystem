@@ -67,6 +67,9 @@ function AdminCases(): React.JSX.Element {
   const [filter, setFilter] = useState<CaseStatus | ''>('');
   const [search, setSearch] = useState('');
   const [pending, setPending] = useState<Record<string, CaseStatus>>({});
+  // Forcing a status needs a backend verb that does not exist yet (spec
+  // 2026-09-21 D7); the live case layer says so and the column is hidden.
+  const canOverride = casesApi.supports.statusOverride;
   const [busy, setBusy] = useState<string | null>(null);
   const [notice, setNotice] = useState<string | null>(null);
   const [error, setError] = useState<string | null>(null);
@@ -172,8 +175,8 @@ function AdminCases(): React.JSX.Element {
               <TableHead>{t.colCaseRef}</TableHead>
               <TableHead>{t.colStatus}</TableHead>
               <TableHead>{t.colUpdated}</TableHead>
-              <TableHead>{t.adminOverrideTo}</TableHead>
-              <TableHead>{t.colActions}</TableHead>
+              {canOverride && <TableHead>{t.adminOverrideTo}</TableHead>}
+              {canOverride && <TableHead>{t.colActions}</TableHead>}
             </TableRow>
           </TableHeader>
           <TableBody>
@@ -193,6 +196,8 @@ function AdminCases(): React.JSX.Element {
                   <TableCell className="text-muted-foreground">
                     {formatDate(item.updatedAt)}
                   </TableCell>
+                  {canOverride && (
+                    <>
                   <TableCell>
                     {options.length === 0 ? (
                       <span className="text-xs text-muted-foreground">{t.adminNoTransitions}</span>
@@ -227,6 +232,8 @@ function AdminCases(): React.JSX.Element {
                       {t.adminOverride}
                     </Button>
                   </TableCell>
+                    </>
+                  )}
                 </TableRow>
               );
             })}
