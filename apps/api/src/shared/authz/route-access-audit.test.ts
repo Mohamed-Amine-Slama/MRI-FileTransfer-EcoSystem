@@ -149,6 +149,10 @@ describe('P1.5 route access declaration', () => {
       ORTHANC_USERNAME: 'unused',
       ORTHANC_PASSWORD: 'unused-local',
       SIGNED_URL_SECRET: 'unused-test-signing-key-at-least-32-chars',
+      // ImagingWorker opens a real Redis connection in onModuleInit. Off, so
+      // the promise above holds: this only builds the graph. With it on, the
+      // test passed only where something happened to listen on 6379.
+      IMAGING_WORKER_ENABLED: 'false',
     });
 
     const { AppModule } = await import('../../app.module');

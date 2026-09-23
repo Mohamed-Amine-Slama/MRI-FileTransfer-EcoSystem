@@ -211,6 +211,9 @@ export class OrthancHttpClient implements OrthancClient {
       this.logger.error(
         `Orthanc request failed (${path}): ${err instanceof Error ? err.message : 'unknown'}`,
       );
+      // Deliberately no `cause`: undici's errors carry the URL and socket
+      // address, and a cause travels wherever the error does.
+      // eslint-disable-next-line preserve-caught-error
       throw new Error('Imaging server unavailable');
     }
   }

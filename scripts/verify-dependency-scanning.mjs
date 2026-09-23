@@ -90,8 +90,12 @@ function plantVulnerableDependency() {
     );
   }
 
-  manifest.devDependencies = {
-    ...manifest.devDependencies,
+  // A PRODUCTION dependency, not a dev one: Trivy leaves devDependencies out
+  // of pnpm lockfile results unless run with --include-dev-deps, and CI's
+  // Trivy step does not pass it. A dev-dependency probe therefore proves
+  // nothing about the scan CI actually runs — it just makes Trivy look blind.
+  manifest.dependencies = {
+    ...manifest.dependencies,
     [PROBE_PACKAGE]: PROBE_VERSION,
   };
   writeFileSync(MANIFEST, `${JSON.stringify(manifest, null, 2)}\n`);
