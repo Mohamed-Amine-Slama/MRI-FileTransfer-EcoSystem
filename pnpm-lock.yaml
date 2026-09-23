@@ -138,11 +138,11 @@ importers:
   apps/web:
     dependencies:
       '@cornerstonejs/core':
-        specifier: ^5.8.2
-        version: 5.8.2(@cornerstonejs/metadata@5.8.2)(@cornerstonejs/utils@5.8.2)(autoprefixer@10.5.4(postcss@8.5.28))(wslink@2.5.0)
+        specifier: ^5.10.6
+        version: 5.10.6(@cornerstonejs/metadata@5.10.6)(@cornerstonejs/utils@5.10.6)(autoprefixer@10.5.4(postcss@8.5.28))(wslink@2.5.0)
       '@cornerstonejs/dicom-image-loader':
-        specifier: ^5.8.2
-        version: 5.8.2(@cornerstonejs/core@5.8.2(@cornerstonejs/metadata@5.8.2)(@cornerstonejs/utils@5.8.2)(autoprefixer@10.5.4(postcss@8.5.28))(wslink@2.5.0))(@cornerstonejs/metadata@5.8.2)(dicom-parser@1.8.21)
+        specifier: ^5.10.6
+        version: 5.10.6(@cornerstonejs/core@5.10.6(@cornerstonejs/metadata@5.10.6)(@cornerstonejs/utils@5.10.6)(autoprefixer@10.5.4(postcss@8.5.28))(wslink@2.5.0))(@cornerstonejs/metadata@5.10.6)(dicom-parser@1.8.21)
       '@mir/contracts':
         specifier: workspace:*
         version: link:../../packages/contracts
@@ -288,24 +288,24 @@ packages:
     resolution: {integrity: sha512-iUGvF8r4SMHFrHGjwhNsTlHDPm+fIcGw3fUYm4vzhsf2J6VR9DqHtynXwUVOCBMSG9YTyWkcsD4db++0kMffMw==}
     engines: {node: '>=0.14'}
 
-  '@cornerstonejs/core@5.8.2':
-    resolution: {integrity: sha512-+30HxfZS8UQhcai5c/WaLFhWnhWWD+w/Xxr8RWIIz1TBpSurvObIn2B37psL3HfPJYRKq6kpdHjXsLlMcY8ZtA==}
+  '@cornerstonejs/core@5.10.6':
+    resolution: {integrity: sha512-VZR2cKGFoNBamx+4gcq/T/BflgbrRNQvpq7B7TZRZ2bK7sYt19C9Lj6j1YSOGQnnVSCJ+OwwmVUkHQfQd3t2IQ==}
     peerDependencies:
-      '@cornerstonejs/metadata': 5.8.2
-      '@cornerstonejs/utils': 5.8.2
+      '@cornerstonejs/metadata': 5.10.6
+      '@cornerstonejs/utils': 5.10.6
 
-  '@cornerstonejs/dicom-image-loader@5.8.2':
-    resolution: {integrity: sha512-vDuMGLgU+CW+eClB5jUljnwAqes23wqA5pOaD2rH63jEgzQl5KWY/+O39odcE9+cmhfSkjBwUlT8MS+PrV8tvw==}
+  '@cornerstonejs/dicom-image-loader@5.10.6':
+    resolution: {integrity: sha512-/z31LX9FfamKZgxtsDfI9Mky1Vjf3QMK5xZEK2nuC/bSYpKe/i+t/f0xgISDXYCqVuGi4z6zojNEkWdSI65aeA==}
     peerDependencies:
-      '@cornerstonejs/core': 5.8.2
-      '@cornerstonejs/metadata': 5.8.2
+      '@cornerstonejs/core': 5.10.6
+      '@cornerstonejs/metadata': 5.10.6
       dicom-parser: 1.8.21
 
-  '@cornerstonejs/metadata@5.8.2':
-    resolution: {integrity: sha512-ej46vaAEg2ZLU5iNnKUPfVj/3hbW2cGVJHM3otUeQRKj3ecyP533xkWnrNj0EEGknWT9QYkeMU9Bj6meKEy5Mg==}
+  '@cornerstonejs/metadata@5.10.6':
+    resolution: {integrity: sha512-LkEOWdYKBf1jTQ+r2k6X6EICDS0Odsa0nBss2RhbLxDklJ6HHBcQl8OxzYIIEUUwaCTzA7aj/xV3P5NIIz1BAw==}
 
-  '@cornerstonejs/utils@5.8.2':
-    resolution: {integrity: sha512-aacRWJnd84jKsIy197rSrGA4CGivg+m+63rlibjNf0C4fYZgBFxvkaXXFWWbM3XNpMXCloa4ZBcpdzfC1cXgZQ==}
+  '@cornerstonejs/utils@5.10.6':
+    resolution: {integrity: sha512-khVJx2xRbNP+4KHKEdkop6M6qKl+HgBaoECUxyElnWHWilGziyuX836KMcdtbDnbeUPifmf9ijL1l2NH4XCdrA==}
 
   '@emnapi/runtime@1.11.3':
     resolution: {integrity: sha512-Xz4Tpyki7XyrpbUK1jR1AhdAdaXyhhY4lZ3neLodmhpuWfy2PAQN5B46sAiU4liOXGLkHypn/qU+jvfWSCYYLA==}
@@ -1970,8 +1970,8 @@ packages:
     resolution: {integrity: sha512-p5tAzS57i5MV9fZFDj9LeIiTZEufbSe2eDozP+ElheSUq1m74CRq1jI4mYNDdVs9vQztXFLuk/Gd6BWTdwRJ5g==}
     engines: {node: '>= 0.8', npm: 1.2.8000 || >= 1.4.16}
 
-  brace-expansion@1.1.18:
-    resolution: {integrity: sha512-Edep/X9fGqVNmzKBVsDYIOtD+z1tuezV70LBjdCst9Tqu76lsnvRiZ6oTic1n+/BIwX6QDGAO94PN4N2SADvtw==}
+  brace-expansion@1.1.21:
+    resolution: {integrity: sha512-9zeA+KLZNNzglF2TPKRQEDyx6Yby7daAkuy8MiPzpXPsYDWi/DRM8jmwUDxokQjYqBpv5DgPiwD4h4ZZSy1Ujw==}
 
   brace-expansion@5.0.9:
     resolution: {integrity: sha512-ScQ4IuvIEF1TMlP7Zt+vjJ//9zlPb2SDcxWxM3bk8s6t6GGdJ7KO1dCcTidOPJKePW30LE/2cT7wCyPho9/Wxg==}
@@ -3697,10 +3697,10 @@ snapshots:
 
   '@cornerstonejs/codec-openjph@2.4.9': {}
 
-  '@cornerstonejs/core@5.8.2(@cornerstonejs/metadata@5.8.2)(@cornerstonejs/utils@5.8.2)(autoprefixer@10.5.4(postcss@8.5.28))(wslink@2.5.0)':
+  '@cornerstonejs/core@5.10.6(@cornerstonejs/metadata@5.10.6)(@cornerstonejs/utils@5.10.6)(autoprefixer@10.5.4(postcss@8.5.28))(wslink@2.5.0)':
     dependencies:
-      '@cornerstonejs/metadata': 5.8.2
-      '@cornerstonejs/utils': 5.8.2
+      '@cornerstonejs/metadata': 5.10.6
+      '@cornerstonejs/utils': 5.10.6
       '@kitware/vtk.js': 36.4.1(autoprefixer@10.5.4(postcss@8.5.28))(wslink@2.5.0)
       comlink: 4.4.2
       gl-matrix: 3.4.3
@@ -3709,28 +3709,28 @@ snapshots:
       - autoprefixer
       - wslink
 
-  '@cornerstonejs/dicom-image-loader@5.8.2(@cornerstonejs/core@5.8.2(@cornerstonejs/metadata@5.8.2)(@cornerstonejs/utils@5.8.2)(autoprefixer@10.5.4(postcss@8.5.28))(wslink@2.5.0))(@cornerstonejs/metadata@5.8.2)(dicom-parser@1.8.21)':
+  '@cornerstonejs/dicom-image-loader@5.10.6(@cornerstonejs/core@5.10.6(@cornerstonejs/metadata@5.10.6)(@cornerstonejs/utils@5.10.6)(autoprefixer@10.5.4(postcss@8.5.28))(wslink@2.5.0))(@cornerstonejs/metadata@5.10.6)(dicom-parser@1.8.21)':
     dependencies:
       '@cornerstonejs/codec-charls': 1.2.5
       '@cornerstonejs/codec-libjpeg-turbo-8bit': 1.2.4
       '@cornerstonejs/codec-openjpeg': 1.3.2
       '@cornerstonejs/codec-openjph': 2.4.9
-      '@cornerstonejs/core': 5.8.2(@cornerstonejs/metadata@5.8.2)(@cornerstonejs/utils@5.8.2)(autoprefixer@10.5.4(postcss@8.5.28))(wslink@2.5.0)
-      '@cornerstonejs/metadata': 5.8.2
+      '@cornerstonejs/core': 5.10.6(@cornerstonejs/metadata@5.10.6)(@cornerstonejs/utils@5.10.6)(autoprefixer@10.5.4(postcss@8.5.28))(wslink@2.5.0)
+      '@cornerstonejs/metadata': 5.10.6
       comlink: 4.4.2
       dicom-parser: 1.8.21
       jpeg-lossless-decoder-js: 2.1.2
       pako: 2.1.0
       uuid: 11.1.1
 
-  '@cornerstonejs/metadata@5.8.2':
+  '@cornerstonejs/metadata@5.10.6':
     dependencies:
       '@cornerstonejs/calculate-suv': 1.0.3
-      '@cornerstonejs/utils': 5.8.2
+      '@cornerstonejs/utils': 5.10.6
       dcmjs: 0.52.0
       gl-matrix: 3.4.3
 
-  '@cornerstonejs/utils@5.8.2':
+  '@cornerstonejs/utils@5.10.6':
     dependencies:
       dcmjs: 0.52.0
 
@@ -5170,7 +5170,7 @@ snapshots:
     transitivePeerDependencies:
       - supports-color
 
-  brace-expansion@1.1.18:
+  brace-expansion@1.1.21:
     dependencies:
       balanced-match: 1.0.2
       concat-map: 0.0.1
@@ -5992,7 +5992,7 @@ snapshots:
 
   minimatch@3.1.5:
     dependencies:
-      brace-expansion: 1.1.18
+      brace-expansion: 1.1.21
 
   minimist@1.2.8: {}
 
