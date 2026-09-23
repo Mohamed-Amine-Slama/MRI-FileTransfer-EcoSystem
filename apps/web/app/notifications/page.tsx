@@ -36,8 +36,25 @@ const NOTIFICATION_ROLES = rolesForSides(['source', 'destination', 'ops']);
 export default function NotificationsPage(): React.JSX.Element {
   return (
     <RoleGate allow={NOTIFICATION_ROLES}>
-      <NotificationCentre />
+      {casesApi.supports.notifications ? <NotificationCentre /> : <ByEmailOnly />}
     </RoleGate>
+  );
+}
+
+/**
+ * In-app notifications have no backend yet (spec 2026-09-21 D7). Rather than
+ * render an inbox that is always empty — which reads as "nothing happened" —
+ * the page says where notifications actually go.
+ */
+function ByEmailOnly(): React.JSX.Element {
+  const t = useT();
+  return (
+    <Main>
+      <PageHeader title={t.notificationsTitle} />
+      <Alert tone="info" testId="notifications-by-email">
+        {t.notificationsByEmail}
+      </Alert>
+    </Main>
   );
 }
 
