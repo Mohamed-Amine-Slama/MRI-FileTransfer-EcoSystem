@@ -3,6 +3,7 @@
 import type { FieldSpec } from '@mir/contracts';
 import type { Dictionary } from '../../lib/i18n/dictionary';
 import { useT } from '../../lib/i18n/provider';
+import { specialtyLabel } from './labels';
 import { Field, Input, Select } from '../ui';
 
 /**
@@ -53,7 +54,9 @@ export function CorridorFields({
                 <option value="">{t.none}</option>
                 {(field.options ?? []).map((option) => (
                   <option key={option} value={option}>
-                    {label(t, option)}
+                    {/* Specialty options are routing keys (`radiology`), not
+                        dictionary keys; they have their own labels. */}
+                    {field.key === 'specialty' ? specialtyLabel(t, option) : label(t, option)}
                   </option>
                 ))}
               </Select>

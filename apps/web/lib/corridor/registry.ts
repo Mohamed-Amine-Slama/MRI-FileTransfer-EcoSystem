@@ -1,4 +1,5 @@
 import {
+  CONSULT_SPECIALTIES,
   CORRIDOR_ENDPOINT_ROLES,
   ROLES,
   corridorSchema,
@@ -40,6 +41,16 @@ const LIBYA_TUNISIA: Corridor = corridorSchema.parse({
     licensingBodyKey: 'licensingBodyTnOrdreDesMedecins',
     documentRequirements: [
       { key: 'cnomNumber', kind: 'text', required: true, labelKey: 'fieldCnomNumber' },
+      // What the directory routes on. Approval copies it onto the doctor's
+      // profile (migration 0031); without it a doctor matches no clinic's
+      // specialty filter, however available they say they are.
+      {
+        key: 'specialty',
+        kind: 'select',
+        required: true,
+        labelKey: 'caseNewSpecialty',
+        options: [...CONSULT_SPECIALTIES],
+      },
       { key: 'facilityPermit', kind: 'file', required: true, labelKey: 'fieldFacilityPermit' },
     ],
   },
