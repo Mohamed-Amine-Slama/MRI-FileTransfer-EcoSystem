@@ -69,7 +69,7 @@ export type PaymentStatus = z.infer<typeof paymentStatusSchema>;
  * `LedgerSummary` has no total field, and nothing here should learn how to make
  * one.
  */
-export const LEDGER_ENTRY_KINDS = ['coordination_fee', 'saas_subscription'] as const;
+export const LEDGER_ENTRY_KINDS = ['coordination_fee', 'saas_subscription', 'doctor_payout'] as const;
 export const ledgerEntryKindSchema = z.enum(LEDGER_ENTRY_KINDS);
 export type LedgerEntryKind = z.infer<typeof ledgerEntryKindSchema>;
 
@@ -101,9 +101,23 @@ export const saasSubscriptionEntrySchema = z.object({
 });
 export type SaasSubscriptionEntry = z.infer<typeof saasSubscriptionEntrySchema>;
 
+/**
+ * What the platform owes a receiving doctor for one answered case — spec
+ * 2026-09-21 §3. Money flowing the OTHER way from a coordination fee, so it
+ * is its own kind and its own total: a doctor's ledger that netted payouts
+ * against fees would show a number nobody is actually owed.
+ */
+export const doctorPayoutEntrySchema = z.object({
+  ...ledgerEntryBase,
+  kind: z.literal('doctor_payout'),
+  caseRef: caseRefSchema,
+});
+export type DoctorPayoutEntry = z.infer<typeof doctorPayoutEntrySchema>;
+
 export const ledgerEntrySchema = z.discriminatedUnion('kind', [
   coordinationFeeEntrySchema,
   saasSubscriptionEntrySchema,
+  doctorPayoutEntrySchema,
 ]);
 export type LedgerEntry = z.infer<typeof ledgerEntrySchema>;
 
@@ -116,6 +130,7 @@ type TotalsByCurrency = Partial<Record<CurrencyCode, Money>>;
 export interface LedgerSummary {
   coordinationFees: TotalsByCurrency;
   subscriptions: TotalsByCurrency;
+  doctorPayouts: TotalsByCurrency;
   outstanding: Record<LedgerEntry['kind'], number>;
 }
 
@@ -131,12 +146,17 @@ export function summariseLedger(entries: readonly LedgerEntry[]): LedgerSummary 
   const summary: LedgerSummary = {
     coordinationFees: {},
     subscriptions: {},
-    outstanding: { coordination_fee: 0, saas_subscription: 0 },
+    doctorPayouts: {},
+    outstanding: { coordination_fee: 0, saas_subscription: 0, doctor_payout: 0 },
   };
 
   for (const entry of entries) {
     const bucket =
-      entry.kind === 'coordination_fee' ? summary.coordinationFees : summary.subscriptions;
+      entry.kind === 'coordination_fee'
+        ? summary.coordinationFees
+        : entry.kind === 'doctor_payout'
+          ? summary.doctorPayouts
+          : summary.subscriptions;
     addTo(bucket, entry.amount);
     if (entry.status !== 'paid') {
       summary.outstanding[entry.kind] += 1;
