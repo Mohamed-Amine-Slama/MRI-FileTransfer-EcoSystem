@@ -251,7 +251,7 @@ services:
       # one. That drift is not hypothetical, it is what made every request fail
       # with "password authentication failed for user mir_app" on 2026-09-01,
       # and nothing in the error points at two variables disagreeing.
-      DATABASE_URL: postgresql://mir_app:${MIR_APP_DEV_PASSWORD:?set MIR_APP_DEV_PASSWORD in .env}@postgres:5432/mir
+      DATABASE_URL: postgresql://postgres.zowgvbdcqdktsvprmufq:Typeinastrongpassword@aws-0-eu-central-1.pooler.supabase.com:6543/postgres
       DATABASE_POOL_MAX: ${DATABASE_POOL_MAX:-10}
 
       REDIS_URL: redis://redis:6379

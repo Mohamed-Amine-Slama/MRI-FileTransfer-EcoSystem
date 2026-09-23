@@ -41,6 +41,13 @@ export const configSchema = z.object({
     'DATABASE_URL must be a postgres:// or postgresql:// connection string',
   ),
   DATABASE_POOL_MAX: intFromEnv('DATABASE_POOL_MAX', 1, 200).prefault('10'),
+  // TLS to the database. `off` suits a database on the same host or private
+  // network (local compose). A hosted database (Supabase) is reached over the
+  // internet, and without TLS every query — patient rows included — crosses it
+  // in clear: `require` encrypts, `verify` also checks the server certificate
+  // against DATABASE_SSL_CA_FILE (or the system roots when unset).
+  DATABASE_SSL: z.enum(['off', 'require', 'verify']).default('off'),
+  DATABASE_SSL_CA_FILE: z.string().min(1).optional(),
 
   // --- cache / queue -------------------------------------------------------
   REDIS_URL: nonEmpty('REDIS_URL').refine(
