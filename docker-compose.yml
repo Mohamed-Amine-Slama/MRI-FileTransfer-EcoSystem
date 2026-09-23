@@ -251,7 +251,14 @@ services:
       # one. That drift is not hypothetical, it is what made every request fail
       # with "password authentication failed for user mir_app" on 2026-09-01,
       # and nothing in the error points at two variables disagreeing.
-      DATABASE_URL: postgresql://postgres.zowgvbdcqdktsvprmufq:Typeinastrongpassword@aws-0-eu-central-1.pooler.supabase.com:6543/postgres
+      #
+      # WHERE it points is .env's business (the app moved to Supabase 2026-09-23):
+      # local compose by default, the hosted database when DATABASE_APP_HOST
+      # says so. Always mir_app, never `postgres` — Supabase's postgres role has
+      # BYPASSRLS, so connecting as it silently switches every policy off. On
+      # the Supabase pooler the user is `mir_app.<project-ref>`.
+      DATABASE_URL: postgresql://${DATABASE_APP_USER:-mir_app}:${MIR_APP_DEV_PASSWORD:?set MIR_APP_DEV_PASSWORD in .env}@${DATABASE_APP_HOST:-postgres:5432}/${DATABASE_APP_NAME:-mir}
+      DATABASE_SSL: ${DATABASE_SSL:-off}
       DATABASE_POOL_MAX: ${DATABASE_POOL_MAX:-10}
 
       REDIS_URL: redis://redis:6379
