@@ -55,9 +55,9 @@
 
 **Interfaces:** Produces the SQL behaviour "approving a destination organisation upserts `identity_doctor_profiles` for each seated member with `verified_at = now()`, `specialty = lower(credentials->>'specialty')` (default `'unspecified'`), `license_number = credentials->>'cnomNumber'`".
 
-- [ ] **Step 1: Failing test** `approval-profile.test.ts`: an applicant seated in a pending destination organisation with credentials `{"cnomNumber":"TN-TEST-1","specialty":"Radiology"}` (set up via `h.owner`, mirroring `provisioning.test.ts`); admin context calls `OrganisationsService.decide(orgId, true)`; the doctor (`tunisia_doctor` context) calls `DirectoryService.setAccepting(true)` — resolves; a referring doctor seated in an approved source org of `ly-tn` sees the doctor in `listAcceptingDoctors('radiology')`. The profile row has `verified_at` set and `specialty = 'radiology'`.
-- [ ] **Step 2:** Run → FAIL (`NotFoundException: No doctor profile for this account`).
-- [ ] **Step 3: Migration** first section: `CREATE OR REPLACE FUNCTION identity_decide_verification(...)` — same body, plus, inside `IF p_approve`, when `p_granted_role = 'tunisia_doctor'`:
+- [x] **Step 1: Failing test** `approval-profile.test.ts`: an applicant seated in a pending destination organisation with credentials `{"cnomNumber":"TN-TEST-1","specialty":"Radiology"}` (set up via `h.owner`, mirroring `provisioning.test.ts`); admin context calls `OrganisationsService.decide(orgId, true)`; the doctor (`tunisia_doctor` context) calls `DirectoryService.setAccepting(true)` — resolves; a referring doctor seated in an approved source org of `ly-tn` sees the doctor in `listAcceptingDoctors('radiology')`. The profile row has `verified_at` set and `specialty = 'radiology'`.
+- [x] **Step 2:** Run → FAIL (`NotFoundException: No doctor profile for this account`).
+- [x] **Step 3: Migration** first section: `CREATE OR REPLACE FUNCTION identity_decide_verification(...)` — same body, plus, inside `IF p_approve`, when `p_granted_role = 'tunisia_doctor'`:
 
 ```sql
     INSERT INTO identity_doctor_profiles
@@ -76,17 +76,17 @@
 ```
 
   plus `UPDATE identity_doctor_profiles SET specialty = lower(specialty) WHERE specialty <> lower(specialty);`. The `.down.sql` restores the previous body (copied from `pg_get_functiondef` before editing).
-- [ ] **Step 4:** Migrate and run the test → PASS.
-- [ ] **Step 5: Sign-up asks the specialty.** Destination `documentRequirements` gains `{ key: 'specialty', kind: 'select', required: true, labelKey: 'caseNewSpecialty', options: [...CONSULT_SPECIALTIES] }`; `CorridorFields` labels a `specialty` select's options with `specialtyLabel`. Onboarding e2e still passes.
-- [ ] **Step 6: Specific message.** A 404 from `setAccepting` shows `t.availabilityNoProfile` ("Your doctor profile is not complete yet. Contact support to finish verification.") instead of the generic error.
-- [ ] **Step 7:** Commit.
+- [x] **Step 4:** Migrate and run the test → PASS.
+- [x] **Step 5: Sign-up asks the specialty.** Destination `documentRequirements` gains `{ key: 'specialty', kind: 'select', required: true, labelKey: 'caseNewSpecialty', options: [...CONSULT_SPECIALTIES] }`; `CorridorFields` labels a `specialty` select's options with `specialtyLabel`. Onboarding e2e still passes.
+- [x] **Step 6: Specific message.** A 404 from `setAccepting` shows `t.availabilityNoProfile` ("Your doctor profile is not complete yet. Contact support to finish verification.") instead of the generic error.
+- [x] **Step 7:** Commit.
 
 ### Task 2: A flat $100 consult with a 30 / 20 / 50 split, locked at quote
 
 **Interfaces:** contracts `ConsultSplit { amountMinor; clinicShareMinor; doctorShareMinor; platformShareMinor; currency }`, `splitOf(amountMinor, clinicShareMinor, doctorShareMinor, currency)` (throws on shares exceeding the amount or non-integer/negative values). API `Quote` gains `clinicShareMinor`, `doctorShareMinor`; `CaseDto`/`CaseRecord` gain both (`number | null`).
 
-- [ ] **Step 1: Contract test first:** `splitOf(10000, 3000, 2000, 'USD')` → platform 5000; throws for 6000 + 5000 on 10000; throws for 0.5.
-- [ ] **Step 2: Migration section:**
+- [x] **Step 1: Contract test first:** `splitOf(10000, 3000, 2000, 'USD')` → platform 5000; throws for 6000 + 5000 on 10000; throws for 0.5.
+- [x] **Step 2: Migration section:**
 
 ```sql
 CREATE TABLE pricing_consult_price (
@@ -107,21 +107,46 @@ ALTER TABLE cases_cases
 ```
 
   and widen `billing_ledger_entries.kind` to `doctor_payout` (payout requires a case), with `CREATE UNIQUE INDEX billing_ledger_one_payout_per_case ON billing_ledger_entries (case_id) WHERE kind = 'doctor_payout'`. Read the real constraint names with `\d billing_ledger_entries` first.
-- [ ] **Step 3: API tests first:** quote stores 10000 / 3000 / 2000 for any specialty and tier; editing `pricing_consult_price` after quote leaves the quoted case unchanged; pay → one `coordination_fee` of 7000 USD on the clinic org; accept → no ledger row; answer → one `doctor_payout` of 2000 USD on the doctor's org; a repeated answer adds none.
-- [ ] **Step 4: Implement.** `quoteFor` reads `pricing_consult_price` (404 if none), keeps the closed-specialty 409. `quote` writes both shares in its UPDATE. `markPaid` → `ledger.accrueClinicRemittance(caseId)` (`quoted − clinic_share`, case's organisation). `accept` drops the destination accrual. `markAnswered` → `ledger.accrueDoctorPayout(caseId)` (`doctor_share`, org via `billing_owing_organisation(case, 'destination')`). Directory indicative price = the flat price.
-- [ ] **Step 5: Contracts ledger:** `doctorPayoutEntrySchema` in the union; `LedgerSummary.doctorPayouts` and `outstanding.doctor_payout`; `toEntry` maps it.
-- [ ] **Step 6: Web:** quoted card shows consult $100.00 · you keep $30.00 · you pay the platform $70.00; ledger labels payouts and totals them separately; admin ledger shows in / out / platform margin per case; CSV has the kind.
-- [ ] **Step 7:** Browser walk of pay → accept → answer and the three ledgers. Commit.
+- [x] **Step 3: API tests first:** quote stores 10000 / 3000 / 2000 for any specialty and tier; editing `pricing_consult_price` after quote leaves the quoted case unchanged; pay → one `coordination_fee` of 7000 USD on the clinic org; accept → no ledger row; answer → one `doctor_payout` of 2000 USD on the doctor's org; a repeated answer adds none.
+- [x] **Step 4: Implement.** `quoteFor` reads `pricing_consult_price` (404 if none), keeps the closed-specialty 409. `quote` writes both shares in its UPDATE. `markPaid` → `ledger.accrueClinicRemittance(caseId)` (`quoted − clinic_share`, case's organisation). `accept` drops the destination accrual. `markAnswered` → `ledger.accrueDoctorPayout(caseId)` (`doctor_share`, org via `billing_owing_organisation(case, 'destination')`). Directory indicative price = the flat price.
+- [x] **Step 5: Contracts ledger:** `doctorPayoutEntrySchema` in the union; `LedgerSummary.doctorPayouts` and `outstanding.doctor_payout`; `toEntry` maps it.
+- [x] **Step 6: Web:** quoted card shows consult $100.00 · you keep $30.00 · you pay the platform $70.00; ledger labels payouts and totals them separately; admin ledger shows in / out / platform margin per case; CSV has the kind.
+- [x] **Step 7:** Browser walk of pay → accept → answer and the three ledgers. Commit.
 
 ### Task 3: Two yearly plans
 
 **Interfaces:** `PLAN_CODES` gains `src_clinic_yearly`, `dst_doctor_yearly` (old codes stay parseable). `PlanTier.priceMonthly` → `price: Money | null` + `interval: 'month' | 'year'`.
 
-- [ ] **Step 1: Tests first:** the catalogue has exactly one source tier (`src_clinic_yearly`, 100000 USD, year) and one destination tier (`dst_doctor_yearly`, 1000000 TND, year), `toMajorUnits` 1000 each; API `catalogue()` returns only those two; a yearly subscription's period is one year; the side trigger still refuses a cross-side plan.
-- [ ] **Step 2: Migration section:** `billing_interval` column (`month`|`year`), widened code check, the two plans inserted, the rest `active = false`, `billing_public_plans()` returns the interval.
-- [ ] **Step 3: Implement** contracts, `plans.service` (interval; `'1 year'` period), pricing and billing pages ("… / year").
-- [ ] **Step 4:** Browser check of `/pricing` and each role's billing settings. Commit.
+- [x] **Step 1: Tests first:** the catalogue has exactly one source tier (`src_clinic_yearly`, 100000 USD, year) and one destination tier (`dst_doctor_yearly`, 1000000 TND, year), `toMajorUnits` 1000 each; API `catalogue()` returns only those two; a yearly subscription's period is one year; the side trigger still refuses a cross-side plan.
+- [x] **Step 2: Migration section:** `billing_interval` column (`month`|`year`), widened code check, the two plans inserted, the rest `active = false`, `billing_public_plans()` returns the interval.
+- [x] **Step 3: Implement** contracts, `plans.service` (interval; `'1 year'` period), pricing and billing pages ("… / year").
+- [x] **Step 4:** Browser check of `/pricing` and each role's billing settings. Commit.
 
 ### Task 4: Verification pass
 
-- [ ] Full API suite, web unit, Playwright; browser walk for clinic, doctor and ops. Record results and anything deferred at the bottom of this file.
+- [x] Full API suite, web unit, Playwright; browser walk for clinic, doctor and ops. Record results and anything deferred at the bottom of this file.
+
+---
+
+## Execution notes (completed 2026-09-24)
+
+**Deviations from the plan.**
+- Three migrations, not one: 0031 (profile on approval), 0032 (consult price and split), 0033 (yearly plans). Each ships a down; 0033's round trip (down → up → down → up) was run on a scratch database.
+- Plan codes are `src_clinic_yearly` / `dst_doctor_yearly`; the six monthly tiers are deactivated, never deleted, and stay parseable in `PLAN_CODES`.
+
+**Defects found while executing (all fixed, with tests).**
+1. **The ledger never accrued anything for a real caller.** `billing_ledger_entries` admits INSERT only for the system role, and accrual ran as the clinic or doctor, so it returned null silently — every referral was free. `CasesService` now runs `accrueClinicRemittance` / `accrueDoctorPayout` under `systemContext`; `LedgerService` still refuses a direct call from a clinic (pinned by `ledger.test.ts`).
+2. **Billing settings offered both sides' plans.** A clinic could choose the doctor plan and only the 0022 trigger refused it. Now `tiersForSide`.
+3. **The viewer bundle budget measured the wrong thing.** It summed every script loaded by the time it looked, which included Cornerstone fetched after first paint. It passed only while the full-resolution upgrade was broken (fixed in plan 1). Now measured to a `mir:viewer-first-image` performance mark: 293 KB against a 600 KB budget.
+
+**Database move (owner's decision, 2026-09-23: "move to supabase").** The compose file had a hardcoded Supabase URL that connected as `postgres`, which has BYPASSRLS there — every policy off. The API's `DATABASE_URL` is now built from `.env` (`DATABASE_APP_USER/HOST/NAME` + `MIR_APP_DEV_PASSWORD`) and is always `mir_app`; new `DATABASE_SSL` (`off|require|verify`) — without it the Supabase connection was plain text. Tests and local walks stay on the local database. Supabase has 0001–0032 and no data; 0033 is not applied there yet.
+
+**Measurements.**
+- API: 413 passed (46 files). Web unit: 359 passed. Playwright: 124 passed, 84 skipped, 0 failed (2 workers; with the default worker count ten tests time out on page load on this machine — load, not regressions: all pass at 1–2 workers).
+- Browser walk (production build, local API), case MIR-2026-0004: directory shows $100; quote shows $100 · keep $30 · pay the platform $70; paying writes one $70 coordination fee on the clinic's organisation; the availability switch goes off and back on; accept writes nothing; answer writes one $20 payout on the doctor's organisation; clinic and doctor billing each offer only their own yearly plan (US$1,000 / TND 1,000 per year); `/pricing` shows the two plans with no placeholder notice; ops sees $280 in, $80 out, $200 margin (four answered cases × $50). No page errors in any role.
+
+**Deferred / open.**
+- 0033 on Supabase: runs with the next `migrate` against that database.
+- `.env` needs the four `DATABASE_APP_*` / `DATABASE_SSL` lines and a strong `MIR_APP_DEV_PASSWORD` (the owner's to set; the automated edit was refused).
+- The Supabase admin password is in git history (commit d5272df, pushed) and must be rotated.
+- A subscriber on a retired tier sees "no plan" as their current plan (the catalogue no longer lists it); they can move to the yearly plan from the same screen.

@@ -207,6 +207,8 @@ function subjectTypeFor(event: DomainEvent): string {
     case 'CaseDeclined':
     case 'CaseExpired':
     case 'CaseAccepted':
+    case 'CaseAnswered':
+    case 'CaseReportDownloaded':
       return 'case';
   }
 }
@@ -227,6 +229,8 @@ function subjectIdFor(event: DomainEvent): string | undefined {
     case 'CaseDeclined':
     case 'CaseExpired':
     case 'CaseAccepted':
+    case 'CaseAnswered':
+    case 'CaseReportDownloaded':
       return event.caseId;
   }
 }
@@ -287,9 +291,12 @@ function metadataFor(event: DomainEvent): Record<string, unknown> {
     case 'CaseDeclined':
     case 'CaseExpired':
     case 'CaseAccepted':
+    case 'CaseAnswered':
       // No amount: none of these move money on their own, and a details blob
       // with a currency in it would imply otherwise to whoever reads the log.
       return { doctorId: event.doctorId };
+    case 'CaseReportDownloaded':
+      return { format: event.format };
     case 'PatientCreated':
       return { createdByDoctor: event.createdByDoctor };
   }

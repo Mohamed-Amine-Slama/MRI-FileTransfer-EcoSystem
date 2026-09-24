@@ -397,6 +397,10 @@ const ar = {
   adminReject: 'رفض',
   adminLedgerTitle: 'الإشراف المالي',
   adminLedgerDescription: 'الأرصدة عبر جميع حسابات مقدّمي الخدمة.',
+  adminLedgerPlatformTitle: 'حصة المنصة',
+  adminLedgerIn: 'مستحق من العيادات',
+  adminLedgerOut: 'مستحق للأطباء',
+  adminLedgerMargin: 'هامش المنصة',
   adminOverride: 'تغيير الحالة يدويًا',
   adminOverrideTo: 'الحالة الجديدة',
   adminOverrideDone: 'تم تحديث حالة الحالة.',
@@ -535,10 +539,10 @@ const ar = {
   teamAssistantOnlyHint: 'يمكنك دعوة مساعد فقط. دعوة الأطباء من صلاحية مالك الحساب.',
   seatOwnerHint: 'يمكنه دعوة الأعضاء وتغيير الخطّة.',
 
-  // pricing, plans, and billing (§2, §5.7) — TODO(pricing): every plan name,
-  // blurb, and price below is PLACEHOLDER copy pending real commercial terms.
-  // Two ladders since migration 0022: src_* is sold to organisations that
-  // SUBMIT cases, dst_* to organisations that RECEIVE them.
+  // pricing, plans, and billing (§2, §5.7). Two ladders since migration 0022:
+  // src_* is sold to organisations that SUBMIT cases, dst_* to those that
+  // RECEIVE them. Since 0033 only the two *Yearly plans are on sale; the older
+  // names stay for subscriptions still on a retired tier.
   planSrcSoloName: 'فردي',
   planSrcSoloBlurb: 'لطبيب واحد يحيل حالات بين حين وآخر.',
   planSrcClinicName: 'عيادة',
@@ -551,6 +555,10 @@ const ar = {
   planDstClinicBlurb: 'لعيادة أو مركز يستقبل حالات منتظمة بفريق ثابت.',
   planDstNetworkName: 'شبكة',
   planDstNetworkBlurb: 'لمجموعة منشآت تستقبل الحالات أو أكثر من ممرّ واحد.',
+  planSrcClinicYearlyName: 'اشتراك العيادة السنوي',
+  planSrcClinicYearlyBlurb: 'لعيادة أو مختبر في ليبيا يحيل حالات التصوير إلى أطباء في تونس.',
+  planDstDoctorYearlyName: 'اشتراك الطبيب السنوي',
+  planDstDoctorYearlyBlurb: 'لطبيب في تونس يستقبل الحالات المحالة ويقرأ صورها ويكتب تقاريرها.',
   entitlementCsvExport: 'تصدير الكشوف بصيغة CSV',
   entitlementPrioritySupport: 'دعم ذو أولوية',
   entitlementAuditTrailRetention: 'حفظ سجل التدقيق لمدة أطول',
@@ -559,6 +567,7 @@ const ar = {
   pricingTitle: 'خطط الاشتراك',
   pricingSubtitle: 'رسوم التنسيق لكل حالة مكتملة تُحتسب على حدة، ولا تُدمج مع الاشتراك.',
   pricingPerMonth: 'شهرياً',
+  pricingPerYear: 'سنوياً',
   pricingContactUs: 'تواصل معنا',
   pricingChoose: 'اختيار هذه الخطّة',
   pricingCurrent: 'خطّتك الحالية',
@@ -1004,6 +1013,10 @@ const fr: Dictionary = {
   adminReject: 'Refuser',
   adminLedgerTitle: 'Supervision financière',
   adminLedgerDescription: 'Les soldes de tous les comptes prestataires.',
+  adminLedgerPlatformTitle: 'Position de la plateforme',
+  adminLedgerIn: 'Dû par les cliniques',
+  adminLedgerOut: 'Dû aux médecins',
+  adminLedgerMargin: 'Marge de la plateforme',
   adminOverride: 'Modifier le statut',
   adminOverrideTo: 'Nouveau statut',
   adminOverrideDone: 'Le statut du dossier a été mis à jour.',
@@ -1143,10 +1156,10 @@ const fr: Dictionary = {
   teamAssistantOnlyHint: "Vous pouvez inviter un assistant. Les médecins sont invités par le propriétaire du compte.",
   seatOwnerHint: "Peut inviter des membres et changer d'offre.",
 
-  // pricing, plans, and billing (§2, §5.7) — TODO(pricing): every plan name,
-  // blurb, and price below is PLACEHOLDER copy pending real commercial terms.
-  // Two ladders since migration 0022: src_* is sold to organisations that
-  // SUBMIT cases, dst_* to organisations that RECEIVE them.
+  // pricing, plans, and billing (§2, §5.7). Two ladders since migration 0022:
+  // src_* is sold to organisations that SUBMIT cases, dst_* to those that
+  // RECEIVE them. Since 0033 only the two *Yearly plans are on sale; the older
+  // names stay for subscriptions still on a retired tier.
   planSrcSoloName: 'Solo',
   planSrcSoloBlurb: 'Pour un praticien qui adresse quelques cas.',
   planSrcClinicName: 'Clinique',
@@ -1159,6 +1172,10 @@ const fr: Dictionary = {
   planDstClinicBlurb: "Pour une clinique ou un centre qui reçoit des cas régulièrement, avec une équipe.",
   planDstNetworkName: 'Réseau',
   planDstNetworkBlurb: "Pour un groupe d'établissements qui reçoivent des cas, ou plusieurs corridors.",
+  planSrcClinicYearlyName: 'Clinique — annuel',
+  planSrcClinicYearlyBlurb: 'Pour une clinique ou un laboratoire en Libye qui adresse des examens d’imagerie à des médecins en Tunisie.',
+  planDstDoctorYearlyName: 'Médecin — annuel',
+  planDstDoctorYearlyBlurb: 'Pour un médecin en Tunisie qui reçoit les dossiers adressés, lit les images et rédige les comptes rendus.',
   entitlementCsvExport: 'Export des relevés en CSV',
   entitlementPrioritySupport: 'Assistance prioritaire',
   entitlementAuditTrailRetention: "Conservation étendue du journal d'audit",
@@ -1167,6 +1184,7 @@ const fr: Dictionary = {
   pricingTitle: "Offres d'abonnement",
   pricingSubtitle: "Les frais de coordination par cas terminé sont facturés séparément et jamais fusionnés avec l'abonnement.",
   pricingPerMonth: 'par mois',
+  pricingPerYear: 'par an',
   pricingContactUs: 'Nous contacter',
   pricingChoose: 'Choisir cette offre',
   pricingCurrent: 'Votre offre actuelle',
@@ -1631,6 +1649,10 @@ const en: Dictionary = {
   adminReject: 'Reject',
   adminLedgerTitle: 'Ledger oversight',
   adminLedgerDescription: 'Balances across every provider account.',
+  adminLedgerPlatformTitle: 'Platform position',
+  adminLedgerIn: 'Owed by clinics',
+  adminLedgerOut: 'Owed to doctors',
+  adminLedgerMargin: 'Platform margin',
   adminOverride: 'Change status',
   adminOverrideTo: 'New status',
   adminOverrideDone: 'The case status has been updated.',
@@ -1770,10 +1792,10 @@ const en: Dictionary = {
   teamAssistantOnlyHint: 'You can invite an assistant. Doctors are invited by the account owner.',
   seatOwnerHint: 'Can invite members and change the plan.',
 
-  // pricing, plans, and billing (§2, §5.7) — TODO(pricing): every plan name,
-  // blurb, and price below is PLACEHOLDER copy pending real commercial terms.
-  // Two ladders since migration 0022: src_* is sold to organisations that
-  // SUBMIT cases, dst_* to organisations that RECEIVE them.
+  // pricing, plans, and billing (§2, §5.7). Two ladders since migration 0022:
+  // src_* is sold to organisations that SUBMIT cases, dst_* to those that
+  // RECEIVE them. Since 0033 only the two *Yearly plans are on sale; the older
+  // names stay for subscriptions still on a retired tier.
   planSrcSoloName: 'Solo',
   planSrcSoloBlurb: 'For a single practitioner referring the occasional case.',
   planSrcClinicName: 'Clinic',
@@ -1786,6 +1808,10 @@ const en: Dictionary = {
   planDstClinicBlurb: 'For a clinic or centre receiving a steady caseload, with a team.',
   planDstNetworkName: 'Network',
   planDstNetworkBlurb: 'For a group of receiving organisations, or more than one corridor.',
+  planSrcClinicYearlyName: 'Clinic — yearly',
+  planSrcClinicYearlyBlurb: 'For a clinic or lab in Libya that refers imaging cases to doctors in Tunisia.',
+  planDstDoctorYearlyName: 'Doctor — yearly',
+  planDstDoctorYearlyBlurb: 'For a doctor in Tunisia who receives referred cases, reads the images and writes the reports.',
   entitlementCsvExport: 'CSV statement export',
   entitlementPrioritySupport: 'Priority support',
   entitlementAuditTrailRetention: 'Extended audit-trail retention',
@@ -1794,6 +1820,7 @@ const en: Dictionary = {
   pricingTitle: 'Subscription plans',
   pricingSubtitle: 'Coordination fees per completed case are billed separately and never merged with the subscription.',
   pricingPerMonth: 'per month',
+  pricingPerYear: 'per year',
   pricingContactUs: 'Contact us',
   pricingChoose: 'Choose this plan',
   pricingCurrent: 'Your current plan',

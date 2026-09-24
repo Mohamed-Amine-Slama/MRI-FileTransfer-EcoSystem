@@ -14,10 +14,12 @@ import {
 import { useLocale, useT } from '../../../lib/i18n/provider';
 import { RoleGate } from '../../../components/RoleGate';
 import { CurrencyTotals } from '../../../components/ledger/CurrencyTotals';
+import { platformMargin } from '../../../lib/ledger/margin';
 import {
   Alert,
   Badge,
   Button,
+  Card,
   EmptyState,
   Main,
   PageHeader,
@@ -103,6 +105,9 @@ function AdminLedger(): React.JSX.Element {
   // The export is still two files, for the same reason it is on the provider
   // ledger: there is no schema in which the two kinds share a row.
   const all = rows.flatMap((row) => row.entries);
+  // The platform's own position (spec 2026-09-21 §3): in from clinics, out to
+  // doctors, and what is left. Subscriptions are not in it (§5.7 P0).
+  const platform = summariseLedger(all);
 
   return (
     <Main wide>
@@ -144,6 +149,29 @@ function AdminLedger(): React.JSX.Element {
       <Alert tone="info" testId="admin-ledger-separate-note">
         {t.ledgerSeparateNote}
       </Alert>
+
+      <Card title={t.adminLedgerPlatformTitle}>
+        <dl className="grid gap-4 sm:grid-cols-3" data-testid="admin-ledger-platform">
+          <div>
+            <dt className="text-xs text-muted-foreground">{t.adminLedgerIn}</dt>
+            <dd data-testid="platform-in">
+              <CurrencyTotals totals={platform.coordinationFees} locale={locale} />
+            </dd>
+          </div>
+          <div>
+            <dt className="text-xs text-muted-foreground">{t.adminLedgerOut}</dt>
+            <dd data-testid="platform-out">
+              <CurrencyTotals totals={platform.doctorPayouts} locale={locale} />
+            </dd>
+          </div>
+          <div>
+            <dt className="text-xs text-muted-foreground">{t.adminLedgerMargin}</dt>
+            <dd data-testid="platform-margin">
+              <CurrencyTotals totals={platformMargin(platform)} locale={locale} />
+            </dd>
+          </div>
+        </dl>
+      </Card>
 
       {rows.length === 0 ? (
         <EmptyState testId="admin-ledger-empty">{t.ledgerEmpty}</EmptyState>

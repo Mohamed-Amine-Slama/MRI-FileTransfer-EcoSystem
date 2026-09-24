@@ -199,12 +199,20 @@ test.describe('P9.1 viewer', () => {
 
     // The whole point of the lazy import: Cornerstone must not be in the
     // critical path, or the 5-second budget is gone before a pixel is drawn.
-    const bytes = await page.evaluate(() =>
-      performance
+    //
+    // Counted up to the page's own first-image mark, not up to "now": the
+    // upgrade starts the moment the preview is up, and on a fast local server
+    // its chunks finish before this evaluate runs. Counting them measured the
+    // upgrade, not the critical path — and only passed while the upgrade was
+    // broken and never downloaded anything.
+    const bytes = await page.evaluate(() => {
+      const mark = performance.getEntriesByName('mir:viewer-first-image')[0];
+      const cutoff = mark?.startTime ?? Number.POSITIVE_INFINITY;
+      return performance
         .getEntriesByType('resource')
-        .filter((e) => e.name.endsWith('.js'))
-        .reduce((sum, e) => sum + ((e as PerformanceResourceTiming).transferSize || 0), 0),
-    );
+        .filter((e) => e.name.endsWith('.js') && e.startTime < cutoff)
+        .reduce((sum, e) => sum + ((e as PerformanceResourceTiming).transferSize || 0), 0);
+    });
 
     // eslint-disable-next-line no-console -- the measured value is the point
     console.log(`JS transferred before first image: ${Math.round(bytes / 1024)} KB`);

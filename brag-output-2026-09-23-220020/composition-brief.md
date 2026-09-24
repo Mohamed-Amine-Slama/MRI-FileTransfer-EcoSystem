@@ -12,7 +12,7 @@ seconds and then turns: it ends on the project's own gate report saying
 - Composition directory: `brag-output-2026-09-23-220020/composition/`
 - Rendered video: `brag-output-2026-09-23-220020/brag.mp4`
 - Format: landscape — 1920x1080
-- Duration: 24.0s target (hard bound: 15–25s)
+- Duration: 24.6s target (hard bound: 15–25s)
 
 ## Source Material
 
@@ -157,12 +157,12 @@ preserve the helix's alpha channel when you do.
 Use the storyboard in `brag-output-2026-09-23-220020/brag-plan.md` as the creative contract. Scene
 summary:
 
-1. **The promise** — 4.0s — eyebrow + `Their scan arrives before they do.` revealed
+1. **The promise** — 3.9s — eyebrow + `Their scan arrives before they do.` revealed
    word by word (headline holds settled ~2.2s); phantom slices scrubbing on a dark
    tile; helix faint behind.
-2. **Mirrored** — 2.5s — layout flips RTL, headline becomes `الصورة تصل قبل المريض.`,
+2. **Mirrored** — 2.4s — layout flips RTL, headline becomes `الصورة تصل قبل المريض.`,
    locale chips `ar · fr · en` arrive one by one, caption `RTL from day one`.
-3. **Try to break it** — 6.0s — **centerpiece.** Upload card, `Files 0 / 312`,
+3. **Try to break it** — 6.9s — **centerpiece.** Upload card, `Files 0 / 312`,
    bar climbing; cursor presses `Cut the connection`; bar **freezes**, rate → `—`,
    `Retrying in 3s` counts down; bar resumes **from the identical position**;
    `Resumed exactly where it stopped. Nothing re-sent.` holds 1.5s; completes to
@@ -174,7 +174,7 @@ summary:
    types; four gate lines print ~0.22s apart (`OK` lime/teal, `BLKD` alert red);
    summary `verified 29   local 3   partial 5   open 1   blocked 9   (of 47)`; a held half-beat of nothing; then
    `NOT LAUNCHABLE.` in `#b3261e`, holding 1.4s in silence.
-6. **The close** — 3.0s — white, near-empty. `The blockers are legal and infrastructural, not code.`
+6. **The close** — 2.9s — white, near-empty. `The blockers are legal and infrastructural, not code.`
    holds 1.8s; MIR mark + wordmark; muted caption
    `29 of 47 gates verified. 8 legal questions open.` Silence.
 

@@ -5,10 +5,8 @@ import { moneySchema } from './ledger';
 /**
  * Subscription tiers — brief §2 and §5.7.
  *
- * ⚠ ALL PRICES, LIMITS, AND TIER NAMES BELOW ARE PLACEHOLDERS. See
- * PLACEHOLDER_CATALOGUE at the bottom of this file. They exist so the screens
- * and the entitlement plumbing can be built and reviewed; every number is a
- * guess and must be replaced before anyone is shown it as a real offer.
+ * The plans on sale are PLAN_CATALOGUE at the bottom of this file: one yearly
+ * plan per corridor side, at the owner's prices (spec 2026-09-21 §4).
  *
  * THREE THINGS THIS MODULE IS CAREFUL ABOUT:
  *
@@ -50,6 +48,10 @@ export const PLAN_CODES = [
   'dst_solo',
   'dst_clinic',
   'dst_network',
+  // The two plans on sale since 2026-09-23 (spec 2026-09-21 §4). The six above
+  // are retired but stay parseable: subscriptions still reference them.
+  'src_clinic_yearly',
+  'dst_doctor_yearly',
 ] as const;
 export const planCodeSchema = z.enum(PLAN_CODES);
 export type PlanCode = z.infer<typeof planCodeSchema>;
@@ -76,6 +78,10 @@ export const ENTITLEMENTS = [
 export const entitlementSchema = z.enum(ENTITLEMENTS);
 export type Entitlement = z.infer<typeof entitlementSchema>;
 
+export const BILLING_INTERVALS = ['month', 'year'] as const;
+export const billingIntervalSchema = z.enum(BILLING_INTERVALS);
+export type BillingInterval = z.infer<typeof billingIntervalSchema>;
+
 export const planTierSchema = z.object({
   code: planCodeSchema,
   /**
@@ -90,7 +96,9 @@ export const planTierSchema = z.object({
    * `null` means "priced on application" — a real tier state, not a missing
    * value. The pricing page renders a contact action rather than a number.
    */
-  priceMonthly: moneySchema.nullable(),
+  price: moneySchema.nullable(),
+  /** What `price` buys: one month or one year. */
+  interval: billingIntervalSchema,
   /** `null` = unlimited. */
   seatLimit: z.number().int().positive().nullable(),
   /** `null` = unlimited. Cases submitted per billing period. */
@@ -182,102 +190,43 @@ export function tiersForSide(tiers: readonly PlanTier[], side: EndpointSide): Pl
 }
 
 // ---------------------------------------------------------------------------
-// PLACEHOLDER CATALOGUE
+// CATALOGUE
 // ---------------------------------------------------------------------------
 
 /**
- * TODO(pricing): every value in this object is invented, and the TIER CONTENTS
- * are undecided — not merely the numbers.
+ * The plans on sale — spec 2026-09-21 §4, the owner's terms: one yearly plan
+ * per corridor side. Mirrors migration 0033; the API reads the database, and
+ * this copy is what the screens' tests and the offline pricing page use.
  *
- * Replace the amounts, the seat and case limits, and the entitlement
- * assignments with the real commercial terms. The corresponding copy lives
- * under the `plan*` keys in apps/web/lib/i18n/dictionary.ts and is marked with
- * the same TODO.
+ * Amounts are MINOR UNITS, and the exponent is per currency: USD has 2, so
+ * 100000 is $1,000.00; TND has 3, so 1000000 is 1,000.000 dinars.
+ * `toMajorUnits` is the only correct way to divide.
  *
- * Amounts are MINOR UNITS. USD has an exponent of 2, so 4900 is $49.00 — but
- * do not carry that assumption to a dinar tier: TND and LYD have an exponent
- * of 3 (`CURRENCY_MINOR_UNITS`), and `toMajorUnits` is the only correct way to
- * divide.
+ * Limits are null (unlimited): the owner set a price, not a cap.
  */
-export const PLACEHOLDER_CATALOGUE: readonly PlanTier[] = [
-  // --- source side: organisations that SUBMIT cases -----------------------
+export const PLAN_CATALOGUE: readonly PlanTier[] = [
   {
-    code: 'src_solo',
+    code: 'src_clinic_yearly',
     side: 'source',
-    labelKey: 'planSrcSoloName',
-    blurbKey: 'planSrcSoloBlurb',
-    priceMonthly: { amountMinor: 4900, currency: 'USD' },
-    seatLimit: 1,
-    monthlyCaseLimit: 10,
-    entitlements: ['csvExport'],
+    labelKey: 'planSrcClinicYearlyName',
+    blurbKey: 'planSrcClinicYearlyBlurb',
+    price: { amountMinor: 100000, currency: 'USD' },
+    interval: 'year',
+    seatLimit: null,
+    monthlyCaseLimit: null,
+    entitlements: ['csvExport', 'prioritySupport', 'auditTrailRetention'],
     sort: 0,
   },
   {
-    code: 'src_clinic',
-    side: 'source',
-    labelKey: 'planSrcClinicName',
-    blurbKey: 'planSrcClinicBlurb',
-    priceMonthly: { amountMinor: 19900, currency: 'USD' },
-    seatLimit: 10,
-    monthlyCaseLimit: 100,
-    entitlements: ['csvExport', 'prioritySupport', 'auditTrailRetention'],
-    sort: 1,
-  },
-  {
-    code: 'src_network',
-    side: 'source',
-    labelKey: 'planSrcNetworkName',
-    blurbKey: 'planSrcNetworkBlurb',
-    priceMonthly: null,
+    code: 'dst_doctor_yearly',
+    side: 'destination',
+    labelKey: 'planDstDoctorYearlyName',
+    blurbKey: 'planDstDoctorYearlyBlurb',
+    price: { amountMinor: 1000000, currency: 'TND' },
+    interval: 'year',
     seatLimit: null,
     monthlyCaseLimit: null,
-    entitlements: [
-      'csvExport',
-      'prioritySupport',
-      'auditTrailRetention',
-      'multiCorridor',
-      'dedicatedOnboarding',
-    ],
-    sort: 2,
-  },
-  // --- destination side: organisations that RECEIVE cases ------------------
-  {
-    code: 'dst_solo',
-    side: 'destination',
-    labelKey: 'planDstSoloName',
-    blurbKey: 'planDstSoloBlurb',
-    priceMonthly: { amountMinor: 4900, currency: 'USD' },
-    seatLimit: 1,
-    monthlyCaseLimit: 10,
-    entitlements: ['csvExport'],
+    entitlements: ['csvExport', 'prioritySupport', 'auditTrailRetention'],
     sort: 0,
-  },
-  {
-    code: 'dst_clinic',
-    side: 'destination',
-    labelKey: 'planDstClinicName',
-    blurbKey: 'planDstClinicBlurb',
-    priceMonthly: { amountMinor: 19900, currency: 'USD' },
-    seatLimit: 10,
-    monthlyCaseLimit: 100,
-    entitlements: ['csvExport', 'prioritySupport', 'auditTrailRetention'],
-    sort: 1,
-  },
-  {
-    code: 'dst_network',
-    side: 'destination',
-    labelKey: 'planDstNetworkName',
-    blurbKey: 'planDstNetworkBlurb',
-    priceMonthly: null,
-    seatLimit: null,
-    monthlyCaseLimit: null,
-    entitlements: [
-      'csvExport',
-      'prioritySupport',
-      'auditTrailRetention',
-      'multiCorridor',
-      'dedicatedOnboarding',
-    ],
-    sort: 2,
   },
 ];
