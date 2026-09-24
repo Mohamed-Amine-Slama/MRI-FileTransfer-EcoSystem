@@ -10,8 +10,31 @@ import {
   type ReactNode,
 } from 'react';
 import type { Role } from '@mir/contracts';
-import { ApiError, setAccessToken } from '../api/client';
+import { ApiError, getAccessToken, setAccessToken } from '../api/client';
 import { api, type SessionUser } from '../api/endpoints';
+
+/*
+ * One refresh in flight at a time. StrictMode mounts effects twice, and two
+ * concurrent refreshes with the same rotating refresh token can have Keycloak
+ * revoke the session between them.
+ */
+let refreshing: Promise<void> | null = null;
+
+function restoreFromRefreshCookie(): Promise<void> {
+  refreshing ??= (async () => {
+    try {
+      const res = await fetch('/auth/refresh', { method: 'POST', credentials: 'same-origin' });
+      if (!res.ok) return;
+      const { accessToken } = (await res.json()) as { accessToken?: unknown };
+      if (typeof accessToken === 'string') setAccessToken(accessToken);
+    } catch {
+      // Offline or the route is missing: fall through to anonymous.
+    } finally {
+      refreshing = null;
+    }
+  })();
+  return refreshing;
+}
 
 /**
  * Client session state.
@@ -24,7 +47,8 @@ import { api, type SessionUser } from '../api/endpoints';
  * edits their own memory gains access; they do not.
  *
  * The token is held in memory by the API client, so a reload requires a fresh
- * one from the identity provider. See setAccessToken for why not localStorage.
+ * one from the identity provider — which /auth/refresh gets with the httpOnly
+ * refresh cookie. See setAccessToken for why not localStorage.
  */
 
 type Status = 'loading' | 'authenticated' | 'anonymous';
@@ -45,6 +69,9 @@ export function SessionProvider({ children }: { children: ReactNode }): React.JS
   const [user, setUser] = useState<SessionUser | null>(null);
 
   const load = useCallback(async () => {
+    // After a reload the in-memory token is gone; the httpOnly refresh cookie
+    // (set at sign-in, see lib/auth/keycloak-token.ts) mints a new one.
+    if (getAccessToken() === null) await restoreFromRefreshCookie();
     try {
       const me = await api.session.me();
       setUser(me);
@@ -76,6 +103,8 @@ export function SessionProvider({ children }: { children: ReactNode }): React.JS
   );
 
   const signOut = useCallback(() => {
+    // Revoke and clear the refresh cookie, or the next reload signs back in.
+    void fetch('/auth/logout', { method: 'POST', credentials: 'same-origin' }).catch(() => undefined);
     setAccessToken(null);
     setUser(null);
     setStatus('anonymous');

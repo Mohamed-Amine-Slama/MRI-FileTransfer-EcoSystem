@@ -4,10 +4,20 @@ import { useEffect, useMemo, useRef, useState } from 'react';
 import {
   ChevronLeft,
   ChevronRight,
+  Circle,
   Contrast,
+  Crosshair,
   Download,
+  Eraser,
+  FlipHorizontal2,
+  FlipVertical2,
+  Maximize,
+  Minimize,
   Move,
+  Pause,
+  Play,
   RotateCcw,
+  RotateCw,
   Ruler,
   SunMedium,
   Triangle,
@@ -90,7 +100,12 @@ const TOOLS: { tool: ViewerTool; testId: string; Icon: typeof Move }[] = [
   { tool: 'zoom', testId: 'tool-zoom', Icon: ZoomIn },
   { tool: 'length', testId: 'tool-length', Icon: Ruler },
   { tool: 'angle', testId: 'tool-angle', Icon: Triangle },
+  { tool: 'ellipseRoi', testId: 'tool-ellipse-roi', Icon: Circle },
+  { tool: 'probe', testId: 'tool-probe', Icon: Crosshair },
 ];
+
+/** Cine speed. 8 frames a second is the usual default for reading a stack. */
+const CINE_INTERVAL_MS = 125;
 
 export function StudyViewer({
   studyUid,
@@ -114,6 +129,9 @@ export function StudyViewer({
 
   const [thumbnailSrc, setThumbnailSrc] = useState<string | null>(null);
   const [upgradeTimedOut, setUpgradeTimedOut] = useState(false);
+  const [expanded, setExpanded] = useState(false);
+  const [playing, setPlaying] = useState(false);
+  const sectionRef = useRef<HTMLElement | null>(null);
 
   const groups = useMemo(() => groupSeries(instances), [instances]);
   const group: SeriesGroup | undefined = groups[seriesIndex];
@@ -293,9 +311,67 @@ export function StudyViewer({
     }
   };
 
+  // Read by the cine timer and the keyboard handler at the moment they fire.
+  const goToRef = useRef(goTo);
+  goToRef.current = goTo;
+
+  // --- cine: step through the stack, looping ---------------------------------
+  useEffect(() => {
+    if (!playing || count <= 1) return;
+    const id = window.setInterval(() => {
+      const next = sliceRef.current + 1;
+      goToRef.current(next >= count ? 0 : next);
+    }, CINE_INTERVAL_MS);
+    return () => window.clearInterval(id);
+  }, [playing, count]);
+
+  /*
+   * FULL SCREEN. The native Fullscreen API where the browser has it, and a
+   * fixed overlay either way, so a browser without element fullscreen (iPhone
+   * Safari) still gets the whole window. Leaving native fullscreen with Esc
+   * fires `fullscreenchange`, which collapses the overlay with it.
+   */
+  const toggleExpanded = (): void => {
+    if (expanded) {
+      if (document.fullscreenElement !== null) void document.exitFullscreen().catch(() => undefined);
+      setExpanded(false);
+      return;
+    }
+    setExpanded(true);
+    void sectionRef.current?.requestFullscreen?.().catch(() => undefined);
+  };
+
+  useEffect(() => {
+    const onChange = (): void => {
+      if (document.fullscreenElement === null) setExpanded(false);
+    };
+    document.addEventListener('fullscreenchange', onChange);
+    return () => document.removeEventListener('fullscreenchange', onChange);
+  }, []);
+
+  // Keys only while full screen: on the case page the same keys belong to the
+  // report form beside the viewer.
+  useEffect(() => {
+    if (!expanded) return;
+    const onKey = (e: KeyboardEvent): void => {
+      if (e.target instanceof HTMLInputElement || e.target instanceof HTMLSelectElement) return;
+      if (e.key === 'Escape') setExpanded(false);
+      else if (e.key === 'ArrowUp' || e.key === 'ArrowLeft' || e.key === 'PageUp') {
+        goToRef.current(sliceRef.current - 1);
+      } else if (e.key === 'ArrowDown' || e.key === 'ArrowRight' || e.key === 'PageDown') {
+        goToRef.current(sliceRef.current + 1);
+      } else if (e.key === ' ') setPlaying((p) => !p);
+      else return;
+      e.preventDefault();
+    };
+    window.addEventListener('keydown', onKey);
+    return () => window.removeEventListener('keydown', onKey);
+  }, [expanded]);
+
   const chooseSeries = (index: number): void => {
     const next = groups[index];
     if (next === undefined) return;
+    setPlaying(false);
     setSeriesIndex(index);
     setSlice(0);
     if (fidelity === 'full') {
@@ -341,8 +417,14 @@ export function StudyViewer({
 
   return (
     <section
-      className="space-y-4"
+      ref={sectionRef}
+      className={cn(
+        expanded
+          ? 'fixed inset-0 z-50 flex flex-col gap-3 overflow-auto bg-background p-3'
+          : 'space-y-4',
+      )}
       data-testid="viewer"
+      data-expanded={expanded}
       data-study-uid={studyUid}
       data-fidelity={fidelity}
     >
@@ -421,10 +503,36 @@ export function StudyViewer({
                   zoom: t.viewerToolZoom,
                   length: t.viewerToolLength,
                   angle: t.viewerToolAngle,
+                  ellipseRoi: t.viewerToolEllipse,
+                  probe: t.viewerToolProbe,
                 }[id]
               }
             </Button>
           ))}
+          <Button size="sm" data-testid="tool-rotate" onClick={() => viewerRef.current?.rotate()}>
+            <RotateCw aria-hidden="true" />
+            {t.viewerRotate}
+          </Button>
+          <Button
+            size="sm"
+            data-testid="tool-flip-h"
+            onClick={() => viewerRef.current?.flipHorizontal()}
+          >
+            <FlipHorizontal2 aria-hidden="true" />
+            {t.viewerFlipH}
+          </Button>
+          <Button size="sm" data-testid="tool-flip-v" onClick={() => viewerRef.current?.flipVertical()}>
+            <FlipVertical2 aria-hidden="true" />
+            {t.viewerFlipV}
+          </Button>
+          <Button
+            size="sm"
+            data-testid="tool-clear"
+            onClick={() => viewerRef.current?.clearMeasurements()}
+          >
+            <Eraser aria-hidden="true" />
+            {t.viewerClearMeasurements}
+          </Button>
           <Button size="sm" data-testid="tool-invert" onClick={() => viewerRef.current?.invert()}>
             <Contrast aria-hidden="true" />
             {t.viewerInvert}
@@ -448,8 +556,9 @@ export function StudyViewer({
           context menu is suppressed so a right-drag zooms. */}
       <div
         className={cn(
-          'relative aspect-square overflow-hidden rounded-lg border bg-black',
-          compact ? 'w-full' : 'max-w-lg',
+          'relative overflow-hidden rounded-lg border bg-black',
+          // Full screen: the image takes every pixel the controls leave.
+          expanded ? 'min-h-[60vh] w-full flex-1' : cn('aspect-square', compact ? 'w-full' : 'max-w-lg'),
         )}
         onContextMenu={(e) => e.preventDefault()}
       >
@@ -529,6 +638,16 @@ export function StudyViewer({
           {t.viewerNext}
           <ChevronRight className="rtl:rotate-180" aria-hidden="true" />
         </Button>
+        <Button
+          size="sm"
+          data-testid="cine-play"
+          aria-pressed={playing}
+          disabled={count <= 1}
+          onClick={() => setPlaying((p) => !p)}
+        >
+          {playing ? <Pause aria-hidden="true" /> : <Play aria-hidden="true" />}
+          {playing ? t.viewerPause : t.viewerPlay}
+        </Button>
 
         <span data-testid="fidelity-label">
           <Badge tone={fidelity === 'full' ? 'success' : undefined}>
@@ -548,7 +667,17 @@ export function StudyViewer({
           </span>
         )}
 
-        <span className="ms-auto">
+        <span className="ms-auto flex gap-2">
+          <Button
+            size="sm"
+            variant={expanded ? 'primary' : 'default'}
+            data-testid="viewer-fullscreen"
+            aria-pressed={expanded}
+            onClick={toggleExpanded}
+          >
+            {expanded ? <Minimize aria-hidden="true" /> : <Maximize aria-hidden="true" />}
+            {expanded ? t.viewerExitFullscreen : t.viewerFullscreen}
+          </Button>
           <Button
             size="sm"
             data-testid="download-original"

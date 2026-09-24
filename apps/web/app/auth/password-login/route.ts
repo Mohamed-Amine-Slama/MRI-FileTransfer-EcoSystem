@@ -1,4 +1,5 @@
 import { NextResponse } from 'next/server';
+import { keycloakTokenUrl, setRefreshCookie, webClientId } from '../../../lib/auth/keycloak-token';
 
 /**
  * Email + password sign-in, relayed to Keycloak's token endpoint (ROPC).
@@ -26,12 +27,7 @@ import { NextResponse } from 'next/server';
  *   KEYCLOAK_WEB_CLIENT_ID optional, default mir-web.
  */
 export async function POST(request: Request): Promise<NextResponse> {
-  const issuer = process.env['KEYCLOAK_ISSUER_URL'];
-  const tokenUrl =
-    process.env['KEYCLOAK_TOKEN_URL'] ??
-    (issuer === undefined || issuer === ''
-      ? undefined
-      : `${issuer.replace(/\/$/, '')}/protocol/openid-connect/token`);
+  const tokenUrl = keycloakTokenUrl();
 
   if (tokenUrl === undefined) {
     return NextResponse.json({ error: 'password_login_not_configured' }, { status: 501 });
@@ -56,7 +52,7 @@ export async function POST(request: Request): Promise<NextResponse> {
       headers: { 'content-type': 'application/x-www-form-urlencoded' },
       body: new URLSearchParams({
         grant_type: 'password',
-        client_id: process.env['KEYCLOAK_WEB_CLIENT_ID'] ?? 'mir-web',
+        client_id: webClientId(),
         scope: 'openid',
         username: email,
         password,
@@ -78,12 +74,22 @@ export async function POST(request: Request): Promise<NextResponse> {
     );
   }
 
-  const tokens = (await upstream.json()) as { access_token?: string };
+  const tokens = (await upstream.json()) as {
+    access_token?: string;
+    refresh_token?: string;
+    refresh_expires_in?: number;
+  };
   if (typeof tokens.access_token !== 'string') {
     return NextResponse.json({ error: 'identity_provider_error' }, { status: 502 });
   }
 
-  // Only the access token crosses back. The session layer keeps it in memory
-  // (never localStorage — see lib/api/client.ts), same as every other path.
-  return NextResponse.json({ accessToken: tokens.access_token });
+  // Only the access token crosses back to page scripts; the session layer keeps
+  // it in memory (never localStorage — see lib/api/client.ts). The refresh
+  // token goes into an httpOnly cookie so a reload can mint a new access token
+  // through /auth/refresh (see lib/auth/keycloak-token.ts).
+  const res = NextResponse.json({ accessToken: tokens.access_token });
+  if (typeof tokens.refresh_token === 'string') {
+    setRefreshCookie(res, request, tokens.refresh_token, tokens.refresh_expires_in);
+  }
+  return res;
 }
