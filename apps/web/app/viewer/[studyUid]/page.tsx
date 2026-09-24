@@ -352,7 +352,9 @@ export default function ViewerPage({ params }: { params: Promise<{ studyUid: str
             alt=""
             width={256}
             height={256}
-            className="absolute inset-0 m-auto h-auto max-w-full [image-rendering:pixelated]"
+            // Fills the viewport like Cornerstone's fit, so the image does not
+            // jump in size when the full-fidelity view replaces it.
+            className="absolute inset-0 size-full object-contain [image-rendering:pixelated]"
             onLoad={() => setFirstImageReady(true)}
             onError={() => setError(t.viewerPreviewFailed)}
           />
@@ -434,17 +436,23 @@ export default function ViewerPage({ params }: { params: Promise<{ studyUid: str
 
       {fidelity === 'full' && (
         <div className="flex flex-wrap gap-2">
-          {/* Window presets. Values are conventional CT ranges; the doctor is
-              judging whether to open this on their workstation, not reading. */}
-          <Button size="sm" data-testid="window-soft" onClick={() => viewerRef.current?.setWindow(40, 400)}>
-            {t.viewerWindowSoft}
-          </Button>
-          <Button size="sm" data-testid="window-lung" onClick={() => viewerRef.current?.setWindow(-600, 1500)}>
-            {t.viewerWindowLung}
-          </Button>
-          <Button size="sm" data-testid="window-bone" onClick={() => viewerRef.current?.setWindow(300, 1500)}>
-            {t.viewerWindowBone}
-          </Button>
+          {/* Window presets. Values are conventional CT ranges, in Hounsfield
+              units — CT only: MR signal has no absolute scale, so "lung" on an
+              MR is a black square. The doctor is judging whether to open this
+              on their workstation, not reading. */}
+          {studyInfo?.modalities?.includes('CT') === true && (
+            <>
+              <Button size="sm" data-testid="window-soft" onClick={() => viewerRef.current?.setWindow(40, 400)}>
+                {t.viewerWindowSoft}
+              </Button>
+              <Button size="sm" data-testid="window-lung" onClick={() => viewerRef.current?.setWindow(-600, 1500)}>
+                {t.viewerWindowLung}
+              </Button>
+              <Button size="sm" data-testid="window-bone" onClick={() => viewerRef.current?.setWindow(300, 1500)}>
+                {t.viewerWindowBone}
+              </Button>
+            </>
+          )}
           <Button size="sm" data-testid="window-reset" onClick={() => viewerRef.current?.resetWindow()}>
             {t.viewerWindowReset}
           </Button>
