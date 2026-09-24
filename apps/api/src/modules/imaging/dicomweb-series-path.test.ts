@@ -33,6 +33,12 @@ describe('DICOMweb instance paths carry the series', () => {
     expect(paths).toEqual(['/dicom-web/studies/twin.1/series/ser.1/instances/sop.1/metadata']);
   });
 
+  it('asks Orthanc for series metadata under the resolved study', async () => {
+    const paths: string[] = [];
+    await controller(paths).seriesMetadata('twin.1', 'ser.1');
+    expect(paths).toEqual(['/dicom-web/studies/twin.1/series/ser.1/metadata']);
+  });
+
   it('asks Orthanc for a frame under the series', async () => {
     const paths: string[] = [];
     const res = {
