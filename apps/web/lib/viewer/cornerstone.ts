@@ -23,7 +23,16 @@
 
 import { authHeaders, authedFetch } from './authed-fetch';
 
-export type ViewerTool = 'windowLevel' | 'pan' | 'zoom' | 'length' | 'angle';
+export type ViewerTool =
+  | 'windowLevel'
+  | 'pan'
+  | 'zoom'
+  | 'length'
+  | 'angle'
+  /** Mean / std-dev / area inside an ellipse: MRI signal comparison. */
+  | 'ellipseRoi'
+  /** The pixel value under one point. */
+  | 'probe';
 
 export interface CornerstoneViewer {
   /**
@@ -40,6 +49,12 @@ export interface CornerstoneViewer {
   invert(): void;
   /** Back to the window in the DICOM header, keeping inversion. */
   autoWindow(): void;
+  /** Quarter turn clockwise. */
+  rotate(): void;
+  flipHorizontal(): void;
+  flipVertical(): void;
+  /** Remove every drawn length, angle, ROI and probe. */
+  clearMeasurements(): void;
   reset(): void;
   destroy(): void;
 }
@@ -117,6 +132,8 @@ async function ensureInitialised(apiBase: string): Promise<{
       tools.ZoomTool,
       tools.LengthTool,
       tools.AngleTool,
+      tools.EllipticalROITool,
+      tools.ProbeTool,
     ]) {
       tools.addTool(Tool);
     }
@@ -173,6 +190,8 @@ export async function createViewer(init: ViewerInit): Promise<CornerstoneViewer>
     zoom: tools.ZoomTool.toolName,
     length: tools.LengthTool.toolName,
     angle: tools.AngleTool.toolName,
+    ellipseRoi: tools.EllipticalROITool.toolName,
+    probe: tools.ProbeTool.toolName,
   };
   group.addTool(tools.StackScrollTool.toolName);
   for (const name of Object.values(toolNames)) group.addTool(name);
@@ -183,6 +202,12 @@ export async function createViewer(init: ViewerInit): Promise<CornerstoneViewer>
   group.setToolActive(toolNames.pan, { bindings: [{ mouseButton: MouseBindings.Auxiliary }] });
   group.setToolActive(toolNames.zoom, { bindings: [{ mouseButton: MouseBindings.Secondary }] });
   let primary: ViewerTool = 'windowLevel';
+
+  // The canvas follows its element: full screen, a resized window, or the
+  // compact column beside the report. Without this Cornerstone keeps the size
+  // it was created at and the image sits small in a corner of the screen.
+  const resizeObserver = new ResizeObserver(() => engine.resize(true, true));
+  resizeObserver.observe(init.element);
 
   /**
    * wadors: image ids route through OUR proxy, not Orthanc.
@@ -276,6 +301,31 @@ export async function createViewer(init: ViewerInit): Promise<CornerstoneViewer>
       viewport.render();
     },
 
+    rotate(): void {
+      const { rotation = 0 } = viewport.getViewPresentation();
+      viewport.setViewPresentation({ rotation: (rotation + 90) % 360 });
+      viewport.render();
+    },
+
+    flipHorizontal(): void {
+      const { flipHorizontal = false } = viewport.getViewPresentation();
+      viewport.setViewPresentation({ flipHorizontal: !flipHorizontal });
+      viewport.render();
+    },
+
+    flipVertical(): void {
+      const { flipVertical = false } = viewport.getViewPresentation();
+      viewport.setViewPresentation({ flipVertical: !flipVertical });
+      viewport.render();
+    },
+
+    clearMeasurements(): void {
+      // ponytail: clears every annotation on the page; fine while a page has
+      // one viewer, filter by this viewport's FrameOfReference if that changes.
+      tools.annotation.state.removeAllAnnotations();
+      viewport.render();
+    },
+
     reset(): void {
       viewport.resetCamera();
       viewport.resetProperties();
@@ -283,6 +333,7 @@ export async function createViewer(init: ViewerInit): Promise<CornerstoneViewer>
     },
 
     destroy(): void {
+      resizeObserver.disconnect();
       try {
         tools.ToolGroupManager.destroyToolGroup(toolGroupId);
         engine.destroy();
