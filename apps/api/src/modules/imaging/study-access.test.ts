@@ -404,6 +404,21 @@ describe('the doctor\'s instance list comes from the twin', () => {
       { sopInstanceUid: 'original-sop', seriesInstanceUid: 'original-series' },
     ]);
   });
+
+  it('serves the lab Orthanc\'s slice order when Orthanc answers — the stored rows carry none', async () => {
+    const s = await scenario({ withConsent: true });
+    const orthanc = new InMemoryOrthancClient();
+    orthanc.instancesByStudy.set(s.studyUid, [
+      { sopInstanceUid: 'sop.2', seriesInstanceUid: 'series' },
+      { sopInstanceUid: 'sop.10', seriesInstanceUid: 'series' },
+    ]);
+
+    const result = await runWithContext(ctx(s.libyaDoctor, 'libya_doctor'), () =>
+      controller(orthanc).instances(s.studyUid),
+    );
+
+    expect(result.instances.map((i) => i.sopInstanceUid)).toEqual(['sop.2', 'sop.10']);
+  });
 });
 
 describe('the doctor\'s preview is rendered from the twin', () => {

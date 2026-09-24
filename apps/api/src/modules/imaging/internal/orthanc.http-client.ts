@@ -160,17 +160,33 @@ export class OrthancHttpClient implements OrthancClient {
     if (!res.ok) throw new Error(`Orthanc instance list failed: ${res.status}`);
 
     // DICOM JSON: tag keys, each a { vr, Value: [...] }. 00080018 is
-    // SOPInstanceUID and 0020000E SeriesInstanceUID.
-    const rows = (await res.json()) as Record<string, { Value?: string[] }>[];
-    return rows.flatMap((row) => {
-      const sop = row['00080018']?.Value?.[0];
-      const series = row['0020000E']?.Value?.[0];
-      // Skip rather than emit a half-identified instance: a frame URL built
-      // from an undefined uid would 404 in a way that looks like an outage.
-      return sop === undefined || series === undefined
-        ? []
-        : [{ sopInstanceUid: sop, seriesInstanceUid: series }];
-    });
+    // SOPInstanceUID, 0020000E SeriesInstanceUID, 00200011 SeriesNumber and
+    // 00200013 InstanceNumber.
+    const rows = (await res.json()) as Record<string, { Value?: (string | number)[] }>[];
+    // Slice order is InstanceNumber, per series. Orthanc answers in no
+    // particular order, and uids sort as text ("x.10" before "x.2"), so either
+    // one makes an MR scroll jump back and forth through the anatomy.
+    // Missing numbers sort last; the uid breaks ties so the order is stable.
+    const num = (row: (typeof rows)[number], tag: string): number =>
+      Number(row[tag]?.Value?.[0] ?? Number.POSITIVE_INFINITY);
+    return rows
+      .flatMap((row) => {
+        const sop = row['00080018']?.Value?.[0];
+        const series = row['0020000E']?.Value?.[0];
+        // Skip rather than emit a half-identified instance: a frame URL built
+        // from an undefined uid would 404 in a way that looks like an outage.
+        return sop === undefined || series === undefined
+          ? []
+          : [{ sop: String(sop), series: String(series), seriesNo: num(row, '00200011'), instanceNo: num(row, '00200013') }];
+      })
+      .sort(
+        (a, b) =>
+          a.seriesNo - b.seriesNo ||
+          a.series.localeCompare(b.series) ||
+          a.instanceNo - b.instanceNo ||
+          a.sop.localeCompare(b.sop),
+      )
+      .map((i) => ({ sopInstanceUid: i.sop, seriesInstanceUid: i.series }));
   }
 
   /** Delete a study. Called only with a twin's id — never an original's. */

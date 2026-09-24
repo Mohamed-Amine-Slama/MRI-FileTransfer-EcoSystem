@@ -175,15 +175,14 @@ function CaseDetail({ caseRef }: { caseRef: string }): React.JSX.Element {
     }
   };
 
-  /** The receiving doctor's decisions on a paid case, and the answer on an accepted one. */
-  const act = async (what: 'accept' | 'decline' | 'answer'): Promise<void> => {
+  /** The receiving doctor's decisions on a paid case. Answering is the report form. */
+  const act = async (what: 'accept' | 'decline'): Promise<void> => {
     if (record === null) return;
     setActing(true);
     setError(null);
     try {
       if (what === 'accept') await api.cases.accept(record.id);
-      else if (what === 'decline') await api.cases.decline(record.id);
-      else await api.cases.answer(record.id);
+      else await api.cases.decline(record.id);
       await load();
     } catch {
       setError(t.genericError);
@@ -265,16 +264,6 @@ function CaseDetail({ caseRef }: { caseRef: string }): React.JSX.Element {
                 {t.inboxDecline}
               </Button>
             </>
-          )}
-          {side === 'destination' && item.status === 'accepted' && (
-            <Button
-              variant="primary"
-              data-testid="answer-case"
-              disabled={acting}
-              onClick={() => void act('answer')}
-            >
-              {t.inboxAnswer}
-            </Button>
           )}
         </div>
       )}

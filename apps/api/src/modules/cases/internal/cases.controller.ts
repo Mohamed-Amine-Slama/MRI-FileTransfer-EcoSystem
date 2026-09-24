@@ -12,13 +12,16 @@ import {
   Post,
   Put,
   Query,
+  Res,
 } from '@nestjs/common';
+import type { Response } from 'express';
 import { consultReportDraftSchema, consultReportSchema } from '@mir/contracts';
 import { z } from 'zod';
 import { RequiresRole } from '../../../shared/authz/access-metadata';
 import { RateLimit } from '../../../shared/ratelimit/rate-limit.guard';
 import { CasesService, type CaseSummary } from './cases.service';
 import { DirectoryService, type DirectoryEntry } from './directory.service';
+import { ReportPdfService } from './report-pdf';
 import { ReportsService } from './reports.service';
 
 /**
@@ -149,6 +152,7 @@ export class CasesController {
     private readonly cases: CasesService,
     private readonly directory: DirectoryService,
     private readonly reports: ReportsService,
+    private readonly pdf: ReportPdfService,
   ) {}
 
   // --- the directory and the switch ----------------------------------------
@@ -310,6 +314,21 @@ export class CasesController {
     const r = await this.reports.get(id);
     if (r === null) throw new NotFoundException('Report not found');
     return { status: r.status, content: r.content, submittedAt: r.submittedAt?.toISOString() ?? null };
+  }
+
+  /**
+   * The submitted report as a PDF. `report.pdf` is its own path segment, so
+   * `:id` is only the uuid. No caching: it is clinical content.
+   */
+  @RequiresRole('tunisia_doctor', 'libya_doctor', 'admin')
+  @Get('cases/:id/report.pdf')
+  async reportPdf(@Param('id', ParseUUIDPipe) id: string, @Res() res: Response): Promise<void> {
+    const { filename, bytes } = await this.pdf.forCase(id);
+    res.status(200);
+    res.setHeader('content-type', 'application/pdf');
+    res.setHeader('content-disposition', `attachment; filename="${filename}"`);
+    res.setHeader('cache-control', 'no-store, private');
+    res.end(bytes);
   }
 
   /** Autosave. Caps hold on a draft; the 64 KB bound stops parking data in it. */
