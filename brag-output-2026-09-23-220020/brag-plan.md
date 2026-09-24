@@ -85,7 +85,7 @@ The centerpiece scenes (3 and 4) are this flow. The hook and the close frame it.
   from a serious product saying something no launch video says.
 
 ## Format: landscape — 1920x1080
-## Duration: 24.0s target
+## Duration: 24.6s target
 
 ## Visual identity (from the project)
 
@@ -134,7 +134,7 @@ tech product, and defaulting the video to dark would erase its identity.
   Tempo 109.96 BPM. Beat grid in-window: 6.00, 6.56, 7.09, 7.64, 8.19, 8.74,
   9.29, 9.83, 10.37, 10.93, 11.46, 12.02, 12.55, 13.11, 13.64. Strong cues to
   target: **8.74s** (0.99) for the *Cut the connection* press, **10.93s** (0.97)
-  for the resume, **13.11s** (0.98) for the Revoke press. These are polish, not
+  for the resume, **15.29s** (beat) for the Revoke press. These are polish, not
   requirements — story timing wins any conflict, and because the bed is ducked
   and filtered the sync should be felt rather than heard. No beat-synced text.
 - **Audio-reactive treatment:** subtle, and only in scenes 1 and 6 — let the
@@ -159,7 +159,7 @@ tech product, and defaulting the video to dark would erase its identity.
 
 ## Storyboard
 
-### Scene 1 — The promise — 4.0s
+### Scene 1 — The promise — 3.9s
 
 White ground. MIR reticle mark small in the corner on its teal tile. Left: eyebrow
 `Cross-border medical imaging transfer` in Plex Mono teal, small; beneath it the
@@ -177,7 +177,7 @@ Audio-coupled idea: none needed; music fades in under it. Optional single soft t
 Music: treated bed, low, from 0s.
 Transition mood: soft crossfade (0.6s) → Scene 2
 
-### Scene 2 — The same sentence, mirrored — 2.5s
+### Scene 2 — The same sentence, mirrored — 2.4s
 
 The layout **mirrors**: the scan tile slides to the left, the text block to the
 right, and the headline becomes **الصورة تصل قبل المريض.** set in IBM Plex Sans
@@ -194,7 +194,7 @@ Audio-coupled idea: one very soft interface tick per chip arrival, decreasing in
 Music: same bed, unchanged.
 Transition mood: soft crossfade (0.6s) → Scene 3
 
-### Scene 3 — Try to break it — 6.0s  ← centerpiece
+### Scene 3 — Try to break it — 6.9s  ← centerpiece
 
 A single DemoCard, centred, on the pale panel. Title line: **Try to break it.**
 Inside: `Files 0 / 312`, a rate readout in mono, and a progress bar in accent teal
@@ -281,7 +281,7 @@ the music cutting out is the event.
 Music: hard duck to silence exactly as the verdict lands. Does not return.
 Transition mood: slow crossfade (0.8s) → Scene 6
 
-### Scene 6 — The close — 3.0s
+### Scene 6 — The close — 2.9s
 
 Back to white. Enormous empty space. Helix drifting faintly at the edge, barely
 present. One line, centred, Google Sans Flex 300:
@@ -299,7 +299,7 @@ Transition mood: fade to white/out
 
 ---
 
-**Scene durations:** 4.2 + 2.5 + 6.0 + 4.0 + 4.5 + 2.5 = **24.0s** ✓ (within 15–25)
+**Scene durations:** 3.9 + 2.4 + 6.9 + 4.0 + 4.5 + 2.9 = **24.6s** ✓ (within 15–25)
 
 **Music mood for this video:** restrained/clinical — a bright corporate bed
 deliberately darkened and ducked, ending in silence.
@@ -325,3 +325,19 @@ Every claim on screen is verified. Do not add any that are not:
 **Must not appear:** any suggestion that MIR is live, accepting patients, or
 diagnostic. The viewer is reference-only by design, and the product is
 pre-launch by choice. No invented metrics, no fake testimonials, no "trusted by."
+
+## As built (2026-09-23)
+
+- Timings rebalanced to 3.9 / 2.4 / 6.9 / 4.0 / 4.5 / 2.9 = 24.6s so the resume,
+  checksum, and revoke lines each clear their reading floor.
+- Beat locks: *Cut the connection* press 8.74s, resume 10.93s (both strong cues);
+  locale chips on the beat grid 4.39 / 4.91 / 5.34; Revoke on the 15.29s beat.
+- Music: vol-12, low-passed at 2.6 kHz, with its lift / dip / step-down / cut
+  envelope baked into `composition/assets/music/bed.mp3`; silent from 20.2s.
+- Audio-reactive: the helix in scenes 1–2 breathes with the bed's bass
+  (`assets/audio-bass.js`, extracted by hyperframes-creative's
+  `extract-audio-data.py`). Nothing reacts in the clinical scenes.
+- Scene 5 adds the verbatim `BLOCKING LEGAL: L1 … L8 — none answered.` line,
+  which is what the close's "8 legal questions open" caption restates.
+- Upload standfirst uses the site's own `uploadEyebrow`: "The connection drops.
+  The upload does not start again."

@@ -23,6 +23,8 @@ const AUDITED_EVENTS: DomainEventType[] = [
   'CaseDeclined',
   'CaseExpired',
   'CaseAccepted',
+  'CaseAnswered',
+  'CaseReportDownloaded',
   'StudyAccessed',
 ];
 

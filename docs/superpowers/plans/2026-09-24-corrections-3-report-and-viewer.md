@@ -32,7 +32,8 @@
 2. **A double-clicked "Submit report" answers once and pays once.** The second POST is a 404 (the case is no longer `accepted`); exactly one `doctor_payout` row exists. → Task 3 test.
 3. **The clinic cannot read a draft.** Before submission `GET /cases/:id/report` is a 404 for the clinic, and so is the PDF route. → Task 2 RLS test, Task 3 and Task 4 tests.
 4. **Free text that is not plain ASCII** (French accents, `≥`, `µ`, Arabic words) renders in the PDF without throwing. → Task 4 test.
-5. **A study with more than one series** shows a series picker; switching resets the counter to `1 / N` for the new series; a one-slice series disables the slider. → Task 6 unit test on `groupSeries` and e2e.
+5. **The clinic's PDF shows the patient's age and sex.** `getCase` gives them only to the receiving doctor, so the lab-side PDF would print "—". → Task 4 Step 3b test.
+6. **A study with more than one series** shows a series picker; switching resets the counter to `1 / N` for the new series; a one-slice series disables the slider. → Task 6 unit test on `groupSeries` and e2e.
 
 ---
 
@@ -446,7 +447,7 @@ it('the answer route refuses a missing or incomplete report', async () => {
 });
 ```
 
-In `cases-lifecycle.test.ts` (and any other caller) replace `cases.markAnswered(caseId)` with `reports.submitWithAnswer(caseId, report)`.
+In `cases-lifecycle.test.ts` (lines 363, 371, 454) and `practice-verbs.test.ts` (lines 83, 97) replace `cases.markAnswered(caseId)` with `reports.submitWithAnswer(caseId, report)`; afterwards `grep -rn markAnswered apps/api/src` must return nothing.
 
 - [ ] **Step 2: Run** → FAIL (`ReportsService` missing).
 
@@ -795,6 +796,28 @@ async reportPdf(@Param('id', ParseUUIDPipe) id: string, @Res() res: Response): P
 ```
 
 `ParseUUIDPipe` on `:id` with the `.pdf` suffix: Express puts `report.pdf` in its own segment, so `:id` is only the uuid. Provide `ReportPdfService` in `cases.module.ts`.
+
+- [ ] **Step 3b: Age and sex on the clinic's PDF (added 2026-09-24).** `getCase` fills `patientAgeYears`/`patientSex` from `cases_patient_brief`, which returns **no row for the lab side** (`cases.service.ts:485-497`: "The lab reads the patient record directly"). As written, `forCase` would print "—" for age and sex on every PDF the clinic downloads, and the clinic is the main reader. Fix it in `forCase`: when both are null, read them from the record the caller is already entitled to, in the same form the brief uses:
+
+```ts
+const demo =
+  c.patientAgeYears === null && c.patientSex === null
+    ? await this.db.tx(async (tx) =>
+        (
+          await tx.query<{ age_years: number | null; sex: string | null }>(
+            `SELECT date_part('year', age(p.date_of_birth))::int AS age_years, p.sex
+               FROM cases_cases a JOIN patients_patients p ON p.id = a.patient_id
+              WHERE a.id = $1`,
+            [caseId],
+          )
+        ).rows[0],
+      )
+    : undefined;
+// then: patientAgeYears: c.patientAgeYears ?? demo?.age_years ?? null,
+//       patientSex:      c.patientSex      ?? demo?.sex       ?? null,
+```
+
+Match `age_years` to how `cases_patient_brief` computes it (read its definition in migration 0028, since the rounding has to agree so both sides print the same age) and inject `DatabaseService` into `ReportPdfService`. The query selects no name, and the PDF input type still has no name field. Test in `reports.test.ts`: submit a report, then call `pdf.forCase(caseId)` as the lab and as the doctor. Spy on `renderReportPdf`, or split out a `pdfInputFor(caseId)` and assert on it; the latter is preferred. Both get the same non-null `patientAgeYears` and `patientSex`.
 
 - [ ] **Step 4: Run** `npx vitest run src/modules/cases && npx tsc --noEmit -p . && pnpm build` → PASS; start the built API once (`$SP/api-restart.sh`) to prove the font path resolves from `dist/` and the route audit accepts the new routes.
 

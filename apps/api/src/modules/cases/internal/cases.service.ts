@@ -170,7 +170,7 @@ const CASE_COLUMNS = `a.id, a.patient_id, a.doctor_id, a.organisation_id, a.spec
  */
 const RLS_REFUSED = '42501';
 
-function translateCaseWriteError(err: unknown, notFound: string): never {
+export function translateCaseWriteError(err: unknown, notFound: string): never {
   const code = (err as { code?: string }).code;
   // 23505 is the ledger's one-fee-per-case index, or a repeated study link.
   // Both mean "already recorded", which is a conflict rather than a failure.
@@ -181,6 +181,28 @@ function translateCaseWriteError(err: unknown, notFound: string): never {
     throw new NotFoundException(notFound);
   }
   throw err;
+}
+
+/**
+ * The audit fields every domain event carries, read from the request scope.
+ *
+ * `ipAddress` and `userAgent` are always PRESENT and sometimes undefined,
+ * matching DomainEventBase — spreading them away when absent would make the
+ * object structurally incompatible with the event union.
+ */
+export function actorFields(): Pick<
+  DomainEventBase,
+  'actorId' | 'actorRole' | 'occurredAt' | 'requestId' | 'ipAddress' | 'userAgent'
+> {
+  const ctx = requireContext();
+  return {
+    actorId: ctx.userId,
+    actorRole: ctx.role,
+    occurredAt: new Date(),
+    requestId: ctx.requestId,
+    ipAddress: ctx.ipAddress,
+    userAgent: ctx.userAgent,
+  };
 }
 
 @Injectable()
@@ -274,7 +296,7 @@ export class CasesService {
       patientId: item.patientId,
       organisationId: item.organisationId,
       specialty: item.specialty,
-      ...this.actorFields(),
+      ...actorFields(),
     });
     return item;
   }
@@ -571,7 +593,7 @@ export class CasesService {
       caseId,
       patientId: accepted.patient_id,
       doctorId: accepted.doctor_id,
-      ...this.actorFields(),
+      ...actorFields(),
     });
   }
 
@@ -596,7 +618,7 @@ export class CasesService {
       caseId,
       patientId: changed.patient_id,
       doctorId: changed.doctor_id,
-      ...this.actorFields(),
+      ...actorFields(),
     });
   }
 
@@ -621,23 +643,6 @@ export class CasesService {
   // the answer to both "no such case" and "not yours", which §6 requires be
   // indistinguishable.
   // -------------------------------------------------------------------------
-
-  /**
-   * The doctor's answer exists. Only from `accepted`: answering a case nobody
-   * accepted would skip the moment imaging unlocks, so the guard is the state
-   * and not a clock.
-   */
-  async markAnswered(caseId: string): Promise<void> {
-    await this.transition(caseId, 'answered', "status = 'accepted'");
-    await this.db.tx(async (tx) => {
-      await tx.query(`UPDATE cases_cases SET answered_at = now() WHERE id = $1`, [caseId]);
-    });
-    // As the system role, for the reason given in `markPaid`.
-    await runWithContext(systemContext('case-accrual'), () =>
-      this.ledger.accrueDoctorPayout(caseId),
-    );
-  }
-
 
   /**
    * The receiving side withdraws, with a reason.
@@ -669,7 +674,7 @@ export class CasesService {
       patientId: item.patientId,
       doctorId: item.doctorId,
       ...(reason === undefined ? {} : { reason }),
-      ...this.actorFields(),
+      ...actorFields(),
     });
   }
 
@@ -733,29 +738,6 @@ export class CasesService {
     // Not visible, no such row, or not in a state this move is legal from.
     if (changed === 0) throw new NotFoundException('Case not found');
   }
-
-  /**
-   * The audit fields every domain event carries, read from the request scope.
-   *
-   * `ipAddress` and `userAgent` are always PRESENT and sometimes undefined,
-   * matching DomainEventBase — spreading them away when absent would make the
-   * object structurally incompatible with the event union.
-   */
-  private actorFields(): Pick<
-    DomainEventBase,
-    'actorId' | 'actorRole' | 'occurredAt' | 'requestId' | 'ipAddress' | 'userAgent'
-  > {
-    const ctx = requireContext();
-    return {
-      actorId: ctx.userId,
-      actorRole: ctx.role,
-      occurredAt: new Date(),
-      requestId: ctx.requestId,
-      ipAddress: ctx.ipAddress,
-      userAgent: ctx.userAgent,
-    };
-  }
-
 
   /**
    * Move accepted-but-unanswered cases to `expired`.

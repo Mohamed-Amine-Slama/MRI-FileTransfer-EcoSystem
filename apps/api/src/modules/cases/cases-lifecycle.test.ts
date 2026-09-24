@@ -18,6 +18,8 @@ import {
 } from '../../shared/db/testing/rls-harness';
 import { EventBus } from '../../shared/events/event-bus';
 import { CasesService } from './internal/cases.service';
+import { ReportsService } from './internal/reports.service';
+import { sampleReport } from './sample-report';
 import { LedgerService } from '../ledger';
 import { PricingService } from '../pricing';
 
@@ -40,6 +42,7 @@ let h: Harness;
 let db: DatabaseService;
 let bus: EventBus;
 let cases: CasesService;
+let reports: ReportsService;
 
 const config = {
   CASES_ANSWER_WINDOW_HOURS: 72,
@@ -59,6 +62,7 @@ beforeAll(async () => {
   db = new DatabaseService({ DATABASE_URL: appUrl(), DATABASE_POOL_MAX: 20 } as AppConfig);
   bus = new EventBus();
   cases = new CasesService(db, bus, config, new LedgerService(db), new PricingService(db));
+  reports = new ReportsService(db, bus, new LedgerService(db));
 }, 120_000);
 
 afterAll(async () => {
@@ -360,7 +364,7 @@ describe('quoting and paying', () => {
     await runWithContext(ctx(lab, 'libya_doctor'), () => cases.quote(caseId, senior));
     await runWithContext(ctx(lab, 'libya_doctor'), () => cases.markPaid(caseId));
     await runWithContext(ctx(senior, 'tunisia_doctor'), () => cases.accept(caseId));
-    await runWithContext(ctx(senior, 'tunisia_doctor'), () => cases.markAnswered(caseId));
+    await runWithContext(ctx(senior, 'tunisia_doctor'), () => reports.submitWithAnswer(caseId, sampleReport));
 
     expect(await ledgerOf(caseId)).toEqual([
       { kind: 'coordination_fee', amount: 7000 },
@@ -368,7 +372,7 @@ describe('quoting and paying', () => {
     ]);
 
     // A repeated answer (a retried request) must not pay the doctor twice.
-    await runWithContext(ctx(senior, 'tunisia_doctor'), () => cases.markAnswered(caseId)).catch(
+    await runWithContext(ctx(senior, 'tunisia_doctor'), () => reports.submitWithAnswer(caseId, sampleReport)).catch(
       () => undefined,
     );
     expect((await ledgerOf(caseId)).filter((e) => e.kind === 'doctor_payout')).toHaveLength(1);
@@ -451,7 +455,7 @@ describe('the receiving doctor answers', () => {
   it('leaves terminal_at null on answered, which still has somewhere to go', async () => {
     const { tunis, caseId } = await paidCase();
     await runWithContext(ctx(tunis, 'tunisia_doctor'), () => cases.accept(caseId));
-    await runWithContext(ctx(tunis, 'tunisia_doctor'), () => cases.markAnswered(caseId));
+    await runWithContext(ctx(tunis, 'tunisia_doctor'), () => reports.submitWithAnswer(caseId, sampleReport));
 
     const { rows } = await h.owner.query<{ terminal_at: Date | null; status: string }>(
       'SELECT terminal_at, status FROM cases_cases WHERE id = $1',
