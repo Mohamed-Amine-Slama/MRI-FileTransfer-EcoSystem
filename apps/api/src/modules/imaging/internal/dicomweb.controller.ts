@@ -250,6 +250,29 @@ export class DicomWebController {
   }
 
   /**
+   * WADO-RS metadata for a whole series, in ONE request: the viewer registers
+   * every slice's header before setting the stack, rather than one round trip
+   * per slice on a slow link. No pixels. Audited as `metadata`.
+   */
+  @RequiresRole('tunisia_doctor', 'libya_doctor')
+  @Get('studies/:studyUid/series/:seriesUid/metadata')
+  @Header('cache-control', 'no-store')
+  async seriesMetadata(
+    @Param('studyUid') studyUid: string,
+    @Param('seriesUid') seriesUid: string,
+  ): Promise<unknown> {
+    // The RESOLVED uid: for a doctor the path names the de-identified twin.
+    const study = await this.access.authoriseStudyAccess(studyUid, 'metadata');
+    const upstream = await this.orthanc.retrieve(
+      `/dicom-web/studies/${encodeURIComponent(study.orthancStudyUid)}` +
+        `/series/${encodeURIComponent(seriesUid)}/metadata`,
+      'application/dicom+json',
+    );
+    if (!upstream.ok) throw new NotFoundException('Series metadata not found');
+    return upstream.json();
+  }
+
+  /**
    * WADO-RS frame retrieval — what Cornerstone3D's `wadors:` loader fetches
    * (P9.1).
    *

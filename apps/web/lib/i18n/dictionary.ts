@@ -166,11 +166,6 @@ const ar = {
   viewerFidelityLoading: 'جارٍ تحميل الدقة الكاملة…',
   viewerFidelityPreviewOnly: 'معاينة فقط',
   viewerFidelityPreview: 'معاينة',
-  viewerWindowSoft: 'أنسجة رخوة',
-  viewerWindowLung: 'رئة',
-  viewerWindowBone: 'عظام',
-  viewerWindowReset: 'إعادة تعيين',
-  viewerLazyNote: 'تُحمَّل الصور عند الطلب فقط.',
 
   // consent management
   consentActiveTitle: 'الموافقات السارية',
@@ -863,11 +858,6 @@ const fr: Dictionary = {
   viewerFidelityLoading: 'Chargement de la pleine résolution…',
   viewerFidelityPreviewOnly: 'Aperçu uniquement',
   viewerFidelityPreview: 'Aperçu',
-  viewerWindowSoft: 'Tissus mous',
-  viewerWindowLung: 'Poumon',
-  viewerWindowBone: 'Os',
-  viewerWindowReset: 'Réinitialiser',
-  viewerLazyNote: 'Les images ne sont chargées qu’à la demande.',
   consentActiveTitle: 'Consentements actifs',
   consentNoneActive: 'Aucun consentement actif.',
   consentGrantTitle: 'Accorder un nouveau consentement',
@@ -1579,11 +1569,6 @@ const en: Dictionary = {
   viewerFidelityLoading: 'Loading full resolution…',
   viewerFidelityPreviewOnly: 'Preview only',
   viewerFidelityPreview: 'Preview',
-  viewerWindowSoft: 'Soft tissue',
-  viewerWindowLung: 'Lung',
-  viewerWindowBone: 'Bone',
-  viewerWindowReset: 'Reset',
-  viewerLazyNote: 'Images are loaded on demand only.',
 
   // consent management
   consentActiveTitle: 'Active consents',

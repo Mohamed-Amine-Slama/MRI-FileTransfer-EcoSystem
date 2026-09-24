@@ -1,6 +1,7 @@
 import { defineConfig, devices } from '@playwright/test';
 
-const PORT = 3001;
+// E2E_PORT: run against a fresh build when another server already holds 3001.
+const PORT = Number(process.env['E2E_PORT'] ?? 3001);
 
 export default defineConfig({
   testDir: './e2e',
@@ -36,7 +37,7 @@ export default defineConfig({
     // Bundling `pnpm build &&` in here made the whole suite fail with an opaque
     // webServer timeout whenever the build was slow, which says nothing about
     // the tests and sends you looking in the wrong place.
-    command: 'pnpm start',
+    command: `pnpm exec next start -p ${PORT}`,
     url: `http://127.0.0.1:${PORT}`,
     reuseExistingServer: !process.env['CI'],
     timeout: 120_000,

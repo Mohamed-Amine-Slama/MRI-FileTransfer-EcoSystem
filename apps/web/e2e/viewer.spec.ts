@@ -7,7 +7,9 @@ import { execFileSync } from 'node:child_process';
  *   - "Time to first rendered image on a throttled connection (simulate
  *      2 Mbit/s, 200 ms latency) is under 5 seconds."
  *   - "Network trace confirms frames load on demand, not all at once."
- *   - "Banner present on every viewer screen."
+ *
+ * The "reference only" banner is gone: the owner decided the platform is where
+ * the diagnosis is made (spec decisions, 2026-09-24).
  *
  * Throttling is applied through the Chrome DevTools Protocol, so it constrains
  * the real network stack rather than being simulated in application code.
@@ -53,12 +55,18 @@ interface Trace {
   metadataRequests: string[];
 }
 
-async function stubApi(page: Page, thumbnail: Buffer, trace: Trace): Promise<void> {
+async function stubApi(
+  page: Page,
+  thumbnail: Buffer,
+  trace: Trace,
+  { count = INSTANCE_COUNT, series = 1 }: { count?: number; series?: number } = {},
+): Promise<void> {
   await page.route('**/api/dicom-web/studies/*/instances', async (route: Route) => {
     trace.instanceListRequests++;
-    const instances = Array.from({ length: INSTANCE_COUNT }, (_, i) => ({
+    // With several series, instances alternate between them.
+    const instances = Array.from({ length: count }, (_, i) => ({
       sopInstanceUid: `1.3.6.1.4.1.99999.1.102.1.1.${i + 1}`,
-      seriesInstanceUid: '1.3.6.1.4.1.99999.1.102.1.1',
+      seriesInstanceUid: `1.3.6.1.4.1.99999.1.102.1.${(i % series) + 1}`,
     }));
     await route.fulfill({
       status: 200,
@@ -74,7 +82,13 @@ async function stubApi(page: Page, thumbnail: Buffer, trace: Trace): Promise<voi
     await route.fulfill({ status: 200, contentType: 'image/jpeg', body: thumbnail });
   });
 
-  // Per-instance metadata — Cornerstone needs this before any frame renders.
+  // Series metadata — Cornerstone needs this before any frame renders.
+  await page.route('**/api/dicom-web/studies/*/series/*/metadata', async (route: Route) => {
+    trace.metadataRequests.push(route.request().url());
+    await route.fulfill({ status: 404, contentType: 'application/json', body: '{}' });
+  });
+
+  // Per-instance metadata.
   await page.route('**/api/dicom-web/studies/*/series/*/instances/*/metadata', async (route: Route) => {
     const sop = route.request().url().split('/instances/')[1]?.split('/')[0] ?? '';
     trace.metadataRequests.push(sop);
@@ -251,52 +265,38 @@ test.describe('P9.1 viewer', () => {
     expect(['loading-full', 'full', 'unavailable']).toContain(fidelity ?? '');
     await expect(page.getByTestId('current-image')).toBeVisible();
 
-    // And the banner is still there regardless of fidelity.
-    await expect(page.getByTestId('diagnostic-banner')).toBeVisible();
+    // The reading tools belong to the full-fidelity view: none on the preview.
+    for (const id of ['tool-invert', 'tool-auto-window', 'tool-reset']) {
+      await expect(page.getByTestId(id)).toHaveCount(0);
+    }
   });
 
-  test('banner is present, and present before any image loads', async ({ page }) => {
-    const trace = newTrace();
-    await stubApi(page, thumbnail, trace);
-
+  test('carries no "reference only" banner', async ({ page }) => {
+    await stubApi(page, thumbnail, newTrace());
     await page.goto(`/viewer/${STUDY_UID}`);
-
-    const banner = page.getByTestId('diagnostic-banner');
-    await expect(banner).toBeVisible();
-    // The exact wording the spec mandates.
-    await expect(page.getByTestId('diagnostic-banner-en')).toHaveText(
-      'Reference viewing only — not for diagnostic use',
-    );
-    // Arabic too, per DECISION D4.
-    await expect(banner).toContainText('ليس للاستخدام التشخيصي');
-  });
-
-  test('banner cannot be dismissed', async ({ page }) => {
-    const trace = newTrace();
-    await stubApi(page, thumbnail, trace);
-    await page.goto(`/viewer/${STUDY_UID}`);
-
-    const banner = page.getByTestId('diagnostic-banner');
-    await expect(banner).toBeVisible();
-
-    // No close control exists anywhere inside it.
-    expect(await banner.locator('button').count()).toBe(0);
-    expect(await banner.locator('[aria-label*="close" i]').count()).toBe(0);
-
-    // Still there after navigating images — it is not a one-time notice.
     await page.getByTestId('first-image-rendered').waitFor({ state: 'attached' });
+    await expect(page.getByTestId('diagnostic-banner')).toHaveCount(0);
+  });
+
+  test('a study with two series offers a picker, and switching restarts the count', async ({
+    page,
+  }) => {
+    await stubApi(page, thumbnail, newTrace(), { series: 2 });
+    await page.goto(`/viewer/${STUDY_UID}`);
+    const picker = page.getByTestId('series-picker');
+    await expect(picker.locator('option')).toHaveCount(2);
+    await expect(page.getByTestId('image-position')).toHaveText('1 / 60');
     await page.getByTestId('next-image').click();
-    await expect(banner).toBeVisible();
+    await expect(page.getByTestId('image-position')).toHaveText('2 / 60');
+    await picker.selectOption({ index: 1 });
+    await expect(page.getByTestId('image-position')).toHaveText('1 / 60');
   });
 
-  test('stays visible when the viewport is scrolled', async ({ page }) => {
-    // A banner that scrolls away is absent during the reading that matters.
-    const trace = newTrace();
-    await stubApi(page, thumbnail, trace);
+  test('a one-slice series disables the slider', async ({ page }) => {
+    await stubApi(page, thumbnail, newTrace(), { count: 1 });
     await page.goto(`/viewer/${STUDY_UID}`);
-    await page.getByTestId('first-image-rendered').waitFor({ state: 'attached' });
-
-    await page.evaluate(() => window.scrollTo(0, document.body.scrollHeight));
-    await expect(page.getByTestId('diagnostic-banner')).toBeInViewport();
+    await expect(page.getByTestId('image-position')).toHaveText('1 / 1');
+    await expect(page.getByTestId('slice-slider')).toBeDisabled();
+    await expect(page.getByTestId('series-picker')).toHaveCount(0);
   });
 });
