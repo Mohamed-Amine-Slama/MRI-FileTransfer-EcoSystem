@@ -167,3 +167,30 @@ describe('ledger visibility', () => {
     expect(rows.rows).toEqual([]);
   });
 });
+
+describe('the ledger for ops, in one read (spec 2026-09-21 §8)', () => {
+  it('groups entries by organisation, and lists only organisations that have any', async () => {
+    const one = await priced();
+    await runWithContext(sys(one.src.doctorId), () => ledger.accrueClinicRemittance(one.appt));
+    await runWithContext(sys(one.src.doctorId), () => ledger.accrueDoctorPayout(one.appt));
+    const two = await priced();
+    await runWithContext(sys(two.src.doctorId), () => ledger.accrueClinicRemittance(two.appt));
+
+    const all = await runWithContext(sys(one.src.doctorId), () => ledger.listAll());
+    const kinds = new Map(all.map((g) => [g.organisationId, g.entries.map((e) => e.kind)]));
+    expect(kinds.get(one.src.orgId)).toEqual(['coordination_fee']);
+    expect(kinds.get(one.dst.orgId)).toEqual(['doctor_payout']);
+    expect(kinds.get(two.src.orgId)).toEqual(['coordination_fee']);
+    expect(kinds.has(two.dst.orgId)).toBe(false);
+  });
+
+  it('a clinic reaching the service directly still sees only its own organisation', async () => {
+    const one = await priced();
+    await runWithContext(sys(one.src.doctorId), () => ledger.accrueClinicRemittance(one.appt));
+    await runWithContext(sys(one.src.doctorId), () => ledger.accrueDoctorPayout(one.appt));
+    const seen = await runWithContext({ ...sys(one.src.doctorId), role: 'libya_doctor' }, () =>
+      ledger.listAll(),
+    );
+    expect(seen.map((g) => g.organisationId)).toEqual([one.src.orgId]);
+  });
+});

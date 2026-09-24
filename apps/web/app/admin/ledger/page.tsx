@@ -3,6 +3,7 @@
 import { useEffect, useState } from 'react';
 import { Download } from 'lucide-react';
 import { summariseLedger, type LedgerEntry, type Provider } from '@mir/contracts';
+import { adminLedgerRows } from '../../../lib/ledger/admin-rows';
 import { casesApi } from '../../../lib/api/mock';
 import { rolesForSides } from '../../../lib/corridor/registry';
 import {
@@ -76,12 +77,13 @@ function AdminLedger(): React.JSX.Element {
           casesApi.listProviders(),
         ]);
         if (cancelled) return;
+        // Rows come from the providers, so an organisation with no entries
+        // still appears with zero totals.
         setRows(
-          ledgers.map(({ providerId, entries }) => ({
-            providerId,
-            entries,
-            provider: providers.find((p) => p.id === providerId) ?? null,
-          })),
+          adminLedgerRows(
+            providers,
+            ledgers.map((l) => ({ organisationId: l.providerId, entries: l.entries })),
+          ),
         );
       } catch {
         if (cancelled) return;

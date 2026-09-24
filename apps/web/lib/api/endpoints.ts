@@ -477,6 +477,11 @@ export const api = {
    * organisation, ops reads any.
    */
   ledger: {
+    /** Ops only: every organisation's entries in one request. */
+    all: () =>
+      apiFetch<{ organisations: { organisationId: string; entries: LedgerEntry[] }[] }>(
+        '/ledger/all',
+      ),
     forOrganisation: (organisationId: string) =>
       apiFetch<{ entries: LedgerEntry[] }>(
         `/ledger?organisationId=${encodeURIComponent(organisationId)}`,
