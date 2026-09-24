@@ -125,6 +125,10 @@ async function ensureInitialised(apiBase: string): Promise<{
     );
 
     tools.init();
+    // The default prefetches the WHOLE stack (maxImagesToPrefetch: Infinity) —
+    // a 120-slice CT is the full-study download this module exists to avoid.
+    // Five each side of the visible slice, and a scroll drops the stale queue.
+    tools.utilities.stackPrefetch.setConfiguration({ maxImagesToPrefetch: 5, preserveExistingPool: false });
     for (const Tool of [
       tools.StackScrollTool,
       tools.WindowLevelTool,
