@@ -1110,3 +1110,27 @@ Dictionary: `viewerToolWindowLevel`, `viewerToolPan`, `viewerToolZoom`, `viewerT
 ### Task 8: Verification pass
 
 - [ ] Full API suite, contracts, web unit, Playwright (`--workers=2`); the Task 7 walk for doctor, clinic and ops; the viewer on the real seeded MR series (`test-data/dicom/03-mr-series`): wheel scroll moves `n / N`, W/L drag changes contrast, the length tool draws, invert and reset work, frame requests stay near the visible slice (network log). Record results and anything deferred at the bottom of this file.
+
+---
+
+## Execution notes (2026-09-24)
+
+**Commits:** b1ebda0 (T1), 70ff14d (T2), a169aab + b3772c2 (T3; the owner's WIP commit carried the service), b5d1286 (T4), aa2174f (T5), 91e855e + e2c0b51 (T6), 2a15045 (T7), 801343b (T8 fix). A parallel session landed the MR slice-order fix (ad4aef5) and full-screen mode, refresh-cookie session (4a98ac4) alongside.
+
+**Suites:** API 434/434, contracts 144/144, web unit 373/373, Playwright 124 passed / 84 skipped / 0 failed (`--workers=2`). Viewer gate: first image 3.4 s of 5 s, 302 KB JS before it.
+
+**Task 7 walk (local stack, fresh case MIR-2026-0017):** full-fidelity MR beside the form; wheel 1/24 → 2/24; draft kept across a reload (session survived it); submit disabled with the missing line listing exam and impression; submitted → `answered`, report view shown; doctor and clinic PDFs both start `%PDF-`, carry the case ref and "41 y · F", never the patient's name; two `CaseReportDownloaded` audit rows; two concurrent submits on a second case → 404 + 200, one payout.
+
+**Viewer on the seeded MR:** W/L drag, length (drawn, label shown), invert, reset all pass. **Defect found and fixed:** Cornerstone's stackPrefetch defaults to the whole stack, so every frame of a series downloaded on open (24/24); capped at five each side (now 9/24) — 801343b.
+
+**Rulings / deviations:**
+- `refusedAsMissing` in the plan was not written; the existing `translateCaseWriteError` (now exported) already maps RLS 42501 to 404.
+- `sampleReport` fixture shared by the three API test files instead of three inline copies.
+- The bare "Answer" buttons were removed in Task 5, not Task 7: `answer()` requires the report from Task 3 on, so they 400'd in between.
+- `playwright.config.ts` takes `E2E_PORT` (default 3001): a stale server nobody owns held 3001 and served an old build as "reuse existing server".
+- The preview thumbnail no longer refetches on each fidelity step (it fetched 3× on a failed upgrade).
+
+**Deferred / for the owner:**
+- The measurement label reads "px" on the seeded MR because the synthetic files carry no Pixel Spacing (0028,0030). Orthanc's basic-profile anonymize keeps that tag, so real scans will read mm — not verified on a real scan.
+- The kept-but-unrouted landing copy (`lib/site/copy.ts`, corridor S06) still says "Reference viewing only — not for diagnostic use".
+- The saved-at time uses the browser locale's clock format inside the Arabic UI (e.g. "08:56 PM").
