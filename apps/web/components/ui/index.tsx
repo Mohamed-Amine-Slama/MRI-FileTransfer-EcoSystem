@@ -3,6 +3,7 @@ import type {
   InputHTMLAttributes,
   ReactNode,
   SelectHTMLAttributes,
+  TextareaHTMLAttributes,
 } from 'react';
 import { Check, CircleAlert, CircleCheck, Info, Loader2, TriangleAlert } from 'lucide-react';
 import { cn } from '../../lib/utils';
@@ -162,6 +163,19 @@ export function Input({
       {...rest}
       className={cn(controlClasses, invalid === true && 'border-danger', className)}
       aria-invalid={invalid === true ? 'true' : undefined}
+    />
+  );
+}
+
+export function Textarea({
+  className,
+  ...rest
+}: TextareaHTMLAttributes<HTMLTextAreaElement>): React.JSX.Element {
+  return (
+    <textarea
+      rows={3}
+      {...rest}
+      className={cn(controlClasses, 'h-auto min-h-20 py-2', className)}
     />
   );
 }

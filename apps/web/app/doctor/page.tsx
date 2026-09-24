@@ -10,6 +10,7 @@ import {
   Alert,
   Badge,
   Button,
+  buttonVariants,
   EmptyState,
   Main,
   PageHeader,
@@ -72,16 +73,13 @@ function Inbox(): React.JSX.Element {
     void load();
   }, [load]);
 
-  const act = async (id: string, action: 'accept' | 'decline' | 'answer'): Promise<void> => {
+  const act = async (id: string, action: 'accept' | 'decline'): Promise<void> => {
     setBusyId(id);
     setError(null);
     try {
       if (action === 'accept') {
         await api.cases.accept(id);
         setNotice(t.inboxAccepted);
-      } else if (action === 'answer') {
-        await api.cases.answer(id);
-        setNotice(t.inboxAnswered);
       } else {
         await api.cases.decline(id);
         setNotice(null);
@@ -177,15 +175,14 @@ function Inbox(): React.JSX.Element {
                   )}
                   {c.status === 'accepted' && (
                     <div className="flex justify-end">
-                      <Button
-                        variant="primary"
-                        size="sm"
-                        data-testid="answer-case"
-                        disabled={busyId === c.id}
-                        onClick={() => void act(c.id, 'answer')}
+                      {/* Answering IS submitting the report, written beside the images. */}
+                      <Link
+                        href={`/cases/${c.id}`}
+                        data-testid="write-report"
+                        className={buttonVariants({ variant: 'default', size: 'sm' })}
                       >
-                        {t.inboxAnswer}
-                      </Button>
+                        {t.inboxWriteReport}
+                      </Link>
                     </div>
                   )}
                 </TableCell>
