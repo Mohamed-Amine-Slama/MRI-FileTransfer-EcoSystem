@@ -177,6 +177,10 @@ export default function ViewerPage({ params }: { params: Promise<{ studyUid: str
   useEffect(() => {
     if (!firstImageReady || upgradeStarted.current) return;
     upgradeStarted.current = true;
+    // The line between the critical path and the upgrade: everything fetched
+    // before this mark is what the doctor waited on to see a pixel (the P9.1
+    // bundle budget in e2e/viewer.spec.ts is measured against it).
+    performance.mark('mir:viewer-first-image');
     if (!canRenderFullFidelity()) {
       // No WebGL2. Do not download a megabyte that can only fail.
       setFidelity('unavailable');

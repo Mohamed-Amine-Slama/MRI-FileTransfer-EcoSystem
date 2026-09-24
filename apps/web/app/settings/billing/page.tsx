@@ -4,6 +4,7 @@ import Link from 'next/link';
 import { useCallback, useEffect, useState } from 'react';
 import {
   findTier,
+  tiersForSide,
   type PlanCode,
   type PlanTier,
   type PlanUsage,
@@ -12,7 +13,7 @@ import {
 import { api } from '../../../lib/api/endpoints';
 import { useDateFormat, useLocale, useT } from '../../../lib/i18n/provider';
 import type { Dictionary } from '../../../lib/i18n/dictionary';
-import { PROVIDER_ROLES } from '../../../lib/corridor/registry';
+import { PROVIDER_ROLES, sideForRole } from '../../../lib/corridor/registry';
 import { useSession } from '../../../lib/session/session';
 import {
   casesLabel,
@@ -114,6 +115,7 @@ function BillingPanel(): React.JSX.Element {
   const t = useT();
   const { locale } = useLocale();
   const formatDate = useDateFormat();
+  const { role } = useSession();
 
   const [plans, setPlans] = useState<PlanTier[]>([]);
   const [subscription, setSubscription] = useState<Subscription | null>(null);
@@ -134,7 +136,7 @@ function BillingPanel(): React.JSX.Element {
       setPlans(catalogue);
       setSubscription(mine.subscription);
       setUsage(mine.usage);
-      setChoice(mine.subscription?.planCode ?? catalogue[0]?.code ?? '');
+      setChoice(mine.subscription?.planCode ?? '');
     } catch {
       // A flag, not a translated string: capturing `t` would make the locale a
       // dependency of this callback and reload the panel on every language
@@ -149,13 +151,24 @@ function BillingPanel(): React.JSX.Element {
     void load();
   }, [load]);
 
+  // Only the caller's own ladder. The catalogue carries both sides, and a
+  // cross-side plan is refused by the database (migration 0022) — offering it
+  // here was a button that could only fail.
+  const side = role === null ? null : sideForRole(role);
+  const offered = side === 'source' || side === 'destination' ? tiersForSide(plans, side) : plans;
+  // With no subscription — or one on a retired tier, which is no longer on
+  // sale — the side's current plan is preselected.
+  const selected: PlanCode | '' = offered.some((tier) => tier.code === choice)
+    ? choice
+    : (offered[0]?.code ?? '');
+
   const change = async (): Promise<void> => {
-    if (choice === '') return;
+    if (selected === '') return;
     setBusy(true);
     setChanged(false);
     setError(null);
     try {
-      await api.plans.change(choice);
+      await api.plans.change(selected);
       setChanged(true);
       await load();
     } catch {
@@ -242,10 +255,10 @@ function BillingPanel(): React.JSX.Element {
           <Select
             data-testid="billing-plan-select"
             className="max-w-xs"
-            value={choice}
+            value={selected}
             onChange={(e) => setChoice(e.target.value as PlanCode)}
           >
-            {plans.map((tier) => (
+            {offered.map((tier) => (
               <option key={tier.code} value={tier.code}>
                 {planName(t, tier)}
                 {/* Through formatPrice, which applies the CURRENCY'S exponent.
@@ -260,7 +273,7 @@ function BillingPanel(): React.JSX.Element {
           <Button
             variant="primary"
             data-testid="billing-change"
-            disabled={busy || choice === '' || choice === subscription?.planCode}
+            disabled={busy || selected === '' || selected === subscription?.planCode}
             onClick={() => void change()}
           >
             {busy ? t.loading : t.billingChangePlan}
