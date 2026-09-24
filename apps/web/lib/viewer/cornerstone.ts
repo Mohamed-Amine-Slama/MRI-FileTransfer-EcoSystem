@@ -14,28 +14,33 @@
  * view to full fidelity. If it never loads — slow link, old browser, no WebGL —
  * the doctor still has a usable reference image rather than a blank pane.
  *
- * WHAT "FULL FIDELITY" MEANS HERE, AND WHAT IT DOES NOT:
- * Cornerstone renders the ORIGINAL 16-bit pixel data with real window/level,
- * rather than the 8-bit heuristically-levelled preview. That is a genuine
- * improvement and it is what lets a doctor judge whether a study is worth
- * opening on their diagnostic workstation. It is still NOT a diagnostic
- * viewer, the banner still says so, and §1.3 still holds — an uncertified
- * viewer used for diagnosis is what puts a product inside medical-device
- * regulation.
+ * WHAT "FULL FIDELITY" MEANS HERE: Cornerstone renders the ORIGINAL 16-bit
+ * pixel data, one stack per series, with the reading tools a radiologist
+ * expects — stack scroll, window/level, pan, zoom, length and angle. The
+ * owner decided the platform is where the diagnosis is made (spec decisions,
+ * 2026-09-24), so this is the diagnostic viewer, not a preview of one.
  */
 
 import { authHeaders, authedFetch } from './authed-fetch';
 
+export type ViewerTool = 'windowLevel' | 'pan' | 'zoom' | 'length' | 'angle';
+
 export interface CornerstoneViewer {
   /**
-   * Display one instance. The SERIES is required: Orthanc's WADO-RS addresses
-   * an instance only under its series, and the series-less form 404s.
+   * Show one series as a scrollable stack, starting at `startIndex`. The
+   * SERIES is required: Orthanc's WADO-RS addresses an instance only under
+   * its series, and the series-less form 404s.
    */
-  showInstance(sopInstanceUid: string, seriesInstanceUid: string): Promise<void>;
-  /** Apply window centre/width in the image's own units. */
-  setWindow(center: number, width: number): void;
-  /** Reset window/level to the values in the DICOM header. */
-  resetWindow(): void;
+  loadSeries(seriesInstanceUid: string, sopInstanceUids: string[], startIndex: number): Promise<void>;
+  setSlice(index: number): Promise<void>;
+  /** Called whenever the shown slice changes, wheel included. Returns the remover. */
+  onSliceChange(cb: (index: number) => void): () => void;
+  /** The tool on the primary (left) button. */
+  setTool(tool: ViewerTool): void;
+  invert(): void;
+  /** Back to the window in the DICOM header, keeping inversion. */
+  autoWindow(): void;
+  reset(): void;
   destroy(): void;
 }
 
@@ -58,10 +63,12 @@ let initialised = false;
 async function ensureInitialised(apiBase: string): Promise<{
   core: typeof import('@cornerstonejs/core');
   loader: typeof import('@cornerstonejs/dicom-image-loader');
+  tools: typeof import('@cornerstonejs/tools');
 }> {
-  const [core, loader] = await Promise.all([
+  const [core, loader, tools] = await Promise.all([
     import('@cornerstonejs/core'),
     import('@cornerstonejs/dicom-image-loader'),
+    import('@cornerstonejs/tools'),
   ]);
 
   if (!initialised) {
@@ -102,48 +109,31 @@ async function ensureInitialised(apiBase: string): Promise<{
       10_000,
     );
 
+    tools.init();
+    for (const Tool of [
+      tools.StackScrollTool,
+      tools.WindowLevelTool,
+      tools.PanTool,
+      tools.ZoomTool,
+      tools.LengthTool,
+      tools.AngleTool,
+    ]) {
+      tools.addTool(Tool);
+    }
+
     initialised = true;
   }
 
   void apiBase;
-  return { core, loader };
+  return { core, loader, tools };
 }
 
-/**
- * Fetch DICOM JSON metadata for one instance and register it.
- *
- * Must complete BEFORE the image id is displayed. Cached per image id: a
- * doctor scrolling back and forth through a series should not re-fetch
- * metadata that cannot have changed — the study is immutable (ADR-4).
- */
-async function registerInstanceMetadata(
-  loader: typeof import('@cornerstonejs/dicom-image-loader'),
-  apiBase: string,
-  studyUid: string,
-  seriesInstanceUid: string,
-  sopInstanceUid: string,
-  imageId: string,
-): Promise<void> {
-  if (metadataRegistered.has(imageId)) return;
-
-  const res = await authedFetch(
-    `${apiBase}/dicom-web/studies/${encodeURIComponent(studyUid)}` +
-      `/series/${encodeURIComponent(seriesInstanceUid)}` +
-      `/instances/${encodeURIComponent(sopInstanceUid)}/metadata`,
-    { headers: { accept: 'application/dicom+json' } },
-  );
-  if (!res.ok) throw new Error(`metadata unavailable (${res.status})`);
-
-  const json = (await res.json()) as unknown;
-  // DICOMweb returns an array of instances; a per-instance request returns one.
-  const instance = Array.isArray(json) ? json[0] : json;
-  if (instance === undefined) throw new Error('empty metadata');
-
-  loader.wadors.metaDataManager.add(imageId, instance as never);
-  metadataRegistered.add(imageId);
+/** DICOM JSON's SOP Instance UID (0008,0018). */
+function sopUidOf(instance: unknown): string | undefined {
+  const tag = (instance as Record<string, { Value?: unknown[] }> | null)?.['00080018'];
+  const v = tag?.Value?.[0];
+  return typeof v === 'string' ? v : undefined;
 }
-
-const metadataRegistered = new Set<string>();
 
 /**
  * Create a viewer bound to a DOM element.
@@ -153,10 +143,11 @@ const metadataRegistered = new Set<string>();
  */
 export async function createViewer(init: ViewerInit): Promise<CornerstoneViewer> {
   const apiBase = init.apiBase ?? '/api';
-  const { core, loader: loaderRef } = await ensureInitialised(apiBase);
+  const { core, loader, tools } = await ensureInitialised(apiBase);
 
   const renderingEngineId = `mir-engine-${init.studyUid}`;
   const viewportId = 'mir-viewport';
+  const toolGroupId = `mir-tools-${init.studyUid}`;
 
   const engine = new core.RenderingEngine(renderingEngineId);
 
@@ -171,6 +162,28 @@ export async function createViewer(init: ViewerInit): Promise<CornerstoneViewer>
 
   const viewport = engine.getViewport(viewportId) as import('@cornerstonejs/core').Types.IStackViewport;
 
+  // React strict mode mounts twice: a group left by the first mount would
+  // make createToolGroup return undefined.
+  tools.ToolGroupManager.destroyToolGroup(toolGroupId);
+  const group = tools.ToolGroupManager.createToolGroup(toolGroupId);
+  if (group === undefined) throw new Error('tool group unavailable');
+  const toolNames: Record<ViewerTool, string> = {
+    windowLevel: tools.WindowLevelTool.toolName,
+    pan: tools.PanTool.toolName,
+    zoom: tools.ZoomTool.toolName,
+    length: tools.LengthTool.toolName,
+    angle: tools.AngleTool.toolName,
+  };
+  group.addTool(tools.StackScrollTool.toolName);
+  for (const name of Object.values(toolNames)) group.addTool(name);
+  group.addViewport(viewportId, renderingEngineId);
+  const { MouseBindings } = tools.Enums;
+  group.setToolActive(tools.StackScrollTool.toolName, { bindings: [{ mouseButton: MouseBindings.Wheel }] });
+  group.setToolActive(toolNames.windowLevel, { bindings: [{ mouseButton: MouseBindings.Primary }] });
+  group.setToolActive(toolNames.pan, { bindings: [{ mouseButton: MouseBindings.Auxiliary }] });
+  group.setToolActive(toolNames.zoom, { bindings: [{ mouseButton: MouseBindings.Secondary }] });
+  let primary: ViewerTool = 'windowLevel';
+
   /**
    * wadors: image ids route through OUR proxy, not Orthanc.
    *
@@ -182,48 +195,102 @@ export async function createViewer(init: ViewerInit): Promise<CornerstoneViewer>
     `wadors:${apiBase}/dicom-web/studies/${init.studyUid}` +
     `/series/${seriesInstanceUid}/instances/${sopInstanceUid}/frames/1`;
 
+  /**
+   * Metadata for the whole series in ONE request, registered per image id
+   * before the stack is set: a `wadors:` id carries pixels only. Cached per
+   * series — the study is immutable (ADR-4).
+   */
+  const registeredSeries = new Set<string>();
+  const registerSeriesMetadata = async (seriesInstanceUid: string): Promise<void> => {
+    if (registeredSeries.has(seriesInstanceUid)) return;
+    const res = await authedFetch(
+      `${apiBase}/dicom-web/studies/${encodeURIComponent(init.studyUid)}` +
+        `/series/${encodeURIComponent(seriesInstanceUid)}/metadata`,
+      { headers: { accept: 'application/dicom+json' } },
+    );
+    if (!res.ok) throw new Error(`metadata unavailable (${res.status})`);
+    const instances = (await res.json()) as unknown;
+    if (!Array.isArray(instances)) throw new Error('unexpected series metadata');
+    for (const instance of instances) {
+      const sop = sopUidOf(instance);
+      if (sop !== undefined) {
+        loader.wadors.metaDataManager.add(imageIdFor(sop, seriesInstanceUid), instance as never);
+      }
+    }
+    registeredSeries.add(seriesInstanceUid);
+  };
+
+  let prefetching = false;
+
   return {
-    async showInstance(sopInstanceUid: string, seriesInstanceUid: string): Promise<void> {
-      const imageId = imageIdFor(sopInstanceUid, seriesInstanceUid);
-      // Metadata first — the frame bytes are meaningless without it.
-      await registerInstanceMetadata(
-        loaderRef,
-        apiBase,
-        init.studyUid,
-        seriesInstanceUid,
-        sopInstanceUid,
-        imageId,
+    async loadSeries(seriesInstanceUid, sopInstanceUids, startIndex): Promise<void> {
+      await registerSeriesMetadata(seriesInstanceUid);
+      await viewport.setStack(
+        sopInstanceUids.map((sop) => imageIdFor(sop, seriesInstanceUid)),
+        startIndex,
       );
-      await viewport.setStack([imageId], 0);
+      // Neighbourhood prefetch around the visible slice — not the whole
+      // series, which on a Libyan link would starve the slice being read.
+      if (!prefetching) {
+        tools.utilities.stackPrefetch.enable(init.element);
+        prefetching = true;
+      }
       viewport.render();
     },
 
-    setWindow(center: number, width: number): void {
-      viewport.setProperties({ voiRange: windowToRange(center, width) });
+    async setSlice(index: number): Promise<void> {
+      await viewport.setImageIdIndex(index);
+    },
+
+    onSliceChange(cb: (index: number) => void): () => void {
+      const handler = (): void => cb(viewport.getCurrentImageIdIndex());
+      init.element.addEventListener(core.Enums.Events.STACK_NEW_IMAGE, handler);
+      return () => init.element.removeEventListener(core.Enums.Events.STACK_NEW_IMAGE, handler);
+    },
+
+    setTool(tool: ViewerTool): void {
+      if (tool === primary) return;
+      // The previous primary goes passive, not disabled: drawn lengths and
+      // angles stay on screen.
+      group.setToolPassive(toolNames[primary]);
+      group.setToolActive(toolNames[tool], { bindings: [{ mouseButton: MouseBindings.Primary }] });
+      // Pan and zoom keep their own buttons whatever the primary tool is.
+      if (primary === 'pan') {
+        group.setToolActive(toolNames.pan, { bindings: [{ mouseButton: MouseBindings.Auxiliary }] });
+      }
+      if (primary === 'zoom') {
+        group.setToolActive(toolNames.zoom, { bindings: [{ mouseButton: MouseBindings.Secondary }] });
+      }
+      primary = tool;
+    },
+
+    invert(): void {
+      viewport.setProperties({ invert: viewport.getProperties().invert !== true });
       viewport.render();
     },
 
-    resetWindow(): void {
-      // `true` resets to the values carried in the DICOM header rather than to
-      // an arbitrary default — the header values are what the scanner intended.
+    autoWindow(): void {
+      const invert = viewport.getProperties().invert === true;
+      viewport.resetProperties();
+      viewport.setProperties({ invert });
+      viewport.render();
+    },
+
+    reset(): void {
+      viewport.resetCamera();
       viewport.resetProperties();
       viewport.render();
     },
 
     destroy(): void {
       try {
+        tools.ToolGroupManager.destroyToolGroup(toolGroupId);
         engine.destroy();
       } catch {
         // Already torn down (React strict mode double-invokes effects).
       }
     },
   };
-}
-
-/** DICOM window centre/width to Cornerstone's lower/upper VOI range. */
-export function windowToRange(center: number, width: number): { lower: number; upper: number } {
-  const half = width / 2;
-  return { lower: center - half, upper: center + half };
 }
 
 /**

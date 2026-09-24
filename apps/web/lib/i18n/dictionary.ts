@@ -705,6 +705,17 @@ const ar = {
   reportDownloadPdf: 'تنزيل PDF',
   reportDownloadFailed: 'تعذّر تنزيل الملف.',
   inboxWriteReport: 'كتابة التقرير',
+  viewerToolWindowLevel: 'النافذة/المستوى',
+  viewerToolPan: 'تحريك',
+  viewerToolZoom: 'تكبير',
+  viewerToolLength: 'قياس الطول',
+  viewerToolAngle: 'قياس الزاوية',
+  viewerInvert: 'عكس الألوان',
+  viewerAutoWindow: 'نافذة تلقائية',
+  viewerReset: 'إعادة الضبط',
+  viewerSeries: 'السلسلة',
+  viewerSlice: 'المقطع',
+  viewerTools: 'أدوات القراءة',
 } as const;
 
 export type Dictionary = { readonly [K in keyof typeof ar]: string };
@@ -1394,6 +1405,17 @@ const fr: Dictionary = {
   reportDownloadPdf: 'Télécharger le PDF',
   reportDownloadFailed: 'Le téléchargement a échoué.',
   inboxWriteReport: 'Rédiger le compte rendu',
+  viewerToolWindowLevel: 'Fenêtre/niveau',
+  viewerToolPan: 'Déplacer',
+  viewerToolZoom: 'Zoom',
+  viewerToolLength: 'Longueur',
+  viewerToolAngle: 'Angle',
+  viewerInvert: 'Inverser',
+  viewerAutoWindow: 'Fenêtrage auto',
+  viewerReset: 'Réinitialiser',
+  viewerSeries: 'Série',
+  viewerSlice: 'Coupe',
+  viewerTools: 'Outils de lecture',
 };
 
 /**
@@ -2102,6 +2124,17 @@ const en: Dictionary = {
   reportDownloadPdf: 'Download PDF',
   reportDownloadFailed: 'The download failed.',
   inboxWriteReport: 'Write report',
+  viewerToolWindowLevel: 'Window/level',
+  viewerToolPan: 'Pan',
+  viewerToolZoom: 'Zoom',
+  viewerToolLength: 'Length',
+  viewerToolAngle: 'Angle',
+  viewerInvert: 'Invert',
+  viewerAutoWindow: 'Auto window',
+  viewerReset: 'Reset',
+  viewerSeries: 'Series',
+  viewerSlice: 'Slice',
+  viewerTools: 'Reading tools',
 };
 
 export const DICTIONARIES: Record<UiLocale, Dictionary> = { ar, fr, en };
