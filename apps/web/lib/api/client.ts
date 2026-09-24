@@ -71,6 +71,21 @@ export interface RequestOptions {
   idempotencyKey?: string;
 }
 
+/**
+ * Identical GETs in flight share one request — spec 2026-09-21 §8. Two hooks
+ * that both need the caller's organisation on mount used to cost two round
+ * trips on every screen. The key carries the bearer token, so a request
+ * started for one session is never answered to the next; each caller parses
+ * its own copy of the body, so one screen mutating its result cannot change
+ * another's. Writes, and requests with their own abort signal, never merge.
+ */
+const inflight = new Map<string, Promise<{ status: number; text: string }>>();
+
+async function send(path: string, init: RequestInit): Promise<{ status: number; text: string }> {
+  const res = await fetch(`${API_BASE}${path}`, init);
+  return { status: res.status, text: res.status === 204 ? '' : await res.text() };
+}
+
 export async function apiFetch<T>(path: string, options: RequestOptions = {}): Promise<T> {
   const { method = 'GET', body, signal, idempotencyKey } = options;
 
@@ -79,7 +94,7 @@ export async function apiFetch<T>(path: string, options: RequestOptions = {}): P
   if (accessToken !== null) headers['authorization'] = `Bearer ${accessToken}`;
   if (idempotencyKey !== undefined) headers['idempotency-key'] = idempotencyKey;
 
-  const res = await fetch(`${API_BASE}${path}`, {
+  const init: RequestInit = {
     method,
     headers,
     signal,
@@ -88,15 +103,29 @@ export async function apiFetch<T>(path: string, options: RequestOptions = {}): P
     // arrangement instead of silently 401ing when the deployment changes.
     credentials: 'include',
     body: body === undefined ? undefined : JSON.stringify(body),
-  });
+  };
 
-  if (res.status === 204) return undefined as T;
+  let pending: Promise<{ status: number; text: string }>;
+  if (method === 'GET' && signal === undefined) {
+    const key = `${accessToken ?? ''} ${path}`;
+    const shared = inflight.get(key);
+    if (shared !== undefined) {
+      pending = shared;
+    } else {
+      pending = send(path, init).finally(() => inflight.delete(key));
+      inflight.set(key, pending);
+    }
+  } else {
+    pending = send(path, init);
+  }
+  const { status, text } = await pending;
 
-  const text = await res.text();
+  if (status === 204) return undefined as T;
+
   const parsed: unknown = text === '' ? null : safeJson(text);
 
-  if (!res.ok) {
-    throw new ApiError(res.status, parsed, extractMessage(parsed) ?? `${method} ${path} failed`);
+  if (status < 200 || status >= 300) {
+    throw new ApiError(status, parsed, extractMessage(parsed) ?? `${method} ${path} failed`);
   }
 
   return parsed as T;

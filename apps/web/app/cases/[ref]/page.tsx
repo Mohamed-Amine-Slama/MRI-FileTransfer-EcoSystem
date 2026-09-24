@@ -14,7 +14,9 @@ import {
 } from '@mir/contracts';
 import { isMockMode } from '../../../lib/api/cases';
 import { api, type CaseRecord, type Study } from '../../../lib/api/endpoints';
+import { timelineFor, toCase } from '../../../lib/api/live/adapt';
 import { findCaseRecord } from '../../../lib/api/live/live-cases';
+import { DEFAULT_CORRIDOR_ID } from '../../../lib/corridor/registry';
 import { casesApi } from '../../../lib/api/mock';
 import { rolesForSides } from '../../../lib/corridor/registry';
 import { useCaseAudience, useCurrentProvider } from '../../../lib/provider/current-provider';
@@ -138,17 +140,13 @@ function CaseDetail({ caseRef }: { caseRef: string }): React.JSX.Element {
         return;
       }
       setRecord(r);
-      const found = await casesApi.getCase(r.id, audience);
-      if (found === null) {
-        setItem('missing');
-        return;
-      }
-      setItem(found);
-      const [timeline, linked] = await Promise.all([
-        casesApi.listCaseEvents(r.id, audience),
-        api.imaging.studiesForCase(r.id).catch(() => ({ studies: [] as Study[] })),
-      ]);
-      setEvents(timeline);
+      // The record is already here: adapting it is free, and asking the case
+      // API for it again was two more reads of the same row (§8 baseline).
+      setItem(toCase(r, DEFAULT_CORRIDOR_ID));
+      setEvents(timelineFor(r));
+      const linked = await api.imaging
+        .studiesForCase(r.id)
+        .catch(() => ({ studies: [] as Study[] }));
       setStudies(linked.studies);
       // Only once a doctor is on it; a 404 is "no draft yet" or "not submitted".
       const stored = ['accepted', 'answered', 'closed'].includes(r.status)
