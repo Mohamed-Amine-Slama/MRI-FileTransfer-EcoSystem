@@ -47,7 +47,7 @@ export function PublicChrome({ children }: { children: ReactNode }): React.JSX.E
          * horizontally scrollable, which §4.5 forbids and which is invisible to
          * anyone looking for it: nothing appears cut off, the page just moves.
          */
-        className="sr-only start-0 top-0 focus:not-sr-only focus:absolute focus:start-4 focus:top-4 focus:z-50 focus:rounded-md focus:bg-primary focus:px-4 focus:py-2 focus:text-sm focus:font-semibold focus:text-primary-foreground"
+        className="sr-only m-0 start-0 top-0 focus:not-sr-only focus:absolute focus:start-4 focus:top-4 focus:z-50 focus:rounded-md focus:bg-primary focus:px-4 focus:py-2 focus:text-sm focus:font-semibold focus:text-primary-foreground"
       >
         {t.skipToContent}
       </a>
