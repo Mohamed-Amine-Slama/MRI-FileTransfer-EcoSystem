@@ -3,9 +3,9 @@
 **Date:** 2026-09-25
 **Status:** Approved in conversation; pending spec review
 **Branch:** `feat/frontend-uplift`
-**Scope:** `components/shell/AppChrome.tsx`, `components/shell/UserMenu.tsx`,
+**Scope:** `components/shell/AppChrome.tsx`,
 `components/ui/stat.tsx`, `components/case/labels.ts`, a new `components/dashboard/`,
-`app/workspace`, `app/doctor`, a new `app/admin/page.tsx`, `app/cases`, `app/admin/cases`,
+`app/workspace`, `app/doctor`, a new `app/admin/page.tsx`, `app/page.tsx` (ops destinations), `app/cases`, `app/admin/cases`,
 `components/shell/nav.ts`. Landing page and `PublicChrome` are **not** touched.
 Dashboard performance budgets from `2026-09-21-platform-corrections-design.md` §8 still
 apply and are not restated here.
@@ -47,11 +47,14 @@ The palette, display type and density rules from the 2026-09-20 platform re-them
 ## 3. Shell (`AppChrome`)
 
 - **Header** keeps: mobile menu trigger, wordmark (phone / no-nav only), `UserMenu`.
-  `LocaleSelect` and `ThemeToggle` move **into `UserMenu`** as menu items.
-  `PublicChrome` keeps its visible controls — a signed-out visitor has no menu.
+  `LocaleSelect` and `ThemeToggle` move **out of the header into the sidebar's identity
+  block** (below). They cannot live inside `UserMenu`: `ThemeToggle` is itself a Radix
+  dropdown and `LocaleSelect` a native `<select>`, and a Radix menu captures typeahead
+  and arrow keys, breaking both. A role with no navigation (no sidebar) keeps them in
+  the header. `PublicChrome` keeps its visible controls.
 - **Sidebar** gains an identity block pinned to its bottom: avatar, display name,
-  organisation name (from `useCurrentProvider`; omitted when null), and the
-  `footerDisclaimer` in `text-xs text-muted-foreground`. The same block renders at the
+  organisation name (from `useCurrentProvider`; omitted when null), the locale select
+  and theme toggle side by side, and the `footerDisclaimer` in `text-xs text-muted-foreground`. The same block renders at the
   bottom of the mobile `Sheet`.
 - **App footer removed** from `AppChrome`. The disclaimer survives in the sidebar
   (desktop) and drawer (phone). For a role with no navigation (no sidebar), the
@@ -161,8 +164,9 @@ Data: `casesApi.listVerificationQueue()` and the admin case list call already us
 ## 6. Full lists — `/cases`, `/admin/cases`
 
 - Column order: **status**, ref, (existing others), updated.
-- Dates via the existing `useDateFormat` with a short style (day, month, time — no
-  year when current year, no zone name).
+- Dates via `useDateFormat({ short: true })`: the year is omitted when it is the
+  current year. The zone name **stays** — `useDateFormat` documents it as requirement
+  P10.1.
 - `PageHeader` title gets the count: "Cases · 45".
 - Client paging: `PAGE_SIZE = 25`, Previous / Next with "1–25 of 45". Filters and search
   reset to page 1. `ponytail:` comment — client paging over a fully loaded list; move to
