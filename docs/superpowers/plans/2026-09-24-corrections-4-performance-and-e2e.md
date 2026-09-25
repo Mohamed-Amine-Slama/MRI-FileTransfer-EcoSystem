@@ -1056,4 +1056,32 @@ Two things to confirm while writing it, and fix in the spec if different: the `<
 
 ## Execution notes
 
-(Filled in during Task 8.)
+Executed inline (2026-09-24 → 2026-09-25), commits `d6bf957..` on `feat/frontend-uplift`:
+
+| Task | Commits |
+|---|---|
+| 1 — merge duplicate GETs; case page reuses its record | `d6bf957..ec6056f` |
+| 2 — `/ledger/all`, one query for the admin ledger | `ec6056f..6924644` |
+| 3 — stack suite + sweep; report "none yet" is 200 `null` | `6924644..9884e00` |
+| 4 — clinic journey | `9884e00..3aef533` |
+| 5 — doctor journey; `aria-pressed` on the availability switch | `3aef533..55b695d` |
+| 6 — admin journey; approval removes `applicant` (`dc30d4d`) | `55b695d..77d3c22` |
+| 7 — UI pass: skip link, inbox specialty, ledger refs | `77d3c22..86f7c5f` |
+
+**Suites (final run, 2026-09-25):** API 438/438 · contracts 144/144 · web unit 379/379 · default Playwright 124 passed / 84 skipped / 0 failed · stack suite 12/12 (sweep 8, clinic, doctor, admin ×2) · `tsc --noEmit` clean in both apps · lint clean in both apps.
+
+**Before / after** (local production build, same scripts; in-app navigation, API calls per page):
+
+| Page | Before: duplicates | After: calls, duplicates | Settle after |
+|---|---|---|---|
+| clinic `/cases/:id` | `/cases/:id` ×3, `/organisations/mine` ×2 | 4, none | 105 ms |
+| doctor `/cases/:id` | same as clinic | 8 (incl. viewer), none | 254 ms |
+| ops `/admin/providers` | `/admin/organisations` ×2 | 1, none | 55 ms |
+| ops `/admin/ledger` | `/ledger?organisationId=` ×N + `/admin/organisations` ×2 | 2, none | 55 ms |
+| every other nav page | none | 0–3, none | 8–107 ms |
+
+No long task on any page before or after (the viewer's one-time ~470 ms Cornerstone start is measured separately, past `mir:viewer-first-image`). Cold reload of each dashboard: DOM interactive 15–60 ms, settled 725–784 ms, session survives.
+
+**What failed along the way:** the sweep's first runs found the report 404 (fixed) and duplicate GETs (fixed); the viewer's init task could not be split by yielding (ruled: budget stops at first image); the admin journey found every approved user locked out by a leftover `applicant` role (fixed, `dc30d4d`); the Arabic sweep caught a 1 px RTL overflow from the skip link (fixed).
+
+**Deferred:** document upload for `file` credentials (gap); the `/login` session-probe 401s (polish); Task 7's polish items above. Users approved before `dc30d4d` need `applicant` removed in Keycloak by hand.
