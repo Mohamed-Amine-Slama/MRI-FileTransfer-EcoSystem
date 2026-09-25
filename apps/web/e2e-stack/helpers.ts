@@ -112,5 +112,6 @@ export async function acceptedCase(opts: { reason?: string } = {}): Promise<{ id
   must(await apiCall(lab, `/cases/${c.id}/pay`, { method: 'POST', idempotent: true }), 'pay');
   must(await apiCall(doc, `/cases/${c.id}/accept`, { method: 'POST', idempotent: true }), 'accept');
   const [row] = await query<{ case_ref: string }>('SELECT case_ref FROM cases_cases WHERE id = $1', [c.id]);
-  return { id: c.id, ref: row!.case_ref };
+  if (row === undefined) throw new Error(`case ${c.id} not found after submit`);
+  return { id: c.id, ref: row.case_ref };
 }
