@@ -90,6 +90,9 @@ function AvailabilitySwitch(): React.JSX.Element {
             variant={accepting ? undefined : 'primary'}
             disabled={busy}
             data-testid="toggle-accepting"
+            // A toggle button: its on/off state belongs to assistive tech too,
+            // not only to the label text that flips with it.
+            aria-pressed={accepting}
             onClick={() => void toggle(!accepting)}
           >
             {accepting ? t.availabilityTurnOff : t.availabilityTurnOn}
