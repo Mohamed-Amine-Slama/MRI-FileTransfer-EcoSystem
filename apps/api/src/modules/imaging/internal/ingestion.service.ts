@@ -3,6 +3,7 @@ import { isDicom, readHeader, sha256, type DicomHeader } from '@mir/dicom-utils'
 import { requireContext } from '../../../shared/context/request-context';
 import { DatabaseService, type Tx } from '../../../shared/db/database.service';
 import { EventBus } from '../../../shared/events/event-bus';
+import type { StudyUploadCompleted } from '../../../shared/events/domain-events';
 import { BLOB_STORE } from '../../../shared/storage/storage.module';
 import {
   ObjectAlreadyExistsError,
@@ -26,10 +27,11 @@ import type { Queue } from 'bullmq';
  *   2. parse header tags
  *   3. check StudyInstanceUID consistency, FLAG mismatches rather than split
  *   4. write original bytes unmodified to the originals bucket (ADR-4)
- *   5. insert imaging_instances with key, size, checksum
- *   6. push to Orthanc via STOW-RS
- *   7. generate a thumbnail into derived
- *   8. when every file is in, mark the study ready and emit the event
+ *   6. push to Orthanc via STOW-RS            } no DB connection held
+ *   7. generate a thumbnail into derived      }
+ *   5. insert imaging_instances with key, size, checksum   (one short tx)
+ *   8. when every file is in, close the session; AFTER commit emit the event
+ *      and enqueue the twin build
  *
  * Storage comes BEFORE the database row: an object with no row is an orphan a
  * sweep can find and reconcile. A row pointing at an object that was never
@@ -102,50 +104,53 @@ export class IngestionService {
     // bytes it actually wrote.
     const digest = sha256(bytes);
 
-    let completed: BuildTwinJob | null = null;
+    // Slow I/O — the original write, Orthanc STOW-RS, the thumbnail — runs
+    // with NO pooled connection held. Inside the transaction it pinned one of
+    // DATABASE_POOL_MAX connections for up to Orthanc's 30 s timeout per file,
+    // times the worker's concurrency, and starved ordinary requests exactly
+    // when Orthanc was already slow. It still runs BEFORE the file is marked
+    // ingested, so the last file to complete a study — the one that enqueues
+    // the twin — can rely on every counted instance already being in Orthanc.
+    const session = await this.db.tx((tx) => this.loadSession(tx, file.session_id));
+    if (isStudyMismatch(session, header)) {
+      return this.db.tx((tx) => this.markMismatch(tx, fileId, session, header));
+    }
 
-    const result = await this.db.tx(async (tx) => {
-      const session = await this.loadSession(tx, file.session_id);
+    // --- 4. write the original, unmodified --------------------------------
+    const key = originalKey({
+      patientId: session.patient_id,
+      studyInstanceUid: header.studyInstanceUID,
+      seriesInstanceUid: header.seriesInstanceUID,
+      sopInstanceUid: header.sopInstanceUID,
+    });
+    try {
+      await this.blobs.putOriginal(key, bytes);
+    } catch (err) {
+      if (!(err instanceof ObjectAlreadyExistsError)) throw err;
+      // Already stored by an earlier attempt. Originals are immutable, so
+      // the existing object is authoritative and this is a retry, not a
+      // conflict.
+    }
+
+    // --- 6/7. Orthanc and thumbnail ---------------------------------------
+    // Both are derived state: recoverable from the original at any time. If
+    // either fails the ingest still counts, because the source of record —
+    // the object and its row — is already durable. Losing a thumbnail is a
+    // slow viewer; losing the original is a lost scan. Both are idempotent
+    // per SOP instance, so a job retry repeating them is harmless.
+    await this.storeDerived(session.patient_id, header, bytes);
+
+    const { result, completion } = await this.db.tx(async (tx) => {
+      // Re-read under the transaction: a sibling file may have fixed the
+      // session's study since the read above.
+      const current = await this.loadSession(tx, file.session_id);
 
       // --- 3. study consistency --------------------------------------------
-      if (
-        session.study_instance_uid !== null &&
-        session.study_instance_uid !== header.studyInstanceUID
-      ) {
-        // Two different studies in one upload. Splitting silently would file
-        // half a scan under a study the doctor never named; flagging stops the
-        // session for review instead.
-        await tx.query(
-          `UPDATE imaging_upload_files
-           SET status = 'rejected', failure_reason = 'study_uid_mismatch', updated_at = now()
-           WHERE id = $1`,
-          [fileId],
-        );
-        this.logger.warn(
-          `study UID mismatch in session ${file.session_id}: expected ` +
-            `${session.study_instance_uid}, file has ${header.studyInstanceUID}`,
-        );
-        return { status: 'rejected' as const, reason: 'study_uid_mismatch' };
+      if (isStudyMismatch(current, header)) {
+        return { result: await this.markMismatch(tx, fileId, current, header), completion: null };
       }
 
-      const studyId = await this.ensureStudy(tx, session, header);
-
-      // --- 4. write the original, unmodified --------------------------------
-      const key = originalKey({
-        patientId: session.patient_id,
-        studyInstanceUid: header.studyInstanceUID,
-        seriesInstanceUid: header.seriesInstanceUID,
-        sopInstanceUid: header.sopInstanceUID,
-      });
-
-      try {
-        await this.blobs.putOriginal(key, bytes);
-      } catch (err) {
-        if (!(err instanceof ObjectAlreadyExistsError)) throw err;
-        // Already stored by an earlier attempt. Originals are immutable, so
-        // the existing object is authoritative and this is a retry, not a
-        // conflict.
-      }
+      const studyId = await this.ensureStudy(tx, current, header);
 
       // --- 5. instance row ---------------------------------------------------
       const inserted = await tx.query<{ id: string }>(
@@ -183,54 +188,80 @@ export class IngestionService {
         [key, fileId],
       );
 
-      // --- 6/7. Orthanc and thumbnail ---------------------------------------
-      // Both are derived state: recoverable from the original at any time. If
-      // either fails the ingest still counts, because the source of record —
-      // the object and its row — is already durable. Losing a thumbnail is a
-      // slow viewer; losing the original is a lost scan.
-      if (isNew) {
-        try {
-          await this.orthanc.storeInstance(bytes);
-        } catch (err) {
-          this.logger.error(
-            `Orthanc STOW-RS failed for ${header.sopInstanceUID}: ${errMessage(err)}`,
-          );
-        }
-        try {
-          const thumb = await this.thumbnails.generate(bytes);
-          await this.blobs.putDerived(
-            derivedThumbnailKey({
-              patientId: session.patient_id,
-              studyInstanceUid: header.studyInstanceUID,
-              sopInstanceUid: header.sopInstanceUID,
-            }),
-            thumb.bytes,
-          );
-        } catch (err) {
-          // Derived data. A missing thumbnail slows the viewer's first paint;
-          // it does not lose the scan, so it must not fail the ingest.
-          this.logger.warn(`thumbnail generation failed: ${errMessage(err)}`);
-        }
-      }
-
       // --- 8. completion -----------------------------------------------------
-      completed = await this.maybeCompleteStudy(tx, file.session_id, studyId);
-
-      return {
-        status: isNew ? ('ingested' as const) : ('already_present' as const),
+      const result: IngestResult = {
+        status: isNew ? 'ingested' : 'already_present',
         ...(instanceId !== undefined ? { instanceId } : {}),
       };
+      return { result, completion: await this.maybeCompleteStudy(tx, file.session_id, studyId) };
     });
 
-    // AFTER the commit, never inside it. A job enqueued in the transaction
-    // that then rolls back is a worker asking Redis to anonymise a study the
-    // database never kept — and BullMQ would retry it five times before giving
-    // up on a row that does not exist.
-    if (completed !== null) {
-      await this.enqueueTwin(completed);
+    // AFTER the commit, never inside it — both of them. An event published in
+    // the transaction lets the audit subscriber (its own connection) commit
+    // "study complete" for a transaction that may still roll back, and the job
+    // retry then fires the event a second time. A job enqueued in the
+    // transaction that then rolls back is a worker asking Redis to anonymise a
+    // study the database never kept.
+    if (completion !== null) {
+      await this.bus.publish(completion.event);
+      if (completion.twin !== null) await this.enqueueTwin(completion.twin);
     }
 
     return result;
+  }
+
+  /**
+   * Two different studies in one upload. Splitting silently would file half a
+   * scan under a study the doctor never named; flagging stops the session for
+   * review instead.
+   */
+  private async markMismatch(
+    tx: Tx,
+    fileId: string,
+    session: SessionRow,
+    header: DicomHeader,
+  ): Promise<IngestResult> {
+    await tx.query(
+      `UPDATE imaging_upload_files
+       SET status = 'rejected', failure_reason = 'study_uid_mismatch', updated_at = now()
+       WHERE id = $1`,
+      [fileId],
+    );
+    this.logger.warn(
+      `study UID mismatch in session ${session.id}: expected ` +
+        `${session.study_instance_uid ?? '?'}, file has ${header.studyInstanceUID}`,
+    );
+    return { status: 'rejected', reason: 'study_uid_mismatch' };
+  }
+
+  /** Steps 6 and 7. Never throws: both are rebuildable from the original. */
+  private async storeDerived(
+    patientId: string,
+    header: DicomHeader,
+    bytes: Uint8Array,
+  ): Promise<void> {
+    try {
+      await this.orthanc.storeInstance(bytes);
+    } catch (err) {
+      this.logger.error(
+        `Orthanc STOW-RS failed for ${header.sopInstanceUID}: ${errMessage(err)}`,
+      );
+    }
+    try {
+      const thumb = await this.thumbnails.generate(bytes);
+      await this.blobs.putDerived(
+        derivedThumbnailKey({
+          patientId,
+          studyInstanceUid: header.studyInstanceUID,
+          sopInstanceUid: header.sopInstanceUID,
+        }),
+        thumb.bytes,
+      );
+    } catch (err) {
+      // Derived data. A missing thumbnail slows the viewer's first paint;
+      // it does not lose the scan, so it must not fail the ingest.
+      this.logger.warn(`thumbnail generation failed: ${errMessage(err)}`);
+    }
   }
 
   /**
@@ -274,7 +305,7 @@ export class IngestionService {
     tx: Tx,
     sessionId: string,
     studyId: string,
-  ): Promise<BuildTwinJob | null> {
+  ): Promise<Completion | null> {
     const counts = await tx.query<{
       expected: number;
       ingested: string;
@@ -303,7 +334,7 @@ export class IngestionService {
     }
 
     // The single-winner guard. Whichever file is last flips the session, and
-    // only that caller gets a row back — so the event below is published once.
+    // only that caller gets a row back — so the event is published once.
     const closed = await tx.query<{ id: string }>(
       `UPDATE imaging_upload_sessions SET status = 'completed', updated_at = now()
        WHERE id = $1 AND status <> 'completed'
@@ -329,7 +360,7 @@ export class IngestionService {
     if (study === undefined) return null;
 
     const ctx = requireContext();
-    await this.bus.publish({
+    const event: StudyUploadCompleted = {
       type: 'StudyUploadCompleted',
       studyId: study.id,
       patientId: study.patient_id,
@@ -342,13 +373,13 @@ export class IngestionService {
       requestId: ctx.requestId,
       ipAddress: ctx.ipAddress,
       userAgent: ctx.userAgent,
-    });
+    };
 
     // A quarantined study builds no twin. Enqueueing one would ask the builder
     // to launder a burned-in suspicion into something that looks clean.
-    if (study.status === 'quarantined') return null;
-
-    return { studyId: study.id, actorId: study.uploaded_by };
+    const twin =
+      study.status === 'quarantined' ? null : { studyId: study.id, actorId: study.uploaded_by };
+    return { event, twin };
   }
 
   private async ensureStudy(
@@ -451,6 +482,19 @@ export class IngestionService {
     if (row === undefined) throw new NotFoundException('Upload session not found');
     return row;
   }
+}
+
+/** What a completed session hands back for the caller to act on after commit. */
+interface Completion {
+  event: StudyUploadCompleted;
+  twin: BuildTwinJob | null;
+}
+
+function isStudyMismatch(session: SessionRow, header: DicomHeader): boolean {
+  return (
+    session.study_instance_uid !== null &&
+    session.study_instance_uid !== header.studyInstanceUID
+  );
 }
 
 interface FileRow {

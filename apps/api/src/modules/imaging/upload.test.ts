@@ -768,6 +768,26 @@ describe('P7.4 server-side ingestion', () => {
     expect(seen).toHaveLength(1);
   });
 
+  it('publishes StudyUploadCompleted only after the completing transaction commits', async () => {
+    // The audit subscriber writes on its own connection. Published inside the
+    // transaction, it recorded "complete" for work that could still roll back.
+    const doctor = await createUser(h.owner, 'libya_doctor');
+    const patient = await createPatient(h.owner, doctor);
+    const files = loadFixtureFiles('03-mr-series').slice(0, 2);
+
+    const seenStatus: (string | undefined)[] = [];
+    bus.subscribe('StudyUploadCompleted', async () => {
+      const r = await h.owner.query<{ status: string }>(
+        'SELECT status FROM imaging_upload_sessions',
+      );
+      seenStatus.push(r.rows[0]?.status);
+    });
+
+    await uploadAndIngest(doctor, patient, files);
+
+    expect(seenStatus).toEqual(['completed']);
+  });
+
   it('never re-encodes: stored bytes are identical to uploaded bytes', async () => {
     // ADR-4/ADR-5. Checked by direct byte comparison rather than by checksum
     // alone, so a hash collision or a checksum bug cannot mask a rewrite.
