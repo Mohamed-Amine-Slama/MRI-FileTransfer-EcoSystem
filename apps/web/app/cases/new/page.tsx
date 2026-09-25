@@ -1,6 +1,6 @@
 'use client';
 
-import Link from 'next/link';
+import Link from '../../../components/ui/link';
 import { useRouter } from 'next/navigation';
 import { useCallback, useEffect, useState } from 'react';
 import { CONSULT_SPECIALTIES, canSubmitCases, type ConsultSpecialty } from '@mir/contracts';

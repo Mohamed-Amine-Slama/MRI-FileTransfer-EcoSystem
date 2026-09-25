@@ -1,6 +1,6 @@
 'use client';
 
-import Link from 'next/link';
+import Link from '../../../components/ui/link';
 import { use, useCallback, useEffect, useState } from 'react';
 import { Paperclip, Send } from 'lucide-react';
 import {

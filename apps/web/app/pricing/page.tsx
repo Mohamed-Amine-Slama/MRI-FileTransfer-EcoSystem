@@ -1,6 +1,6 @@
 'use client';
 
-import Link from 'next/link';
+import Link from '../../components/ui/link';
 import { useEffect, useState } from 'react';
 import { Check } from 'lucide-react';
 import { ENTITLEMENTS, type PlanTier } from '@mir/contracts';

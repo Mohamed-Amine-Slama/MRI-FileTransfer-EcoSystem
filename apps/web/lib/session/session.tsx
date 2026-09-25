@@ -72,6 +72,13 @@ export function SessionProvider({ children }: { children: ReactNode }): React.JS
     // After a reload the in-memory token is gone; the httpOnly refresh cookie
     // (set at sign-in, see lib/auth/keycloak-token.ts) mints a new one.
     if (getAccessToken() === null) await restoreFromRefreshCookie();
+    // Still no token: the API authenticates by bearer only, so /me would be a
+    // guaranteed 401. Skip the round trip — every signed-out page load paid it.
+    if (getAccessToken() === null) {
+      setUser(null);
+      setStatus('anonymous');
+      return;
+    }
     try {
       const me = await api.session.me();
       setUser(me);
@@ -88,8 +95,8 @@ export function SessionProvider({ children }: { children: ReactNode }): React.JS
     }
   }, []);
 
-  // On mount, ask the API who we are. If the edge carries a session cookie
-  // this succeeds with no token; otherwise it 401s and we render anonymous.
+  // On mount, restore the token from the refresh cookie and, if one comes
+  // back, ask the API who we are; otherwise render anonymous.
   useEffect(() => {
     void load();
   }, [load]);

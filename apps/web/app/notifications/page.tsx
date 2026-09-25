@@ -1,6 +1,6 @@
 'use client';
 
-import Link from 'next/link';
+import Link from '../../components/ui/link';
 import { useCallback, useEffect, useState } from 'react';
 import { BellRing, FileUp, MessageSquare, RefreshCw } from 'lucide-react';
 import { unreadCount, type Notification, type NotificationKind } from '@mir/contracts';

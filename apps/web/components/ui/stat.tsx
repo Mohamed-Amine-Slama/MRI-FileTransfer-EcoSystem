@@ -1,4 +1,4 @@
-import Link from 'next/link';
+import Link from './link';
 import type { ReactNode } from 'react';
 import { cn } from '../../lib/utils';
 import { CardContent, CardRoot } from './card';

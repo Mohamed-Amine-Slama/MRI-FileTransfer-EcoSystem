@@ -1,6 +1,6 @@
 'use client';
 
-import Link from 'next/link';
+import Link from '../../ui/link';
 import { useRef } from 'react';
 import { corridorLabels } from '../../../lib/site/corridor-labels';
 import { useSite } from '../../../lib/site/site-provider';

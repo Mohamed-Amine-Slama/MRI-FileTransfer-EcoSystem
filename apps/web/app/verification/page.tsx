@@ -1,6 +1,6 @@
 'use client';
 
-import Link from 'next/link';
+import Link from '../../components/ui/link';
 import type { VerificationStatus } from '@mir/contracts';
 import { PROVIDER_ROLES } from '../../lib/corridor/registry';
 import { useOrganisation } from '../../lib/account/organisation';

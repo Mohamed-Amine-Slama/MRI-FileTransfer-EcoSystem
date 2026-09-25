@@ -1,6 +1,6 @@
 'use client';
 
-import Link from 'next/link';
+import Link from '../../components/ui/link';
 import { useCallback, useEffect, useState } from 'react';
 import { api, type CaseRecord } from '../../lib/api/endpoints';
 import { useDateFormat, useT } from '../../lib/i18n/provider';

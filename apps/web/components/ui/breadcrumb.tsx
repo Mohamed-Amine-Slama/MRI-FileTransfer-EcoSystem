@@ -1,6 +1,6 @@
 'use client';
 
-import Link from 'next/link';
+import Link from './link';
 import { ChevronRight } from 'lucide-react';
 import { Fragment } from 'react';
 import { useT } from '../../lib/i18n/provider';

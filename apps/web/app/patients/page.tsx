@@ -1,6 +1,6 @@
 'use client';
 
-import Link from 'next/link';
+import Link from '../../components/ui/link';
 import { useCallback, useEffect, useState } from 'react';
 import { ChevronRight, UserRoundPlus } from 'lucide-react';
 import { api, type Patient } from '../../lib/api/endpoints';

@@ -1,6 +1,6 @@
 'use client';
 
-import Link from 'next/link';
+import Link from '../ui/link';
 import { useState, type ReactNode } from 'react';
 import { Menu, X } from 'lucide-react';
 import { useT } from '../../lib/i18n/provider';
