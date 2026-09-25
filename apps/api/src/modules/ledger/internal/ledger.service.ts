@@ -126,6 +126,32 @@ export class LedgerService {
     });
   }
 
+  /**
+   * Every organisation's entries in ONE read — for ops' ledger, which used to
+   * ask once per organisation (spec 2026-09-21 §8). RLS still decides which
+   * rows come back; the route admits only ops.
+   */
+  async listAll(): Promise<{ organisationId: string; entries: LedgerEntry[] }[]> {
+    return this.db.tx(async (tx) => {
+      const res = await tx.query<DbEntry & { organisation_id: string }>(
+        `SELECT e.id, e.kind, e.amount_minor, e.currency, e.status, e.occurred_at,
+                e.organisation_id, a.case_ref
+           FROM billing_ledger_entries e
+           LEFT JOIN cases_cases a ON a.id = e.case_id
+          ORDER BY e.organisation_id, e.occurred_at DESC`,
+      );
+      const groups = new Map<string, LedgerEntry[]>();
+      for (const r of res.rows) {
+        const entry = toEntry(r);
+        if (entry == null) continue;
+        const list = groups.get(r.organisation_id) ?? [];
+        list.push(entry);
+        groups.set(r.organisation_id, list);
+      }
+      return [...groups].map(([organisationId, entries]) => ({ organisationId, entries }));
+    });
+  }
+
   async listForOrganisation(organisationId: string): Promise<LedgerEntry[]> {
     return this.db.tx(async (tx) => {
       // The case reference belongs to the referral (migration 0024), so it is

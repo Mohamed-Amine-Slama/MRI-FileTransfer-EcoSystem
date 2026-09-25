@@ -207,7 +207,7 @@ function LedgerView(): React.JSX.Element {
               {perCase.map((entry) => (
                 <TableRow key={entry.id}>
                   <TableCell>
-                    <bdi className="font-mono text-xs font-semibold">{entry.caseRef}</bdi>
+                    <bdi className="whitespace-nowrap font-mono text-xs font-semibold">{entry.caseRef}</bdi>
                   </TableCell>
                   <TableCell className="text-muted-foreground">
                     {formatDate(entry.occurredAt)}

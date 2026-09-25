@@ -1,6 +1,6 @@
 'use client';
 
-import Link from 'next/link';
+import Link from '../../components/ui/link';
 import { useEffect, useState } from 'react';
 import { ChevronRight, Users } from 'lucide-react';
 import { isTerminalStatus, type Case } from '@mir/contracts';

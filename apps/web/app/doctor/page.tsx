@@ -1,10 +1,10 @@
 'use client';
 
-import Link from 'next/link';
+import Link from '../../components/ui/link';
 import { useCallback, useEffect, useState } from 'react';
 import { api, type CaseRecord } from '../../lib/api/endpoints';
 import { useDateFormat, useT } from '../../lib/i18n/provider';
-import { patientBriefLabel } from '../../components/case/labels';
+import { patientBriefLabel, specialtyLabel } from '../../components/case/labels';
 import { RoleGate } from '../../components/RoleGate';
 import {
   Alert,
@@ -131,7 +131,7 @@ function Inbox(): React.JSX.Element {
                     href={`/cases/${c.id}`}
                     className="rounded-sm hover:text-primary hover:underline"
                   >
-                    {c.specialty}
+                    {specialtyLabel(t, c.specialty)}
                   </Link>
                 </TableCell>
                 {/*

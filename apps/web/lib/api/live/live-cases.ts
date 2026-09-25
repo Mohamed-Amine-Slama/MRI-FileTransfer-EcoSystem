@@ -89,13 +89,8 @@ export const liveCasesApi: CasesApi = {
   },
 
   async listAllLedger() {
-    const { organisations } = await api.organisations.queue();
-    return Promise.all(
-      organisations.map(async (o) => ({
-        providerId: o.id,
-        entries: (await api.ledger.forOrganisation(o.id)).entries,
-      })),
-    );
+    const { organisations } = await api.ledger.all();
+    return organisations.map((g) => ({ providerId: g.organisationId, entries: g.entries }));
   },
 
   async listMessages() {

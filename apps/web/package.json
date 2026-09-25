@@ -9,7 +9,8 @@
     "dev": "next dev -p 3001",
     "start": "next start -p 3001",
     "test": "vitest run --passWithNoTests",
-    "test:e2e": "playwright test"
+    "test:e2e": "playwright test",
+    "test:stack": "playwright test -c playwright.stack.config.ts"
   },
   "dependencies": {
     "@cornerstonejs/core": "^5.8.2",
@@ -34,9 +35,11 @@
     "@playwright/test": "^1.63.0",
     "@tailwindcss/postcss": "^4.3.3",
     "@types/node": "^26.5.1",
+    "@types/pg": "8.23.1",
     "@types/react": "^19.0.7",
     "@types/react-dom": "^19.2.7",
     "eslint": "^10.10.0",
+    "pg": "8.23.0",
     "sharp": "^0.35.4",
     "tailwindcss": "^4.3.3",
     "typescript": "^6.0.3",

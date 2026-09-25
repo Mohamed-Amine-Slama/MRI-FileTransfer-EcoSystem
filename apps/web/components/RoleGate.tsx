@@ -1,6 +1,6 @@
 'use client';
 
-import Link from 'next/link';
+import Link from './ui/link';
 import type { ReactNode } from 'react';
 import type { Role } from '@mir/contracts';
 import { useT } from '../lib/i18n/provider';

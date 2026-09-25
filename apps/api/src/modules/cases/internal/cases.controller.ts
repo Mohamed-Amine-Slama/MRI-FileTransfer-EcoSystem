@@ -6,7 +6,6 @@ import {
   Get,
   HttpCode,
   Param,
-  NotFoundException,
   ParseUUIDPipe,
   Patch,
   Post,
@@ -307,12 +306,19 @@ export class CasesController {
     return toDto(await this.cases.updateCase(id, patch));
   }
 
-  /** The report; the referring side sees it only once submitted (RLS, 0034). */
+  /**
+   * The report; the referring side sees it only once submitted (RLS, 0034).
+   *
+   * "No report yet" is null with a 200, not a 404: it is the normal state of
+   * every accepted case, and a 404 logged a browser console error on each one.
+   * Null leaks nothing — a hidden draft, no draft and a case the caller cannot
+   * see all read the same.
+   */
   @RequiresRole('tunisia_doctor', 'libya_doctor', 'admin')
   @Get('cases/:id/report')
   async report(@Param('id', ParseUUIDPipe) id: string) {
     const r = await this.reports.get(id);
-    if (r === null) throw new NotFoundException('Report not found');
+    if (r === null) return null;
     return { status: r.status, content: r.content, submittedAt: r.submittedAt?.toISOString() ?? null };
   }
 

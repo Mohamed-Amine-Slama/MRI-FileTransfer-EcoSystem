@@ -209,6 +209,21 @@ export class KeycloakAdminClient {
    * that same transition is `identity_decide_verification`.
    */
   async assignRealmRole(sub: string, role: string): Promise<void> {
+    await this.mapRealmRole(sub, role, 'POST');
+  }
+
+  /**
+   * Out of `applicant` into a clinical role. The token verifier accepts
+   * exactly one application role, so attaching the new one without removing
+   * `applicant` locks the user out (401 on every call) until an operator
+   * edits Keycloak by hand.
+   */
+  async promote(sub: string, role: string): Promise<void> {
+    await this.mapRealmRole(sub, role, 'POST');
+    await this.mapRealmRole(sub, 'applicant', 'DELETE');
+  }
+
+  private async mapRealmRole(sub: string, role: string, method: 'POST' | 'DELETE'): Promise<void> {
     const lookup = await this.admin(`/roles/${encodeURIComponent(role)}`, { method: 'GET' });
     if (!lookup.ok) throw new Error(`Keycloak role lookup failed: ${lookup.status}`);
     const definition = (await lookup.json()) as { id?: unknown; name?: unknown };
@@ -217,10 +232,10 @@ export class KeycloakAdminClient {
     }
 
     const res = await this.admin(`/users/${encodeURIComponent(sub)}/role-mappings/realm`, {
-      method: 'POST',
+      method,
       body: JSON.stringify([{ id: definition.id, name: definition.name }]),
     });
-    if (!res.ok) throw new Error(`Keycloak role assignment failed: ${res.status}`);
+    if (!res.ok) throw new Error(`Keycloak role ${method === 'POST' ? 'assignment' : 'removal'} failed: ${res.status}`);
   }
 
   /**

@@ -508,7 +508,7 @@ export class OrganisationsService {
 
     if (sub === undefined) return;
     try {
-      await this.keycloak.assignRealmRole(sub, role);
+      await this.keycloak.promote(sub, role);
     } catch (err) {
       this.logger.error(`realm role ${role} not attached after approval: ${String(err)}`);
     }

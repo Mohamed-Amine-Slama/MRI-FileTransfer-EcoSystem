@@ -17,6 +17,13 @@ export class LedgerController {
    * No ownership check here: `ledger_entries_member` is what scopes the read,
    * so an id belonging to someone else returns an empty list.
    */
+  /** Ops' ledger across every organisation, in one request. */
+  @RequiresRole('admin')
+  @Get('all')
+  async all(): Promise<{ organisations: { organisationId: string; entries: LedgerEntry[] }[] }> {
+    return { organisations: await this.ledger.listAll() };
+  }
+
   @RequiresRole('libya_doctor', 'tunisia_doctor', 'admin')
   @Get()
   async list(@Query() query: unknown): Promise<{ entries: LedgerEntry[] }> {
