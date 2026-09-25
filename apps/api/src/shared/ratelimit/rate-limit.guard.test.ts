@@ -1,6 +1,6 @@
 import { readFileSync } from 'node:fs';
 import { resolve } from 'node:path';
-import { Controller, Get, Module, type INestApplication } from '@nestjs/common';
+import { Body, Controller, Get, Module, Post, type INestApplication } from '@nestjs/common';
 import { APP_FILTER, APP_GUARD } from '@nestjs/core';
 import { Test } from '@nestjs/testing';
 import request from 'supertest';
@@ -41,6 +41,13 @@ class ProbeController {
   @RateLimit('otpRequest', { keyBy: 'param:id' })
   @Get('per-target/:id')
   perTarget(): { ok: true } {
+    return { ok: true };
+  }
+
+  @PublicEndpoint()
+  @RateLimit('otpRequest', { keyBy: 'body+ip:email' })
+  @Post('per-account-and-ip')
+  perAccountAndIp(@Body() _body: unknown): { ok: true } {
     return { ok: true };
   }
 }
@@ -115,6 +122,27 @@ describe('P4.5 rate limiting is enforced over HTTP', () => {
     // A DIFFERENT target is unaffected — this is the whole point.
     await request(server).get('/per-target/patient-b').expect(200);
   }, 60_000);
+
+  it('keys anonymous callers on the Cloudflare client IP, not the proxy address', async () => {
+    // Behind Cloudflare and the ALB every request arrives from the proxy, so
+    // keying on req.ip put the whole platform into one sign-up bucket.
+    const server = app.getHttpServer() as never;
+    for (let i = 0; i < RATE_LIMITS.login.limit; i += 1) {
+      await request(server).get('/limited').set('cf-connecting-ip', '198.51.100.1').expect(200);
+    }
+    await request(server).get('/limited').set('cf-connecting-ip', '198.51.100.1').expect(429);
+    await request(server).get('/limited').set('cf-connecting-ip', '198.51.100.2').expect(200);
+  });
+
+  it('an attacker exhausting one account\'s budget does not lock that account out elsewhere', async () => {
+    const server = app.getHttpServer() as never;
+    const body = { email: 'victim@example.test' };
+    for (let i = 0; i < RATE_LIMITS.otpRequest.limit; i += 1) {
+      await request(server).post('/per-account-and-ip').set('cf-connecting-ip', '203.0.113.9').send(body).expect(201);
+    }
+    await request(server).post('/per-account-and-ip').set('cf-connecting-ip', '203.0.113.9').send(body).expect(429);
+    await request(server).post('/per-account-and-ip').set('cf-connecting-ip', '192.0.2.4').send(body).expect(201);
+  });
 
   it('app.module registers the guard, after AuthGuard', () => {
     // This defect was "the control exists and nothing invokes it". A source

@@ -121,6 +121,6 @@ function firstHeader(value: string | string[] | undefined): string | undefined {
  * client-controllable and would let an attacker write arbitrary addresses into
  * the audit log.
  */
-function clientIp(request: Request): string | undefined {
+export function clientIp(request: Request): string | undefined {
   return firstHeader(request.headers['cf-connecting-ip']) ?? request.ip;
 }

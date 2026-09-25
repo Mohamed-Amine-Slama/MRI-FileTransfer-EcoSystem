@@ -66,7 +66,11 @@ export class RegistrationController {
    * phone rather than on the issuing doctor.
    */
   @PublicEndpoint()
-  @RateLimit('otpRequest', { keyBy: 'body:email' })
+  // Narrowed to the IP as well: keyed on the address alone, four wrong codes
+  // from anyone locked the real owner out of verifying AND resending (the two
+  // routes shared one bucket). Guessing stays bounded — the database caps
+  // attempts per code.
+  @RateLimit('otpRequest', { keyBy: 'body+ip:email' })
   @Post('verify-email')
   @HttpCode(204)
   async verifyEmail(@Body() body: unknown): Promise<void> {
