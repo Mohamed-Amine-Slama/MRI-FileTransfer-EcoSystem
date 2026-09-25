@@ -154,6 +154,8 @@ for (const who of Object.keys(ACCOUNTS) as (keyof typeof ACCOUNTS)[]) {
           });
           const overflow = await page.evaluate(() => document.documentElement.scrollWidth - window.innerWidth);
           expect.soft(overflow, `${path}: horizontal overflow (px)`).toBeLessThanOrEqual(0);
+          // An enum key shown raw is English left on an Arabic screen.
+          expect.soft(await page.locator('main').innerText(), `${path}: raw specialty key`).not.toMatch(/\bradiology\b/);
         });
       }
     });
