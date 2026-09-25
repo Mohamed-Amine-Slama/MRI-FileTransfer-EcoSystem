@@ -1044,6 +1044,8 @@ Two things to confirm while writing it, and fix in the spec if different: the `<
 
 - **Fixed (Task 3):** `GET /cases/:id/report` answered 404 for "no report yet", so every accepted case logged a browser console error for both sides. Now 200 `null`.
 - **Recorded, not fixed (polish):** a signed-out visit to `/login` makes `POST /auth/refresh` and `GET /api/auth/me`, both 401, which the browser logs as two console errors. It is the refresh-cookie session probe (4a98ac4) doing its job; a 204/`null` for "no session" would quiet it.
+- **Fixed (Task 6):** approving an applicant attached the clinical realm role in Keycloak but left `applicant` on the user. The token verifier requires exactly one application role, so every newly approved doctor, clinic or assistant got 401 on every call after signing in. `KeycloakAdminClient.promote` now attaches the role and removes `applicant`; all three approval paths go through it. Users approved before the fix still carry both roles and need `applicant` removed in Keycloak by hand.
+- **Recorded, not fixed (gap):** credential documents cannot be uploaded. A `kind: 'file'` credential (e.g. the facility permit) renders as a text box, so the applicant types a reference and ops has no document to check.
 
 ## Execution notes
 

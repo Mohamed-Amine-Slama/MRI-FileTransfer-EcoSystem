@@ -1,3 +1,4 @@
+import { createHash } from 'node:crypto';
 import { expect, type Page } from '@playwright/test';
 import pg from 'pg';
 import type { Role } from '@mir/contracts';
@@ -114,4 +115,35 @@ export async function acceptedCase(opts: { reason?: string } = {}): Promise<{ id
   const [row] = await query<{ case_ref: string }>('SELECT case_ref FROM cases_cases WHERE id = $1', [c.id]);
   if (row === undefined) throw new Error(`case ${c.id} not found after submit`);
   return { id: c.id, ref: row.case_ref };
+}
+
+/**
+ * A new, email-verified applicant. Locally the verification code goes to the
+ * console mailer, so the suite re-issues a code it knows through the same
+ * database function the service uses, then verifies through the API — the
+ * account path under test is the real one; only the inbox is skipped.
+ */
+export async function freshApplicant(): Promise<{ email: string; password: string; fullName: string }> {
+  const stamp = Date.now().toString();
+  const email = `stack-${stamp}@example.test`;
+  const password = 'stack-applicant-pass-1234';
+  const fullName = `Stack Doctor ${stamp}`;
+  const reg = await fetch(`${STACK.api}/auth/register`, {
+    method: 'POST',
+    headers: { 'content-type': 'application/json' },
+    body: JSON.stringify({ email, password, fullName, phoneE164: `+2162${stamp.slice(-7)}`, locale: 'fr' }),
+  });
+  if (reg.status !== 204) throw new Error(`register: ${reg.status} ${await reg.text()}`);
+  const code = '424242';
+  await query('SELECT identity_issue_email_code($1, $2, 15)', [
+    email,
+    createHash('sha256').update(code).digest('hex'),
+  ]);
+  const ver = await fetch(`${STACK.api}/auth/verify-email`, {
+    method: 'POST',
+    headers: { 'content-type': 'application/json' },
+    body: JSON.stringify({ email, code }),
+  });
+  if (ver.status !== 204) throw new Error(`verify: ${ver.status} ${await ver.text()}`);
+  return { email, password, fullName };
 }
