@@ -1042,7 +1042,8 @@ Two things to confirm while writing it, and fix in the spec if different: the `<
 
 ## Findings
 
-(Filled in during Tasks 3 and 7.)
+- **Fixed (Task 3):** `GET /cases/:id/report` answered 404 for "no report yet", so every accepted case logged a browser console error for both sides. Now 200 `null`.
+- **Recorded, not fixed (polish):** a signed-out visit to `/login` makes `POST /auth/refresh` and `GET /api/auth/me`, both 401, which the browser logs as two console errors. It is the refresh-cookie session probe (4a98ac4) doing its job; a 204/`null` for "no session" would quiet it.
 
 ## Execution notes
 

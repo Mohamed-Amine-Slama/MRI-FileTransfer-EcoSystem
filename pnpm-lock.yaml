@@ -207,6 +207,9 @@ importers:
       '@types/node':
         specifier: ^26.5.1
         version: 26.5.1
+      '@types/pg':
+        specifier: 8.23.1
+        version: 8.23.1
       '@types/react':
         specifier: ^19.0.7
         version: 19.3.0
@@ -216,6 +219,9 @@ importers:
       eslint:
         specifier: ^10.10.0
         version: 10.10.0(jiti@2.7.0)
+      pg:
+        specifier: 8.23.0
+        version: 8.23.0
       sharp:
         specifier: ^0.35.4
         version: 0.35.4(@types/node@26.5.1)
