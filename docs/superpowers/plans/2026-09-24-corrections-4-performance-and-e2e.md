@@ -1046,6 +1046,13 @@ Two things to confirm while writing it, and fix in the spec if different: the `<
 - **Recorded, not fixed (polish):** a signed-out visit to `/login` makes `POST /auth/refresh` and `GET /api/auth/me`, both 401, which the browser logs as two console errors. It is the refresh-cookie session probe (4a98ac4) doing its job; a 204/`null` for "no session" would quiet it.
 - **Fixed (Task 6):** approving an applicant attached the clinical realm role in Keycloak but left `applicant` on the user. The token verifier requires exactly one application role, so every newly approved doctor, clinic or assistant got 401 on every call after signing in. `KeycloakAdminClient.promote` now attaches the role and removes `applicant`; all three approval paths go through it. Users approved before the fix still carry both roles and need `applicant` removed in Keycloak by hand.
 - **Recorded, not fixed (gap):** credential documents cannot be uploaded. A `kind: 'file'` credential (e.g. the facility permit) renders as a text box, so the applicant types a reference and ops has no document to check.
+- **Task 7 UI pass** (screens: `test-results/sweep/`, every route × role × English desktop / Arabic 390 px):
+  - every signed-in screen and `/login`, all roles, Arabic: the skip link's `sr-only` box (−1 px margin, `start-0`) sat 1 px past the right edge, so the page scrolled sideways by 1 px — **looks wrong**, fixed (`m-0`).
+  - `/doctor`, doctor, Arabic: the specialty column showed the raw key `radiology` — **looks wrong**, fixed (`specialtyLabel`); the Arabic sweep now fails on a raw specialty key.
+  - `/ledger`, clinic, 390 px: case references broke over three lines (`MIR-` / `2026-` / `0034`) — **looks wrong**, fixed (`whitespace-nowrap`).
+  - `/doctor`, doctor, 390 px: Accept / Decline sit in the table's horizontal scroll, off-screen until the table is swiped; the case link reaches them too — **polish** (a card layout on phones).
+  - `/admin/providers`, ops, 390 px: the directory table scrolls inside its card and its last header is cut at the edge — **polish**.
+  - `/ledger`, clinic, 390 px: the dates wrap to four lines; the empty "platform subscription" box says "no transactions" without saying what comes next — **polish**.
 
 ## Execution notes
 
