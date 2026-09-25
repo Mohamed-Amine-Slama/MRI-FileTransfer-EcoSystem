@@ -356,7 +356,21 @@ export class IngestionService {
     session: SessionRow,
     header: DicomHeader,
   ): Promise<string> {
-    if (session.study_id !== null) return session.study_id;
+    // Decided for EVERY file, not only the one that creates the study: a
+    // burned-in risk on the fifth slice is as real as one on the first.
+    const decision = decideRelease(header);
+
+    if (session.study_id !== null) {
+      if (decision === 'quarantined') {
+        // Same stickiness as the conflict branch below: 'ready' stays ready.
+        await tx.query(
+          `UPDATE imaging_studies SET status = 'quarantined'
+            WHERE id = $1 AND status NOT IN ('ready', 'quarantined')`,
+          [session.study_id],
+        );
+      }
+      return session.study_id;
+    }
 
     const ctx = requireContext();
 
@@ -368,7 +382,6 @@ export class IngestionService {
     // builder picks up. Quarantine is sticky in the conflict branch below for
     // the same reason a 'ready' study is: one clean slice arriving after a
     // dirty one must not release the study.
-    const decision = decideRelease(header);
 
     const res = await tx.query<{ id: string }>(
       `INSERT INTO imaging_studies
