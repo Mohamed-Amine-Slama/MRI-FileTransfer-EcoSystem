@@ -94,10 +94,19 @@ class TestAuthGuard {
 class SeverableProxy {
   private server?: Server;
   private readonly sockets = new Set<Socket>();
+  // A cut link refuses NEW connections too. Destroying only the live sockets
+  // made the test depend on whether fetch reused its keep-alive socket (fails,
+  // as intended) or opened a fresh one (succeeds) — it passed locally and
+  // failed in CI.
+  private severed = false;
   port = 0;
 
   async listen(targetPort: number): Promise<void> {
     this.server = createServer((client) => {
+      if (this.severed) {
+        client.destroy();
+        return;
+      }
       const upstream = connect(targetPort, '127.0.0.1');
       this.sockets.add(client);
       this.sockets.add(upstream);
@@ -128,6 +137,7 @@ class SeverableProxy {
 
   /** Sever every live connection with an RST. */
   sever(): void {
+    this.severed = true;
     for (const socket of this.sockets) socket.destroy();
     this.sockets.clear();
   }
