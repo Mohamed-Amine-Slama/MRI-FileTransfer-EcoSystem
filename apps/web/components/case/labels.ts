@@ -163,7 +163,8 @@ export function paymentStatusTone(status: PaymentStatus): Tone {
  * depend on translated copy — a French string that happened to match, or a
  * reworded Arabic entry, would silently change which cases appear as work.
  * The decision is made on this enum instead, and the label is a projection of
- * it. `isAwaitingSide` and `nextActionLabel` therefore cannot disagree.
+ * it. `isAwaitingSide`, `isWaitingOnOther` and `nextActionLabel` therefore
+ * cannot disagree.
  */
 export type NextActionKey =
   | 'pickDoctor'
@@ -227,14 +228,29 @@ export function nextActionLabel(t: Dictionary, status: CaseStatus, side: CaseSid
 }
 
 /**
+ * Next-action keys that describe the OTHER side's move. They are shown on the
+ * case list so a clinic knows where a case stands, but they are not a task:
+ * nothing the clinic does will move a case the doctor has not answered.
+ */
+const WAITING_KEYS: ReadonlySet<NextActionKey> = new Set(['awaitDoctor']);
+
+/**
  * Whether this case is waiting on the given side — the §5.5 task rule.
  *
  * A terminal case is never a task even if a table above still names an action,
- * so a cancelled case cannot linger on a clinic's to-do list.
+ * so a cancelled case cannot linger on a clinic's to-do list. A waiting key is
+ * never a task either; see `isWaitingOnOther`.
  */
 export function isAwaitingSide(status: CaseStatus, side: CaseSide): boolean {
   if (isTerminalStatus(status)) return false;
-  return nextActionKey(status, side) !== 'none';
+  const key = nextActionKey(status, side);
+  return key !== 'none' && !WAITING_KEYS.has(key);
+}
+
+/** Whether the given side is waiting on the other one to move this case. */
+export function isWaitingOnOther(status: CaseStatus, side: CaseSide): boolean {
+  if (isTerminalStatus(status)) return false;
+  return WAITING_KEYS.has(nextActionKey(status, side));
 }
 
 /**

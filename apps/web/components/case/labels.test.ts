@@ -14,6 +14,7 @@ import {
   caseStatusLabel,
   formatMoney,
   isAwaitingSide,
+  isWaitingOnOther,
   isRejectionReasonKey,
   nextActionLabel,
   paymentStatusLabel,
@@ -125,16 +126,28 @@ describe('the §5.5 task rule is decided on the enum, not on copy', () => {
     }
   });
 
-  it('agrees with the rendered label in every locale', () => {
-    // The two must not be able to drift: if this ever fails, one screen is
-    // calling a case a task while another says there is nothing to do.
+  it('puts every labelled case in exactly one of task / waiting, in every locale', () => {
+    // A case with a next-action label is either this side's task or the other
+    // side's move — never both, never neither. If this fails, one screen calls
+    // a case a task while another says someone else owes the next step.
     for (const t of Object.values(DICTIONARIES)) {
       for (const status of CASE_STATUSES) {
         for (const side of CASE_SIDES) {
-          const labelled = nextActionLabel(t, status, side) !== t.nextActionNone;
-          expect(isAwaitingSide(status, side)).toBe(labelled && !isTerminalStatus(status));
+          const labelled =
+            nextActionLabel(t, status, side) !== t.nextActionNone && !isTerminalStatus(status);
+          const buckets = [isAwaitingSide(status, side), isWaitingOnOther(status, side)].filter(
+            Boolean,
+          ).length;
+          expect(buckets, `${status}/${side}`).toBe(labelled ? 1 : 0);
         }
       }
+    }
+  });
+
+  it('treats waiting for the doctor as the other side’s move, not the clinic’s task', () => {
+    for (const status of ['paid', 'accepted'] as const) {
+      expect(isAwaitingSide(status, 'source')).toBe(false);
+      expect(isWaitingOnOther(status, 'source')).toBe(true);
     }
   });
 });
