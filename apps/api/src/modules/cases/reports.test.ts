@@ -191,3 +191,14 @@ describe('the report as a PDF', () => {
     ]);
   });
 });
+
+describe('reading the report through the route', () => {
+  it('"no report yet" is an answer, not an error: null, for the doctor and for the clinic', async () => {
+    const { lab, doctor, caseId } = await acceptedCase();
+    const controller = new CasesController(cases, directory, reports, pdf);
+    expect(await asDoctor(doctor, () => controller.report(caseId))).toBeNull();
+    await asDoctor(doctor, () => reports.saveDraft(caseId, { indication: 'x' }));
+    // The clinic cannot tell a hidden draft from no draft: both are null.
+    expect(await asLab(lab, () => controller.report(caseId))).toBeNull();
+  });
+});

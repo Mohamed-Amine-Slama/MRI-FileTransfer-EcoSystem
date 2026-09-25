@@ -376,11 +376,13 @@ export const api = {
         body: { report },
       }),
 
-    /** The report. 404 = no draft yet (doctor), or not submitted yet (clinic). */
+    /** The report, or null: no draft yet (doctor), or not submitted yet (clinic). */
     report: (id: string) =>
-      apiFetch<{ status: ReportStatus; content: ConsultReportDraft; submittedAt: string | null }>(
-        `/cases/${id}/report`,
-      ),
+      apiFetch<{
+        status: ReportStatus;
+        content: ConsultReportDraft;
+        submittedAt: string | null;
+      } | null>(`/cases/${id}/report`),
 
     /** Autosave of the doctor's draft. */
     saveReport: (id: string, draft: ConsultReportDraft) =>
