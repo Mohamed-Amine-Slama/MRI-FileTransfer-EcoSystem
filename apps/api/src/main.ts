@@ -71,6 +71,12 @@ async function bootstrap(): Promise<void> {
   // before listen(), so an undeclared endpoint never accepts a request.
   assertAllRoutesDeclareAccess(app);
 
+  // Without this Nest installs no SIGTERM handler: the onApplicationShutdown /
+  // onModuleDestroy hooks (BullMQ worker and queue close, pool drain) never
+  // run, and as PID 1 in the container node ignores SIGTERM outright — every
+  // deploy waits out the grace period and SIGKILLs in-flight ingest jobs.
+  app.enableShutdownHooks();
+
   await app.listen(config.PORT, '0.0.0.0');
 }
 
