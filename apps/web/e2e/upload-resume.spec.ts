@@ -77,6 +77,17 @@ class StubServer {
 }
 
 async function routeApi(context: BrowserContext, server: StubServer): Promise<void> {
+  // The session provider only asks /me once it holds a token, and after a
+  // load it gets one from the refresh cookie. Without this stub the page stays
+  // signed out and the upload screen never renders.
+  await context.route('**/auth/refresh', async (route: Route) => {
+    await route.fulfill({
+      status: 200,
+      contentType: 'application/json',
+      body: JSON.stringify({ accessToken: 'e2e-token' }),
+    });
+  });
+
   // The upload screen is behind RoleGate, so the session lookup has to answer
   // before anything else renders. Stubbing it here rather than bypassing the
   // gate keeps these tests on the same code path a real doctor takes.
