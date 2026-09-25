@@ -118,6 +118,36 @@ describe('config validation (P1.6)', () => {
    * Both keys described a model this codebase no longer has, and a stale toggle
    * is worse than a missing one: it reads as a supported mode.
    */
+  it('refuses clear-text or unverified transport, and the dev secret, when deployed', () => {
+    const deployed = {
+      ...VALID,
+      NODE_ENV: 'production',
+      SIGNED_URL_SECRET: 'change-me-local-dev-only-at-least-32-chars',
+    };
+    const err = (() => {
+      try {
+        loadConfig(deployed);
+      } catch (e) {
+        return e;
+      }
+      return undefined;
+    })();
+    expect(err).toBeInstanceOf(ConfigValidationError);
+    const issues = (err as ConfigValidationError).issues.join('\n');
+    expect(issues).toMatch(/DATABASE_SSL/);
+    expect(issues).toMatch(/REDIS_URL/);
+    expect(issues).toMatch(/SIGNED_URL_SECRET/);
+
+    expect(() =>
+      loadConfig({
+        ...deployed,
+        DATABASE_SSL: 'verify',
+        REDIS_URL: 'rediss://cache.internal:6379',
+        SIGNED_URL_SECRET: VALID['SIGNED_URL_SECRET'],
+      }),
+    ).not.toThrow();
+  });
+
   it('has retired the booking-era switches', () => {
     const cfg = loadConfig({ ...VALID }) as Record<string, unknown>;
     // Triage before payment was D3's toggle. A summary before acceptance is now

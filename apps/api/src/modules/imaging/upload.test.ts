@@ -39,6 +39,19 @@ import { corruptMiddleByte } from '../../shared/testing/corrupt-byte';
 
 const FIXTURES = join(__dirname, '..', '..', '..', '..', '..', 'test-data', 'dicom');
 
+/**
+ * Rewrite the Modality element (0008,0060) in place. Explicit VR little
+ * endian, same value length, so nothing else in the file moves.
+ */
+function withModality(bytes: Uint8Array, from: string, to: string): Uint8Array {
+  const tag = Buffer.from([0x08, 0x00, 0x60, 0x00, 0x43, 0x53, 0x02, 0x00, ...Buffer.from(from)]);
+  const out = Buffer.from(bytes);
+  const at = out.indexOf(tag);
+  if (at < 0) throw new Error(`Modality ${from} not found`);
+  out.write(to, at + 8, 'latin1');
+  return new Uint8Array(out);
+}
+
 function loadFixtureFiles(dir: string): { name: string; bytes: Uint8Array }[] {
   const base = join(FIXTURES, dir);
   const walk = (d: string): string[] =>
@@ -689,6 +702,24 @@ describe('P7.4 server-side ingestion', () => {
     expect(studies.rowCount).toBe(1);
   });
 
+  it('quarantines the study when a LATER file in the session is a burned-in-risk modality', async () => {
+    // The release gate must see every instance, not only the one that created
+    // the study row: a CT whose fifth slice is a secondary-capture page carries
+    // the name in its pixels just the same.
+    const doctor = await createUser(h.owner, 'libya_doctor');
+    const patient = await createPatient(h.owner, doctor);
+    const files = loadFixtureFiles('03-mr-series').slice(0, 3);
+    const last = files[2];
+    if (last === undefined) throw new Error('fixture missing');
+    files[2] = { name: last.name, bytes: withModality(last.bytes, 'MR', 'US') };
+
+    await uploadAndIngest(doctor, patient, files);
+
+    const studies = await h.owner.query<{ status: string }>('SELECT status FROM imaging_studies');
+    expect(studies.rows.map((r) => r.status)).toEqual(['quarantined']);
+    expect(enqueued).toHaveLength(0);
+  });
+
   it('survives an Orthanc outage — the original is still the source of record', async () => {
     // ADR-3/ADR-4: Orthanc is an index, rebuildable from the originals. Losing
     // it during ingest must not lose the scan.
@@ -735,6 +766,26 @@ describe('P7.4 server-side ingestion', () => {
     }
 
     expect(seen).toHaveLength(1);
+  });
+
+  it('publishes StudyUploadCompleted only after the completing transaction commits', async () => {
+    // The audit subscriber writes on its own connection. Published inside the
+    // transaction, it recorded "complete" for work that could still roll back.
+    const doctor = await createUser(h.owner, 'libya_doctor');
+    const patient = await createPatient(h.owner, doctor);
+    const files = loadFixtureFiles('03-mr-series').slice(0, 2);
+
+    const seenStatus: (string | undefined)[] = [];
+    bus.subscribe('StudyUploadCompleted', async () => {
+      const r = await h.owner.query<{ status: string }>(
+        'SELECT status FROM imaging_upload_sessions',
+      );
+      seenStatus.push(r.rows[0]?.status);
+    });
+
+    await uploadAndIngest(doctor, patient, files);
+
+    expect(seenStatus).toEqual(['completed']);
   });
 
   it('never re-encodes: stored bytes are identical to uploaded bytes', async () => {

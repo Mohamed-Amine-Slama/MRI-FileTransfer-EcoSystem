@@ -1,4 +1,5 @@
 import { afterAll, beforeAll, beforeEach, describe, expect, it } from 'vitest';
+import type { Role } from '@mir/contracts';
 import {
   asUser,
   createCase,
@@ -51,7 +52,7 @@ async function seedReport(caseId: string, author: string, status: 'draft' | 'sub
   );
 }
 
-const readAs = (userId: string, role: string, caseId: string) =>
+const readAs = (userId: string, role: Role, caseId: string) =>
   asUser(h.app, { userId, role }, async (c) =>
     (await c.query('SELECT case_id FROM cases_reports WHERE case_id = $1', [caseId])).rows,
   );
