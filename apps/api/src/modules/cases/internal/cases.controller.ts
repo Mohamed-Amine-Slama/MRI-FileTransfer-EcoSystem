@@ -4,6 +4,7 @@ import {
   Controller,
   Delete,
   Get,
+  Headers,
   HttpCode,
   Param,
   ParseUUIDPipe,
@@ -16,6 +17,12 @@ import {
 import type { Response } from 'express';
 import { consultReportDraftSchema, consultReportSchema } from '@mir/contracts';
 import { z } from 'zod';
+
+/** One submission's key, reused on its retries (migration 0036). Optional. */
+const idempotencyKeySchema = z
+  .string()
+  .regex(/^[A-Za-z0-9._:-]{1,128}$/, 'idempotency-key must be a short token')
+  .optional();
 import { RequiresRole } from '../../../shared/authz/access-metadata';
 import { RateLimit } from '../../../shared/ratelimit/rate-limit.guard';
 import { CasesService, type CaseSummary } from './cases.service';
@@ -211,9 +218,14 @@ export class CasesController {
   @RateLimit('scheduleWrite')
   @Post('cases')
   @HttpCode(201)
-  async submit(@Body() body: unknown): Promise<CaseDto> {
+  async submit(
+    @Body() body: unknown,
+    @Headers('idempotency-key') idempotencyKey: string | undefined,
+  ): Promise<CaseDto> {
     const input = submitSchema.parse(body);
+    const key = idempotencyKeySchema.parse(idempotencyKey);
     const item = await this.cases.submit({
+      ...(key === undefined ? {} : { idempotencyKey: key }),
       patientId: input.patientId,
       specialty: input.specialty,
       studyIds: input.studyIds,

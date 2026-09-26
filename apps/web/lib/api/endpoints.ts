@@ -17,7 +17,7 @@ import type {
   UpdateProfileInput,
   UserPreferences,
 } from '@mir/contracts';
-import { apiFetch, newIdempotencyKey } from './client';
+import { apiFetch } from './client';
 
 /**
  * Typed view of the API surface.
@@ -276,7 +276,6 @@ export const api = {
       apiFetch<{ consentId: string; evidenceHash: string }>('/consent', {
         method: 'POST',
         body: input,
-        idempotencyKey: newIdempotencyKey(),
       }),
     revoke: (consentId: string) =>
       apiFetch<void>(`/consent/${consentId}`, { method: 'DELETE' }),
@@ -324,18 +323,25 @@ export const api = {
     },
     get: (id: string) => apiFetch<CaseRecord>(`/cases/${id}`),
 
-    submit: (input: {
-      patientId: string;
-      specialty: string;
-      studyIds: string[];
-      reason?: string;
-      notes?: string;
-    }) =>
+    /**
+     * `idempotencyKey` is ONE per form, made when the form opens and reused on
+     * every retry — a fresh key per call cannot recognise a retry. The API
+     * answers a repeated key with the case the first request created.
+     */
+    submit: (
+      input: {
+        patientId: string;
+        specialty: string;
+        studyIds: string[];
+        reason?: string;
+        notes?: string;
+      },
+      idempotencyKey?: string,
+    ) =>
       apiFetch<CaseRecord>('/cases', {
         method: 'POST',
         body: input,
-        // Double-tap on a bad link must not produce two cases.
-        idempotencyKey: newIdempotencyKey(),
+        ...(idempotencyKey === undefined ? {} : { idempotencyKey }),
       }),
 
     /**
@@ -351,18 +357,13 @@ export const api = {
 
     /** Settles the quoted price. 409 once `quoteExpiresAt` has passed. */
     pay: (id: string) =>
-      apiFetch<CaseRecord>(`/cases/${id}/pay`, {
-        method: 'POST',
-        idempotencyKey: newIdempotencyKey(),
-      }),
+      // No key: the quoted -> paid transition refuses a repeat on its own.
+      apiFetch<CaseRecord>(`/cases/${id}/pay`, { method: 'POST' }),
 
     cancel: (id: string) => apiFetch<void>(`/cases/${id}`, { method: 'DELETE' }),
 
     accept: (id: string) =>
-      apiFetch<{ status: 'accepted' }>(`/cases/${id}/accept`, {
-        method: 'POST',
-        idempotencyKey: newIdempotencyKey(),
-      }),
+      apiFetch<{ status: 'accepted' }>(`/cases/${id}/accept`, { method: 'POST' }),
     decline: (id: string) =>
       apiFetch<{ status: 'declined' }>(`/cases/${id}/decline`, { method: 'POST' }),
 
