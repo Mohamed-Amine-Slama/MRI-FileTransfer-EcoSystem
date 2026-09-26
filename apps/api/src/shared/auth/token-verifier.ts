@@ -81,7 +81,17 @@ export class TokenVerifier {
     }
 
     const realmRoles = payload.realm_access?.roles ?? [];
-    const appRoles = realmRoles.filter((r): r is Role => roleSchema.safeParse(r).success);
+    let appRoles = realmRoles.filter((r): r is Role => roleSchema.safeParse(r).success);
+
+    // Promotion out of `applicant` is two Keycloak calls with no transaction
+    // (KeycloakAdminClient.promote). If the removal fails after the grant, the
+    // token carries both. The grant is what an operator decided (the
+    // corridor's role for that side) — honour it instead of locking the new
+    // clinician out until someone edits Keycloak by hand. Promotion never
+    // grants admin, so applicant + admin is still refused below.
+    if (appRoles.length === 2 && appRoles.includes('applicant') && !appRoles.includes('admin')) {
+      appRoles = appRoles.filter((r) => r !== 'applicant');
+    }
 
     if (appRoles.length === 0) {
       throw new TokenVerificationError('token carries no recognised application role');
