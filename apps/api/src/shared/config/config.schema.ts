@@ -247,6 +247,16 @@ export const configSchema = z.object({
       message: `must be rediss:// (TLS) in ${cfg.NODE_ENV}`,
     });
   }
+  // Orthanc carries every original pixel and its Basic-auth password. Plain
+  // HTTP to it is PHI and a credential in clear on whatever network sits
+  // between the API and the imaging host.
+  if (!cfg.ORTHANC_URL.startsWith('https://')) {
+    ctx.addIssue({
+      code: 'custom',
+      path: ['ORTHANC_URL'],
+      message: `must be https:// in ${cfg.NODE_ENV}`,
+    });
+  }
   if (cfg.SIGNED_URL_SECRET.includes('change-me')) {
     ctx.addIssue({
       code: 'custom',
