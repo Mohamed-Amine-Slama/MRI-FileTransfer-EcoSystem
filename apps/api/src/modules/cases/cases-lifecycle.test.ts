@@ -130,6 +130,43 @@ describe('submitting a case', () => {
     expect(seen).toEqual([item.id]);
   });
 
+  it('a retried submission with the same key returns the first case, not a second', async () => {
+    // A double tap on a bad link: the first request went through, its answer
+    // did not come back, and the form sends again with the SAME key.
+    const { doctor, patient } = await lab();
+    const seen: string[] = [];
+    bus.subscribe('CaseSubmitted', (e) => {
+      seen.push(e.caseId);
+    });
+    const submit = (key: string) =>
+      runWithContext(ctx(doctor, 'libya_doctor'), () =>
+        cases.submit({ patientId: patient, specialty: 'radiology', idempotencyKey: key }),
+      );
+
+    const first = await submit('form-1');
+    const retry = await submit('form-1');
+    const other = await submit('form-2');
+
+    expect(retry.id).toBe(first.id);
+    expect(other.id).not.toBe(first.id);
+    expect(seen).toEqual([first.id, other.id]);
+    const rows = await h.owner.query('SELECT 1 FROM cases_cases WHERE patient_id = $1', [patient]);
+    expect(rows.rowCount).toBe(2);
+  });
+
+  it("one user's key never collides with another's", async () => {
+    const a = await lab();
+    const b = await lab();
+    const one = await runWithContext(ctx(a.doctor, 'libya_doctor'), () =>
+      cases.submit({ patientId: a.patient, specialty: 'radiology', idempotencyKey: 'same' }),
+    );
+    const two = await runWithContext(ctx(b.doctor, 'libya_doctor'), () =>
+      cases.submit({ patientId: b.patient, specialty: 'radiology', idempotencyKey: 'same' }),
+    );
+    expect(two.id).not.toBe(one.id);
+    expect(two.patientId).toBe(b.patient);
+  });
+
   it('cannot submit for a patient the caller did not create', async () => {
     // RLS refuses the row and the service turns that into 404, never 403: §6
     // requires "does not exist" and "not yours" to be indistinguishable.

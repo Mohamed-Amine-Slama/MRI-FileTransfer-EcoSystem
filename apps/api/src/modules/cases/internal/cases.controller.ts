@@ -4,6 +4,7 @@ import {
   Controller,
   Delete,
   Get,
+  Headers,
   HttpCode,
   Param,
   ParseUUIDPipe,
@@ -42,6 +43,12 @@ const isoDate = z
   .string()
   .datetime({ offset: true })
   .transform((s) => new Date(s));
+
+/** One submission's key, reused on its retries (migration 0036). Optional. */
+const idempotencyKeySchema = z
+  .string()
+  .regex(/^[A-Za-z0-9._:-]{1,128}$/, 'idempotency-key must be a short token')
+  .optional();
 
 const rangeQuerySchema = z.object({ from: isoDate.optional(), to: isoDate.optional() });
 
@@ -216,9 +223,14 @@ export class CasesController {
   @RateLimit('scheduleWrite')
   @Post('cases')
   @HttpCode(201)
-  async submit(@Body() body: unknown): Promise<CaseDto> {
+  async submit(
+    @Body() body: unknown,
+    @Headers('idempotency-key') idempotencyKey: string | undefined,
+  ): Promise<CaseDto> {
     const input = submitSchema.parse(body);
+    const key = idempotencyKeySchema.parse(idempotencyKey);
     const item = await this.cases.submit({
+      ...(key === undefined ? {} : { idempotencyKey: key }),
       patientId: input.patientId,
       specialty: input.specialty,
       studyIds: input.studyIds,
