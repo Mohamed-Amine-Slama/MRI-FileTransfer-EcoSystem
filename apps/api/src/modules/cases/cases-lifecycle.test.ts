@@ -18,6 +18,7 @@ import {
 } from '../../shared/db/testing/rls-harness';
 import { EventBus } from '../../shared/events/event-bus';
 import { CasesService } from './internal/cases.service';
+import { toPage } from '../../shared/http/pagination';
 import { ReportsService } from './internal/reports.service';
 import { sampleReport } from './sample-report';
 import { LedgerService } from '../ledger';
@@ -190,6 +191,27 @@ describe('submitting a case', () => {
         cases.submit({ patientId: patient, specialty: 'radiology' }),
       ),
     ).rejects.toThrow();
+  });
+});
+
+describe('listing cases', () => {
+  it('pages newest first with a keyset cursor: no gaps, no repeats', async () => {
+    const { doctor, patient } = await lab();
+    const as = <T,>(fn: () => Promise<T>) => runWithContext(ctx(doctor, 'libya_doctor'), fn);
+    const made: string[] = [];
+    for (let n = 0; n < 3; n++) {
+      made.push((await as(() => cases.submit({ patientId: patient, specialty: 'radiology' }))).id);
+    }
+
+    const first = toPage(await as(() => cases.listCases({}, { limit: 2 })), 2);
+    expect(first.items).toHaveLength(2);
+    expect(first.nextCursor).not.toBeNull();
+    const second = toPage(
+      await as(() => cases.listCases({}, { limit: 2, after: first.nextCursor ?? '' })),
+      2,
+    );
+    expect(second.nextCursor).toBeNull();
+    expect([...first.items, ...second.items].map((c) => c.id)).toEqual([...made].reverse());
   });
 });
 
