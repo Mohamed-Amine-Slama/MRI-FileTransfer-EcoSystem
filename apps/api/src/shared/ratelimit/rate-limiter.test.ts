@@ -179,3 +179,12 @@ describe('P4.5 access anomaly detection', () => {
     expect(flagged).toHaveLength(1);
   });
 });
+
+describe('MemoryRateLimitStore', () => {
+  it('evicts expired buckets nobody reads again, so one-off keys cannot grow it forever', async () => {
+    const store = new MemoryRateLimitStore();
+    const bucket = { attempts: 1, windowStart: 0, violations: 0, lockedUntil: 0 };
+    for (let i = 0; i <= 10_000; i++) await store.set(`ip:${i}`, bucket, -1);
+    expect(store.size).toBeLessThan(10);
+  });
+});
