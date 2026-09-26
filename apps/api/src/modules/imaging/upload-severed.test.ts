@@ -94,15 +94,15 @@ class TestAuthGuard {
 class SeverableProxy {
   private server?: Server;
   private readonly sockets = new Set<Socket>();
-  // A cut link refuses NEW connections too. Destroying only the live sockets
-  // made the test depend on whether fetch reused its keep-alive socket (fails,
-  // as intended) or opened a fresh one (succeeds) — it passed locally and
-  // failed in CI.
   private severed = false;
   port = 0;
 
   async listen(targetPort: number): Promise<void> {
     this.server = createServer((client) => {
+      // The link stays down once cut. Without this, undici could notice its
+      // pooled socket had died, dial a fresh connection, and send every
+      // remaining chunk through — the test then failed with no transport
+      // error at all, depending on which side of that race it landed.
       if (this.severed) {
         client.destroy();
         return;

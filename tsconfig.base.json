@@ -1,6 +1,11 @@
 {
   "$schema": "https://json.schemastore.org/tsconfig",
   "compilerOptions": {
+    // TypeScript 6 deprecates node10 resolution and baseUrl; they stop working in
+    // 7.0. Moving to node16/node20 changes how the API emits dynamic import()
+    // (native import instead of require), which touches the BullMQ/ioredis worker
+    // at runtime — a migration of its own, not part of a compiler bump.
+    "ignoreDeprecations": "6.0",
     "target": "ES2022",
     "lib": ["ES2022"],
     "moduleResolution": "node",
