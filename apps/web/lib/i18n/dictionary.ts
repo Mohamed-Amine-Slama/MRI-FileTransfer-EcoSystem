@@ -401,6 +401,9 @@ const ar = {
   dashActionReview: 'مراجعة',
   dashNoPending: 'لا طلبات بانتظار المراجعة.',
   dashNoStale: 'لا توجد حالات متأخرة.',
+  pagerLabel: 'التنقل بين الصفحات',
+  pagerPrev: 'السابق',
+  pagerNext: 'التالي',
   workspaceTasksEmpty: 'لا توجد مهام معلّقة.',
   workspaceSeats: 'مستخدمو الحساب',
   // admin (§5.8)
@@ -1134,6 +1137,9 @@ const fr: Dictionary = {
   dashActionReview: 'Examiner',
   dashNoPending: 'Aucune demande en attente.',
   dashNoStale: 'Aucun dossier sans suite.',
+  pagerLabel: 'Pagination',
+  pagerPrev: 'Précédent',
+  pagerNext: 'Suivant',
   workspaceTasksEmpty: 'Aucune tâche en attente.',
   workspaceSeats: 'Utilisateurs du compte',
   // admin (§5.8)
@@ -1887,6 +1893,9 @@ const en: Dictionary = {
   dashActionReview: 'Review',
   dashNoPending: 'No applications waiting.',
   dashNoStale: 'No stale cases.',
+  pagerLabel: 'Pagination',
+  pagerPrev: 'Previous',
+  pagerNext: 'Next',
   workspaceTasksEmpty: 'No outstanding tasks.',
   workspaceSeats: 'Account users',
   // admin (§5.8)

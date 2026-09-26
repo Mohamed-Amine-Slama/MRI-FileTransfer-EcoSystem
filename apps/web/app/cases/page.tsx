@@ -5,10 +5,12 @@ import { useCallback, useEffect, useState } from 'react';
 import { ChevronRight, FilePlus2 } from 'lucide-react';
 import { CASE_STATUSES, type Case, type CaseStatus } from '@mir/contracts';
 import { casesApi } from '../../lib/api/mock';
+import { pageOf } from '../../lib/dashboard/pagination';
 import { PROVIDER_ROLES } from '../../lib/corridor/registry';
 import { useCurrentProvider } from '../../lib/provider/current-provider';
 import { useDateFormat, useT } from '../../lib/i18n/provider';
 import { RoleGate } from '../../components/RoleGate';
+import { Pager } from '../../components/ui/pager';
 import { CaseStatusBadge } from '../../components/case/CaseStatusBadge';
 import { caseStatusLabel, nextActionLabel } from '../../components/case/labels';
 import {
@@ -52,7 +54,7 @@ export default function CasesPage(): React.JSX.Element {
 
 function CasesList(): React.JSX.Element {
   const t = useT();
-  const formatDate = useDateFormat();
+  const formatDate = useDateFormat({ short: true });
   const { providerId, side, loading: providerLoading } = useCurrentProvider();
   const [cases, setCases] = useState<Case[] | null>(null);
   const [status, setStatus] = useState<CaseStatus | ''>('');
@@ -60,6 +62,7 @@ function CasesList(): React.JSX.Element {
   const [from, setFrom] = useState('');
   const [to, setTo] = useState('');
   const [error, setError] = useState<string | null>(null);
+  const [page, setPage] = useState(1);
 
   // An inverted range returns nothing, which reads as "no cases" rather than
   // as a typo. Saying so is the difference between the clinic fixing the
@@ -85,7 +88,9 @@ function CasesList(): React.JSX.Element {
     }
   }, [providerId, status, search, from, to, t]);
 
+  // A new filter is a new list: start it from its first page.
   useEffect(() => {
+    setPage(1);
     void load();
   }, [load]);
 
@@ -97,12 +102,13 @@ function CasesList(): React.JSX.Element {
     );
   }
 
+  const paged = pageOf(cases, page);
   const filtered = search.trim() !== '' || status !== '' || from !== '' || to !== '';
 
   return (
-    <Main>
+    <Main wide>
       <PageHeader
-        title={t.casesTitle}
+        title={`${t.casesTitle} · ${cases.length}`}
         description={t.casesDescription}
         actions={
           <Link href="/cases/new" className={buttonVariants()}>
@@ -168,44 +174,54 @@ function CasesList(): React.JSX.Element {
       {cases.length === 0 ? (
         <EmptyState testId="cases-empty">{filtered ? t.casesNoMatch : t.casesEmpty}</EmptyState>
       ) : (
-        <Table>
-          <TableHeader>
-            <TableRow>
-              <TableHead>{t.colCaseRef}</TableHead>
-              <TableHead>{t.colStatus}</TableHead>
-              <TableHead>{t.colNextAction}</TableHead>
-              <TableHead>{t.colUpdated}</TableHead>
-              <TableHead>{t.colActions}</TableHead>
-            </TableRow>
-          </TableHeader>
-          <TableBody>
-            {cases.map((item) => (
-              <TableRow key={item.ref}>
-                {/* Latin-script reference inside possibly-RTL text: isolate it
-                    so the surrounding direction cannot reorder the digits. */}
-                <TableCell>
-                  <bdi className="font-mono text-xs font-semibold">{item.ref}</bdi>
-                </TableCell>
-                <TableCell>
-                  <CaseStatusBadge status={item.status} />
-                </TableCell>
-                <TableCell className="text-muted-foreground">
-                  {side === null ? '—' : nextActionLabel(t, item.status, side)}
-                </TableCell>
-                <TableCell className="text-muted-foreground">{formatDate(item.updatedAt)}</TableCell>
-                <TableCell>
-                  <Link
-                    href={`/cases/${item.ref}`}
-                    className="inline-flex items-center gap-1 text-sm font-semibold text-primary hover:underline"
-                  >
-                    {t.viewDetails}
-                    <ChevronRight className="size-4 rtl:rotate-180" />
-                  </Link>
-                </TableCell>
+        <>
+          <Table>
+            <TableHeader>
+              <TableRow>
+                <TableHead>{t.colStatus}</TableHead>
+                <TableHead>{t.colCaseRef}</TableHead>
+                <TableHead>{t.colNextAction}</TableHead>
+                <TableHead>{t.colUpdated}</TableHead>
+                <TableHead>{t.colActions}</TableHead>
               </TableRow>
-            ))}
-          </TableBody>
-        </Table>
+            </TableHeader>
+            <TableBody>
+              {paged.rows.map((item) => (
+                <TableRow key={item.ref}>
+                  <TableCell>
+                    <CaseStatusBadge status={item.status} />
+                  </TableCell>
+                  {/* Latin-script reference inside possibly-RTL text: isolate it
+                      so the surrounding direction cannot reorder the digits. */}
+                  <TableCell>
+                    <bdi className="font-mono text-xs font-semibold">{item.ref}</bdi>
+                  </TableCell>
+                  <TableCell className="text-muted-foreground">
+                    {side === null ? '—' : nextActionLabel(t, item.status, side)}
+                  </TableCell>
+                  <TableCell className="text-muted-foreground">{formatDate(item.updatedAt)}</TableCell>
+                  <TableCell>
+                    <Link
+                      href={`/cases/${item.ref}`}
+                      className="inline-flex items-center gap-1 text-sm font-semibold text-primary hover:underline"
+                    >
+                      {t.viewDetails}
+                      <ChevronRight className="size-4 rtl:rotate-180" />
+                    </Link>
+                  </TableCell>
+                </TableRow>
+              ))}
+            </TableBody>
+          </Table>
+          <Pager
+            page={paged.page}
+            pages={paged.pages}
+            from={paged.from}
+            to={paged.to}
+            total={cases.length}
+            onPage={setPage}
+          />
+        </>
       )}
     </Main>
   );

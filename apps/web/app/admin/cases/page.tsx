@@ -10,10 +10,12 @@ import {
   type CaseStatus,
 } from '@mir/contracts';
 import { casesApi } from '../../../lib/api/mock';
+import { pageOf } from '../../../lib/dashboard/pagination';
 import { rolesForSides } from '../../../lib/corridor/registry';
 import { useDateFormat, useT } from '../../../lib/i18n/provider';
 import { useSession } from '../../../lib/session/session';
 import { RoleGate } from '../../../components/RoleGate';
+import { Pager } from '../../../components/ui/pager';
 import { CaseStatusBadge } from '../../../components/case/CaseStatusBadge';
 import { caseStatusLabel } from '../../../components/case/labels';
 import {
@@ -61,11 +63,12 @@ export default function AdminCasesPage(): React.JSX.Element {
 
 function AdminCases(): React.JSX.Element {
   const t = useT();
-  const formatDate = useDateFormat();
+  const formatDate = useDateFormat({ short: true });
   const { user } = useSession();
   const [cases, setCases] = useState<Case[] | null>(null);
   const [filter, setFilter] = useState<CaseStatus | ''>('');
   const [search, setSearch] = useState('');
+  const [page, setPage] = useState(1);
   const [pending, setPending] = useState<Record<string, CaseStatus>>({});
   // Forcing a status needs a backend verb that does not exist yet (spec
   // 2026-09-21 D7); the live case layer says so and the column is hidden.
@@ -119,10 +122,14 @@ function AdminCases(): React.JSX.Element {
 
   const needle = search.trim().toLowerCase();
   const visible = needle === '' ? cases : cases.filter((c) => c.ref.toLowerCase().includes(needle));
+  const paged = pageOf(visible, page);
 
   return (
     <Main wide>
-      <PageHeader title={t.adminCasesTitle} description={t.adminCasesDescription} />
+      <PageHeader
+        title={`${t.adminCasesTitle} · ${visible.length}`}
+        description={t.adminCasesDescription}
+      />
 
       {notice !== null && <Alert tone="success">{notice}</Alert>}
       {error !== null && <Alert tone="danger">{error}</Alert>}
@@ -134,6 +141,7 @@ function AdminCases(): React.JSX.Element {
             data-testid="admin-filter-status"
             onChange={(e) => {
               const value = e.target.value;
+              setPage(1);
               if (value === '') {
                 setFilter('');
                 return;
@@ -159,7 +167,10 @@ function AdminCases(): React.JSX.Element {
             value={search}
             data-testid="admin-search-ref"
             placeholder="MIR-2026-0417"
-            onChange={(e) => setSearch(e.target.value)}
+            onChange={(e) => {
+              setSearch(e.target.value);
+              setPage(1);
+            }}
           />
         </Field>
       </div>
@@ -169,76 +180,86 @@ function AdminCases(): React.JSX.Element {
           {needle === '' && filter === '' ? t.casesEmpty : t.casesNoMatch}
         </EmptyState>
       ) : (
-        <Table>
-          <TableHeader>
-            <TableRow>
-              <TableHead>{t.colCaseRef}</TableHead>
-              <TableHead>{t.colStatus}</TableHead>
-              <TableHead>{t.colUpdated}</TableHead>
-              {canOverride && <TableHead>{t.adminOverrideTo}</TableHead>}
-              {canOverride && <TableHead>{t.colActions}</TableHead>}
-            </TableRow>
-          </TableHeader>
-          <TableBody>
-            {visible.map((item) => {
-              const options = nextStatuses(item.status);
-              const chosen = pending[item.ref] ?? '';
-              return (
-                <TableRow key={item.ref}>
-                  <TableCell>
-                    <Link href={`/cases/${item.ref}`} className="hover:underline">
-                      <bdi className="font-mono text-xs font-semibold">{item.ref}</bdi>
-                    </Link>
-                  </TableCell>
-                  <TableCell>
-                    <CaseStatusBadge status={item.status} />
-                  </TableCell>
-                  <TableCell className="text-muted-foreground">
-                    {formatDate(item.updatedAt)}
-                  </TableCell>
-                  {canOverride && (
-                    <>
-                  <TableCell>
-                    {options.length === 0 ? (
-                      <span className="text-xs text-muted-foreground">{t.adminNoTransitions}</span>
-                    ) : (
-                      <Select
-                        value={chosen}
-                        aria-label={t.adminOverrideTo}
-                        data-testid={`override-select-${item.ref}`}
-                        className="h-9"
-                        onChange={(e) => {
-                          const parsed = caseStatusSchema.safeParse(e.target.value);
-                          if (!parsed.success) return;
-                          setPending((prev) => ({ ...prev, [item.ref]: parsed.data }));
-                        }}
+        <>
+          <Table>
+            <TableHeader>
+              <TableRow>
+                <TableHead>{t.colStatus}</TableHead>
+                <TableHead>{t.colCaseRef}</TableHead>
+                <TableHead>{t.colUpdated}</TableHead>
+                {canOverride && <TableHead>{t.adminOverrideTo}</TableHead>}
+                {canOverride && <TableHead>{t.colActions}</TableHead>}
+              </TableRow>
+            </TableHeader>
+            <TableBody>
+              {paged.rows.map((item) => {
+                const options = nextStatuses(item.status);
+                const chosen = pending[item.ref] ?? '';
+                return (
+                  <TableRow key={item.ref}>
+                    <TableCell>
+                      <CaseStatusBadge status={item.status} />
+                    </TableCell>
+                    <TableCell>
+                      <Link href={`/cases/${item.ref}`} className="hover:underline">
+                        <bdi className="font-mono text-xs font-semibold">{item.ref}</bdi>
+                      </Link>
+                    </TableCell>
+                    <TableCell className="text-muted-foreground">
+                      {formatDate(item.updatedAt)}
+                    </TableCell>
+                    {canOverride && (
+                      <>
+                    <TableCell>
+                      {options.length === 0 ? (
+                        <span className="text-xs text-muted-foreground">{t.adminNoTransitions}</span>
+                      ) : (
+                        <Select
+                          value={chosen}
+                          aria-label={t.adminOverrideTo}
+                          data-testid={`override-select-${item.ref}`}
+                          className="h-9"
+                          onChange={(e) => {
+                            const parsed = caseStatusSchema.safeParse(e.target.value);
+                            if (!parsed.success) return;
+                            setPending((prev) => ({ ...prev, [item.ref]: parsed.data }));
+                          }}
+                        >
+                          <option value="">{t.none}</option>
+                          {options.map((status) => (
+                            <option key={status} value={status}>
+                              {caseStatusLabel(t, status)}
+                            </option>
+                          ))}
+                        </Select>
+                      )}
+                    </TableCell>
+                    <TableCell>
+                      <Button
+                        size="sm"
+                        disabled={chosen === '' || busy === item.ref}
+                        data-testid={`override-apply-${item.ref}`}
+                        onClick={() => void override(item)}
                       >
-                        <option value="">{t.none}</option>
-                        {options.map((status) => (
-                          <option key={status} value={status}>
-                            {caseStatusLabel(t, status)}
-                          </option>
-                        ))}
-                      </Select>
+                        {t.adminOverride}
+                      </Button>
+                    </TableCell>
+                      </>
                     )}
-                  </TableCell>
-                  <TableCell>
-                    <Button
-                      size="sm"
-                      disabled={chosen === '' || busy === item.ref}
-                      data-testid={`override-apply-${item.ref}`}
-                      onClick={() => void override(item)}
-                    >
-                      {t.adminOverride}
-                    </Button>
-                  </TableCell>
-                    </>
-                  )}
-                </TableRow>
-              );
-            })}
-          </TableBody>
-        </Table>
+                  </TableRow>
+                );
+              })}
+            </TableBody>
+          </Table>
+          <Pager
+            page={paged.page}
+            pages={paged.pages}
+            from={paged.from}
+            to={paged.to}
+            total={visible.length}
+            onPage={setPage}
+          />
+        </>
       )}
     </Main>
   );
