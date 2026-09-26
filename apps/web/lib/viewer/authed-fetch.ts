@@ -1,4 +1,4 @@
-import { getAccessToken } from '../api/client';
+import { getAccessToken, withTokenRetry } from '../api/client';
 
 /**
  * Authentication for the viewer's requests — spec 2026-09-21 §6.
@@ -20,10 +20,13 @@ export function authHeaders(): Record<string, string> {
   return token === null ? {} : { authorization: `Bearer ${token}` };
 }
 
+/** Headers are rebuilt per attempt, so the retry after a 401 carries the renewed token. */
 export function authedFetch(url: string, init: RequestInit = {}): Promise<Response> {
-  return fetch(url, {
-    ...init,
-    credentials: 'include',
-    headers: { ...(init.headers as Record<string, string> | undefined), ...authHeaders() },
-  });
+  return withTokenRetry(() =>
+    fetch(url, {
+      ...init,
+      credentials: 'include',
+      headers: { ...(init.headers as Record<string, string> | undefined), ...authHeaders() },
+    }),
+  );
 }

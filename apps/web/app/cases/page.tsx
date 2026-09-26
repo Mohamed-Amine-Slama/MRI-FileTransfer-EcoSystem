@@ -66,6 +66,14 @@ function CasesList(): React.JSX.Element {
   // filter and the clinic phoning us about missing cases.
   const invalidRange = from !== '' && to !== '' && from > to;
 
+  // Search once typing pauses, not once per keystroke: a ten-letter reference
+  // was ten list queries on a slow link, answered in whatever order they came.
+  const [query, setQuery] = useState('');
+  useEffect(() => {
+    const id = setTimeout(() => setQuery(search.trim()), 300);
+    return () => clearTimeout(id);
+  }, [search]);
+
   const load = useCallback(async () => {
     if (providerId === null) return;
     setError(null);
@@ -74,7 +82,7 @@ function CasesList(): React.JSX.Element {
         await casesApi.listCases({
           providerId,
           ...(status === '' ? {} : { status }),
-          ...(search.trim() === '' ? {} : { search: search.trim() }),
+          ...(query === '' ? {} : { search: query }),
           ...(from === '' ? {} : { updatedFrom: from }),
           ...(to === '' ? {} : { updatedTo: to }),
         }),
@@ -83,7 +91,7 @@ function CasesList(): React.JSX.Element {
       setError(t.genericError);
       setCases([]);
     }
-  }, [providerId, status, search, from, to, t]);
+  }, [providerId, status, query, from, to, t]);
 
   useEffect(() => {
     void load();

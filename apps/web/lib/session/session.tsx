@@ -10,31 +10,14 @@ import {
   type ReactNode,
 } from 'react';
 import type { Role } from '@mir/contracts';
-import { ApiError, getAccessToken, setAccessToken } from '../api/client';
+import { ApiError, getAccessToken, refreshAccessToken, setAccessToken } from '../api/client';
 import { api, type SessionUser } from '../api/endpoints';
 
-/*
- * One refresh in flight at a time. StrictMode mounts effects twice, and two
- * concurrent refreshes with the same rotating refresh token can have Keycloak
- * revoke the session between them.
+/**
+ * Renew ahead of the five-minute token expiry, so requests that cannot retry
+ * on 401 themselves (Cornerstone's image XHRs) never go out with a dead token.
  */
-let refreshing: Promise<void> | null = null;
-
-function restoreFromRefreshCookie(): Promise<void> {
-  refreshing ??= (async () => {
-    try {
-      const res = await fetch('/auth/refresh', { method: 'POST', credentials: 'same-origin' });
-      if (!res.ok) return;
-      const { accessToken } = (await res.json()) as { accessToken?: unknown };
-      if (typeof accessToken === 'string') setAccessToken(accessToken);
-    } catch {
-      // Offline or the route is missing: fall through to anonymous.
-    } finally {
-      refreshing = null;
-    }
-  })();
-  return refreshing;
-}
+const RENEW_EVERY_MS = 4 * 60_000;
 
 /**
  * Client session state.
@@ -71,7 +54,7 @@ export function SessionProvider({ children }: { children: ReactNode }): React.JS
   const load = useCallback(async () => {
     // After a reload the in-memory token is gone; the httpOnly refresh cookie
     // (set at sign-in, see lib/auth/keycloak-token.ts) mints a new one.
-    if (getAccessToken() === null) await restoreFromRefreshCookie();
+    if (getAccessToken() === null) await refreshAccessToken();
     // Still no token: the API authenticates by bearer only, so /me would be a
     // guaranteed 401. Skip the round trip — every signed-out page load paid it.
     if (getAccessToken() === null) {
@@ -100,6 +83,12 @@ export function SessionProvider({ children }: { children: ReactNode }): React.JS
   useEffect(() => {
     void load();
   }, [load]);
+
+  useEffect(() => {
+    if (status !== 'authenticated') return;
+    const id = setInterval(() => void refreshAccessToken(), RENEW_EVERY_MS);
+    return () => clearInterval(id);
+  }, [status]);
 
   const signInWithToken = useCallback(
     async (token: string) => {
