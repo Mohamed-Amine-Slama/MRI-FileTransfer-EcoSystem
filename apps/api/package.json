@@ -43,11 +43,11 @@
     "@types/node": "^26.6.1",
     "@types/pdfkit": "^0.17.6",
     "@types/supertest": "^7.2.1",
-    "eslint": "^10.10.0",
-    "supertest": "^7.0.0",
-    "tsx": "^4.23.13",
+    "eslint": "^10.11.0",
+    "supertest": "^7.3.0",
+    "tsx": "^4.23.15",
     "typescript": "^6.0.3",
-    "typescript-eslint": "^8.69.0",
+    "typescript-eslint": "^8.70.1",
     "unplugin-swc": "^1.6.0",
     "vitest": "^4.1.11"
   }
