@@ -343,6 +343,22 @@ describe('claim handling', () => {
     ).toThrow(/multiple application roles/);
   });
 
+  it('a half-finished promotion (applicant still attached) signs in with the granted role', () => {
+    // promote() grants, then removes applicant; if the removal failed the user
+    // must not be locked out.
+    const identity = verifier().identityFrom({
+      sub: 'x',
+      realm_access: { roles: ['applicant', 'libya_doctor'] },
+    });
+    expect(identity.role).toBe('libya_doctor');
+  });
+
+  it('still rejects two roles when neither is a leftover applicant', () => {
+    expect(() =>
+      verifier().identityFrom({ sub: 'x', realm_access: { roles: ['libya_doctor', 'tunisia_doctor'] } }),
+    ).toThrow(/multiple application roles/);
+  });
+
   it('rejects a token with no subject', () => {
     expect(() => verifier().identityFrom({ realm_access: { roles: ['applicant'] } })).toThrow(
       /no subject/,

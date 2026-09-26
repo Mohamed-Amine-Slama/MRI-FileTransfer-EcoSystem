@@ -237,6 +237,45 @@ describe('P7.1 upload session', () => {
       ),
     ).rejects.toThrow(/not found/i);
   });
+
+  it('a registration racing another for the same file resumes from the winner, not 500', async () => {
+    const doctor = await createUser(h.owner, 'libya_doctor');
+    const patient = await createPatient(h.owner, doctor);
+    const sessionId = await newSession(doctor, patient, 1);
+    const sha = 'b'.repeat(64);
+
+    // The "other request": its row is inserted but not yet committed, so our
+    // SELECT sees nothing and our INSERT has to wait on the unique key.
+    const other = await h.owner.connect();
+    try {
+      await other.query('BEGIN');
+      const won = await other.query<{ id: string }>(
+        `INSERT INTO imaging_upload_files
+           (session_id, client_file_id, file_name, size_bytes, client_sha256, chunk_size_bytes)
+         VALUES ($1, 'DICOM/IM000001', 'IM000001', 10, $2, $3) RETURNING id`,
+        [sessionId, sha, config.UPLOAD_CHUNK_SIZE_BYTES],
+      );
+
+      const ours = runWithContext(ctx(doctor), () =>
+        uploads.registerFile({
+          sessionId,
+          clientFileId: 'DICOM/IM000001',
+          fileName: 'IM000001',
+          sizeBytes: 10,
+          sha256: sha,
+        }),
+      );
+      // Commit only once our INSERT is actually blocked behind it.
+      await expect
+        .poll(async () => (await h.owner.query('SELECT 1 FROM pg_locks WHERE NOT granted')).rowCount)
+        .toBeGreaterThan(0);
+      await other.query('COMMIT');
+
+      await expect(ours).resolves.toMatchObject({ fileId: won.rows[0]?.id, nextChunkIndex: 0 });
+    } finally {
+      other.release();
+    }
+  });
 });
 
 describe('P7.2 chunked resumable transport', () => {
