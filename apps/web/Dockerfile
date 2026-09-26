@@ -34,7 +34,9 @@
 # a base image that bundles it) AND widening `engines` deliberately — not
 # merging a one-line version bump.
 FROM node:22-alpine AS base
-RUN apk add --no-cache libc6-compat
+# apk upgrade: the node image lags Alpine security fixes (CVE-2026-14456 in
+# libssl3/libcrypto3 shipped in it); the CI image scan fails on HIGH+ fixed CVEs.
+RUN apk upgrade --no-cache && apk add --no-cache libc6-compat
 
 ENV PNPM_HOME=/pnpm
 ENV PATH=$PNPM_HOME:$PATH
@@ -89,6 +91,13 @@ RUN pnpm --filter "@mir/web..." build
 # ---------------------------------------------------------------------------
 FROM base AS runtime
 WORKDIR /app
+
+# The runtime runs `node` and nothing else. npm, corepack and the pnpm it
+# prepared are build tools, and they carried most of the image's HIGH CVEs
+# (tar, minimatch, brace-expansion, pnpm itself) into production for nothing.
+RUN rm -rf /usr/local/lib/node_modules/npm /usr/local/lib/node_modules/corepack \
+      /usr/local/bin/npm /usr/local/bin/npx /usr/local/bin/corepack \
+      /usr/local/bin/pnpm /usr/local/bin/pnpx /pnpm /root/.cache
 
 ENV NODE_ENV=production
 # The standalone server reads both. 0.0.0.0 rather than the Next default of

@@ -1,4 +1,7 @@
 import { Controller, Get, Header, Inject, NotFoundException, Param, Res } from '@nestjs/common';
+import { Readable } from 'node:stream';
+import { pipeline } from 'node:stream/promises';
+import type { ReadableStream as WebReadableStream } from 'node:stream/web';
 import type { Response } from 'express';
 import { RequiresRole } from '../../../shared/authz/access-metadata';
 import { DatabaseService } from '../../../shared/db/database.service';
@@ -205,13 +208,7 @@ export class DicomWebController {
     // a shared cache would serve one doctor's study to the next requester.
     res.setHeader('cache-control', 'no-store, private');
 
-    const reader = upstream.body.getReader();
-    for (;;) {
-      const { done, value } = await reader.read();
-      if (done) break;
-      res.write(Buffer.from(value));
-    }
-    res.end();
+    await relay(upstream.body, res);
   }
 
   /**
@@ -319,13 +316,7 @@ export class DicomWebController {
     // Pixel data must never sit in a shared cache.
     res.setHeader('cache-control', 'no-store, private');
 
-    const reader = upstream.body.getReader();
-    for (;;) {
-      const { done, value } = await reader.read();
-      if (done) break;
-      res.write(Buffer.from(value));
-    }
-    res.end();
+    await relay(upstream.body, res);
   }
 
   /**
@@ -343,5 +334,28 @@ export class DicomWebController {
     @Param('sopUid') sopUid: string,
   ): Promise<{ url: string; expiresAt: number }> {
     return this.access.issueInstanceUrl(studyUid, sopUid);
+  }
+}
+
+/**
+ * Relay an Orthanc response body to the client.
+ *
+ * The hand-rolled read/write loop this replaces ignored `res.write`'s return
+ * value — a slow viewer on a Libyan link made the API buffer the whole
+ * multipart study in memory — and kept pulling from Orthanc after the viewer
+ * had navigated away. `pipeline` pauses the upstream while the socket is
+ * full and destroys both ends when either side closes.
+ */
+async function relay(body: globalThis.ReadableStream<Uint8Array>, res: Response): Promise<void> {
+  try {
+    await pipeline(Readable.fromWeb(body as WebReadableStream<Uint8Array>), res);
+  } catch (err) {
+    // The viewer went away mid-transfer: normal, and both streams are gone.
+    if ((err as { code?: string }).code === 'ERR_STREAM_PREMATURE_CLOSE') return;
+    // Anything else after the headers went out cannot become an error body;
+    // pipeline has already destroyed the socket, so the client sees a
+    // truncated response rather than a corrupt "success".
+    if (res.headersSent) return;
+    throw err;
   }
 }

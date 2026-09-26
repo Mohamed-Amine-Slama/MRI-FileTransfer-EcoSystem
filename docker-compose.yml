@@ -11,6 +11,11 @@
 #   docker compose --profile apps up -d        dependencies AND the API and web
 #                                              in containers.
 #
+# Every published port binds to 127.0.0.1 (BIND_ADDR). The defaults below —
+# postgres/postgres, Keycloak admin/admin — are fine for a laptop and not for
+# a café Wi-Fi or an office LAN, which is where 0.0.0.0 exposed them. Set
+# BIND_ADDR=0.0.0.0 only on a network you trust.
+#
 # The app services sit behind the `apps` profile so the first form keeps
 # behaving exactly as it always has, and so containers do not fight the host's
 # `next dev` for ports 3000 and 3001.
@@ -33,7 +38,7 @@ services:
       # Host 5433, not 5432. A native PostgreSQL install is common on developer
       # machines and would otherwise collide; overriding the host port is
       # cheaper than asking everyone to stop their local server.
-      - '${POSTGRES_HOST_PORT:-5433}:5432'
+      - '${BIND_ADDR:-127.0.0.1}:${POSTGRES_HOST_PORT:-5433}:5432'
     volumes:
       - mir-pgdata:/var/lib/postgresql/data
     healthcheck:
@@ -46,7 +51,7 @@ services:
     image: redis:7-alpine
     container_name: mir-redis
     ports:
-      - '${REDIS_HOST_PORT:-6379}:6379'
+      - '${BIND_ADDR:-127.0.0.1}:${REDIS_HOST_PORT:-6379}:6379'
     healthcheck:
       test: ['CMD', 'redis-cli', 'ping']
       interval: 2s
@@ -73,7 +78,7 @@ services:
       - ./infra/orthanc/orthanc.json:/etc/orthanc/orthanc.json:ro
       - mir-orthanc-db:/var/lib/orthanc/db
     ports:
-      - '${ORTHANC_HOST_PORT:-8042}:8042'
+      - '${BIND_ADDR:-127.0.0.1}:${ORTHANC_HOST_PORT:-8042}:8042'
     healthcheck:
       # The image ships neither curl nor wget, and CMD-SHELL runs dash (so
       # bash's /dev/tcp is unavailable too). python3 IS present.
@@ -141,7 +146,7 @@ services:
       # re-applies the dev settings either way.
       - mir-keycloak-data:/opt/keycloak/data
     ports:
-      - '${KEYCLOAK_HOST_PORT:-8080}:8080'
+      - '${BIND_ADDR:-127.0.0.1}:${KEYCLOAK_HOST_PORT:-8080}:8080'
     depends_on:
       postgres:
         condition: service_healthy
@@ -159,7 +164,7 @@ services:
     volumes:
       - ./infra/otel/collector-config.yaml:/etc/otel/config.yaml:ro
     ports:
-      - '${OTEL_HTTP_PORT:-4318}:4318'
+      - '${BIND_ADDR:-127.0.0.1}:${OTEL_HTTP_PORT:-4318}:4318'
 
   # --- application containers (profile: apps) -------------------------------
 
@@ -315,7 +320,7 @@ services:
     volumes:
       - mir-api-storage:/var/lib/mir/storage
     ports:
-      - '${API_HOST_PORT:-3000}:3000'
+      - '${BIND_ADDR:-127.0.0.1}:${API_HOST_PORT:-3000}:3000'
     depends_on:
       redis:
         condition: service_healthy
@@ -351,7 +356,7 @@ services:
       KEYCLOAK_ISSUER_URL: http://localhost:${KEYCLOAK_HOST_PORT:-8080}/realms/mir
       KEYCLOAK_TOKEN_URL: http://keycloak:8080/realms/mir/protocol/openid-connect/token
     ports:
-      - '${WEB_HOST_PORT:-3001}:3001'
+      - '${BIND_ADDR:-127.0.0.1}:${WEB_HOST_PORT:-3001}:3001'
     depends_on:
       api:
         condition: service_healthy
