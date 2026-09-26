@@ -6,6 +6,7 @@ import {
   summariseLedger,
   type CoordinationFeeEntry,
   type CurrencyCode,
+  type DoctorPayoutEntry,
   type LedgerEntry,
   type LedgerSummary,
   type Money,
@@ -13,7 +14,12 @@ import {
 } from '@mir/contracts';
 import { casesApi } from '../../lib/api/mock';
 import { PROVIDER_ROLES } from '../../lib/corridor/registry';
-import { coordinationFeeCsv, downloadCsv, subscriptionCsv } from '../../lib/ledger/csv';
+import {
+  coordinationFeeCsv,
+  doctorPayoutCsv,
+  downloadCsv,
+  subscriptionCsv,
+} from '../../lib/ledger/csv';
 import { useCurrentProvider } from '../../lib/provider/current-provider';
 import { useDateFormat, useLocale, useT } from '../../lib/i18n/provider';
 import { RoleGate } from '../../components/RoleGate';
@@ -109,7 +115,7 @@ function LedgerView(): React.JSX.Element {
   const t = useT();
   const { locale } = useLocale();
   const formatDate = useDateFormat();
-  const { providerId, loading: providerLoading } = useCurrentProvider();
+  const { providerId, side, loading: providerLoading } = useCurrentProvider();
   const [entries, setEntries] = useState<LedgerEntry[] | null>(null);
   const [error, setError] = useState<string | null>(null);
 
@@ -141,10 +147,19 @@ function LedgerView(): React.JSX.Element {
   const fees: CoordinationFeeEntry[] = entries.filter(
     (entry): entry is CoordinationFeeEntry => entry.kind === 'coordination_fee',
   );
+  const payouts: DoctorPayoutEntry[] = entries.filter(
+    (entry): entry is DoctorPayoutEntry => entry.kind === 'doctor_payout',
+  );
   const subscriptions: SaasSubscriptionEntry[] = entries.filter(
     (entry): entry is SaasSubscriptionEntry => entry.kind === 'saas_subscription',
   );
   const summary: LedgerSummary = summariseLedger(entries);
+
+  // The per-case section depends on the side (spec 2026-09-21 §3): a clinic
+  // owes the platform a remittance per paid case, while the platform owes a
+  // doctor a payout per answered case. Neither side has the other's rows.
+  const receiving = side === 'destination';
+  const perCase: (CoordinationFeeEntry | DoctorPayoutEntry)[] = receiving ? payouts : fees;
 
   return (
     <Main wide>
@@ -160,17 +175,23 @@ function LedgerView(): React.JSX.Element {
 
       <Card>
         <SectionHeading
-          title={t.ledgerCoordinationFees}
-          note={t.ledgerCoordinationFeesNote}
-          totals={summary.coordinationFees}
-          outstanding={summary.outstanding.coordination_fee}
+          title={receiving ? t.ledgerDoctorPayouts : t.ledgerCoordinationFees}
+          note={receiving ? t.ledgerDoctorPayoutsNote : t.ledgerCoordinationFeesNote}
+          totals={receiving ? summary.doctorPayouts : summary.coordinationFees}
+          outstanding={
+            receiving ? summary.outstanding.doctor_payout : summary.outstanding.coordination_fee
+          }
           outstandingLabel={t.ledgerOutstanding}
           locale={locale}
           exportLabel={t.ledgerExportCsv}
-          onExport={() => downloadCsv('coordination-fees.csv', coordinationFeeCsv(entries))}
+          onExport={() =>
+            receiving
+              ? downloadCsv('payouts.csv', doctorPayoutCsv(entries))
+              : downloadCsv('coordination-fees.csv', coordinationFeeCsv(entries))
+          }
           testId="fees"
         />
-        {fees.length === 0 ? (
+        {perCase.length === 0 ? (
           <EmptyState testId="fees-empty">{t.ledgerEmpty}</EmptyState>
         ) : (
           <Table>
@@ -183,10 +204,10 @@ function LedgerView(): React.JSX.Element {
               </TableRow>
             </TableHeader>
             <TableBody>
-              {fees.map((entry) => (
+              {perCase.map((entry) => (
                 <TableRow key={entry.id}>
                   <TableCell>
-                    <bdi className="font-mono text-xs font-semibold">{entry.caseRef}</bdi>
+                    <bdi className="whitespace-nowrap font-mono text-xs font-semibold">{entry.caseRef}</bdi>
                   </TableCell>
                   <TableCell className="text-muted-foreground">
                     {formatDate(entry.occurredAt)}

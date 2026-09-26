@@ -107,6 +107,31 @@ export class MemoryRateLimitStore implements RateLimitStore {
 
   async set(key: string, bucket: Bucket, ttlMs: number): Promise<void> {
     this.buckets.set(key, { bucket, expiresAt: Date.now() + ttlMs });
+    if (this.buckets.size > this.sweepAt) this.sweep();
+  }
+
+  /**
+   * Expired buckets were only dropped when their own key was read again, so
+   * a spray of one-off keys (rotating IPs, invented emails) grew the map
+   * forever. Sweep when it doubles; the threshold tracks the live size so the
+   * O(n) pass stays amortised O(1) per write.
+   *
+   * ponytail: per-process memory — with N API replicas each limit is N× as
+   * loose. A Redis-backed RateLimitStore fixes both when there are replicas.
+   */
+  private sweepAt = 10_000;
+
+  private sweep(): void {
+    const now = Date.now();
+    for (const [key, entry] of this.buckets) {
+      if (entry.expiresAt <= now) this.buckets.delete(key);
+    }
+    this.sweepAt = Math.max(10_000, this.buckets.size * 2);
+  }
+
+  /** For tests. */
+  get size(): number {
+    return this.buckets.size;
   }
 
   async reset(key: string): Promise<void> {

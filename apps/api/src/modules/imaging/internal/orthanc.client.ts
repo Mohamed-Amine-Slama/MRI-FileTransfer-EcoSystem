@@ -46,6 +46,12 @@ export interface OrthancClient {
    */
   lookupStudy(studyInstanceUid: string): Promise<string | null>;
   /**
+   * How many instances Orthanc holds for a study. The twin builder compares
+   * it with the ingested count: STOW is best-effort at ingest, and a twin
+   * anonymised from a study missing slices would be released incomplete.
+   */
+  countInstances(orthancStudyId: string): Promise<number>;
+  /**
    * Create a de-identified copy as a NEW Orthanc resource with fresh UIDs.
    *
    * Verified against Orthanc 24.10.1: this persists a new study and returns
@@ -154,6 +160,13 @@ export class InMemoryOrthancClient implements OrthancClient {
   /** Answers with a deterministic id so tests need no Orthanc container. */
   async lookupStudy(studyInstanceUid: string): Promise<string | null> {
     return this.missingStudies.has(studyInstanceUid) ? null : `orthanc-${studyInstanceUid}`;
+  }
+
+  /** Per Orthanc study id; unset means "every instance is there". */
+  readonly instanceCounts = new Map<string, number>();
+
+  async countInstances(orthancStudyId: string): Promise<number> {
+    return this.instanceCounts.get(orthancStudyId) ?? Number.MAX_SAFE_INTEGER;
   }
 
   async anonymiseStudy(orthancStudyId: string, request?: unknown): Promise<AnonymisedStudy> {

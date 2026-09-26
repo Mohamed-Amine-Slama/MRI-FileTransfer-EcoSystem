@@ -1,6 +1,6 @@
 'use client';
 
-import Link from 'next/link';
+import Link from '../ui/link';
 import { ChevronDown, LogOut, Settings, UserRound } from 'lucide-react';
 import { useT } from '../../lib/i18n/provider';
 import { useSession } from '../../lib/session/session';

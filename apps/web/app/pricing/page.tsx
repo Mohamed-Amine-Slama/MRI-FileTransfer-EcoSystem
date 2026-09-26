@@ -1,6 +1,6 @@
 'use client';
 
-import Link from 'next/link';
+import Link from '../../components/ui/link';
 import { useEffect, useState } from 'react';
 import { Check } from 'lucide-react';
 import { ENTITLEMENTS, type PlanTier } from '@mir/contracts';
@@ -10,6 +10,7 @@ import {
   casesLabel,
   entitlementLabel,
   formatPrice,
+  perIntervalLabel,
   planBlurb,
   planName,
   seatsLabel,
@@ -21,9 +22,9 @@ import { Alert, Spinner, buttonVariants } from '../../components/ui';
 /**
  * Public pricing — brief §2, §5.7.
  *
- * ⚠ TODO(pricing): every figure and feature on this page comes from the
- * PLACEHOLDER catalogue seeded by migration 0011. The notice at the top says so
- * to the reader, and it must stay there until the real terms replace them.
+ * Two plans, one per corridor side, at the owner's yearly prices (migration
+ * 0033, spec 2026-09-21 §4). The placeholder notice this page used to carry
+ * went with the placeholder tiers.
  *
  * THIS IS THE MARKETING REGISTER, and it is confined to it. §4.1 requires the
  * signed-in product to read as calm and precise because clinic staff use it to
@@ -71,23 +72,18 @@ export default function PricingPage(): React.JSX.Element {
       </section>
 
       <div className="mx-auto max-w-6xl space-y-8 px-4 py-12 sm:px-6">
-        <Alert tone="warning" testId="pricing-placeholder">
-          {t.pricingPlaceholderNotice}
-        </Alert>
-
         {failed && <Alert tone="danger">{t.genericError}</Alert>}
         {plans === null && <Spinner label={t.loading} />}
 
         {plans !== null && plans.length > 0 && (
-          <div className="grid gap-5 lg:grid-cols-3" data-testid="pricing-tiers">
+          <div className="grid gap-5 md:grid-cols-2" data-testid="pricing-tiers">
             {plans.map((tier) => (
               <PlanCard
                 key={tier.code}
                 tier={tier}
                 localeTag={localeTag}
-                // The middle tier is the one most clinics land on, so it is
-                // given the emphasis rather than left for the reader to find.
-                featured={tier.sort === 1}
+                // One plan per side: neither is the "recommended" one.
+                featured={false}
                 signedIn={status === 'authenticated'}
               />
             ))}
@@ -129,14 +125,16 @@ function PlanCard({
       <p className="mt-1 min-h-10 text-sm text-muted-foreground">{planBlurb(t, tier)}</p>
 
       <p className="mt-5 flex items-baseline gap-1.5">
-        {tier.priceMonthly === null ? (
+        {tier.price === null ? (
           <span className="text-3xl font-bold tracking-tight">{t.pricingContactUs}</span>
         ) : (
           <>
             <span className="text-4xl font-bold tracking-tight tabular-nums">
-              {formatPrice(tier.priceMonthly, localeTag)}
+              {formatPrice(tier.price, localeTag)}
             </span>
-            <span className="text-sm text-muted-foreground">{t.pricingPerMonth}</span>
+            <span className="text-sm text-muted-foreground">
+              {perIntervalLabel(t, tier.interval)}
+            </span>
           </>
         )}
       </p>

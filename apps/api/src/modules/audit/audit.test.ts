@@ -210,6 +210,8 @@ describe('P4.4 audit module', () => {
         'CaseDeclined',
         'CaseExpired',
         'CaseAccepted',
+        'CaseAnswered',
+        'CaseReportDownloaded',
         'StudyAccessed',
       ];
       expect([...AUDITED_EVENTS].sort()).toEqual([...expected].sort());

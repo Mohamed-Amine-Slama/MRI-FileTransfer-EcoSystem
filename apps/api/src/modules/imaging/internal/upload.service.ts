@@ -135,69 +135,79 @@ export class UploadService {
     return this.db.tx(async (tx) => {
       await this.assertSessionOpen(tx, input.sessionId);
 
-      const existing = await tx.query<FileRow>(
-        `SELECT * FROM imaging_upload_files WHERE session_id = $1 AND client_file_id = $2`,
-        [input.sessionId, input.clientFileId],
-      );
+      const findFile = async (): Promise<FileRow | undefined> =>
+        (
+          await tx.query<FileRow>(
+            `SELECT * FROM imaging_upload_files WHERE session_id = $1 AND client_file_id = $2`,
+            [input.sessionId, input.clientFileId],
+          )
+        ).rows[0];
 
-      const found = existing.rows[0];
-      if (found !== undefined) {
-        // A file re-registered with DIFFERENT content is a different file. The
-        // safe move is to discard what was staged rather than splice new bytes
-        // onto an old prefix and produce a file that matches neither checksum.
-        if (found.client_sha256 !== input.sha256) {
-          await this.blobs.discardStaged(stagingKey(input.sessionId, input.clientFileId));
-          await tx.query(
-            `UPDATE imaging_upload_files
-             SET client_sha256 = $1, size_bytes = $2, received_bytes = 0,
-                 next_chunk_index = 0, status = 'pending', server_sha256 = NULL,
-                 failure_reason = NULL, updated_at = now()
-             WHERE id = $3`,
-            [input.sha256, input.sizeBytes, found.id],
-          );
+      let found = await findFile();
+      if (found === undefined) {
+        // ON CONFLICT: the client retries a registration whose response it
+        // lost while the first is still running. Both see no row; without this
+        // the second INSERT hit the unique key and answered 500.
+        const inserted = await tx.query<{ id: string }>(
+          `INSERT INTO imaging_upload_files
+             (session_id, client_file_id, file_name, size_bytes, client_sha256,
+              chunk_size_bytes, content_encoding)
+           VALUES ($1, $2, $3, $4, $5, $6, $7)
+           ON CONFLICT (session_id, client_file_id) DO NOTHING
+           RETURNING id`,
+          [
+            input.sessionId,
+            input.clientFileId,
+            input.fileName,
+            input.sizeBytes,
+            input.sha256,
+            chunkSize,
+            input.contentEncoding ?? 'identity',
+          ],
+        );
+        const row = inserted.rows[0];
+        if (row !== undefined) {
           return {
-            fileId: found.id,
+            fileId: row.id,
             receivedBytes: 0,
             nextChunkIndex: 0,
-            chunkSizeBytes: found.chunk_size_bytes,
+            chunkSizeBytes: chunkSize,
             status: 'pending',
           };
         }
+        // The concurrent registration committed first; resume from its row.
+        found = await findFile();
+        if (found === undefined) throw new NotFoundException('Upload session not found');
+      }
 
+      // A file re-registered with DIFFERENT content is a different file. The
+      // safe move is to discard what was staged rather than splice new bytes
+      // onto an old prefix and produce a file that matches neither checksum.
+      if (found.client_sha256 !== input.sha256) {
+        await this.blobs.discardStaged(stagingKey(input.sessionId, input.clientFileId));
+        await tx.query(
+          `UPDATE imaging_upload_files
+           SET client_sha256 = $1, size_bytes = $2, received_bytes = 0,
+               next_chunk_index = 0, status = 'pending', server_sha256 = NULL,
+               failure_reason = NULL, updated_at = now()
+           WHERE id = $3`,
+          [input.sha256, input.sizeBytes, found.id],
+        );
         return {
           fileId: found.id,
-          receivedBytes: Number(found.received_bytes),
-          nextChunkIndex: found.next_chunk_index,
+          receivedBytes: 0,
+          nextChunkIndex: 0,
           chunkSizeBytes: found.chunk_size_bytes,
-          status: found.status,
+          status: 'pending',
         };
       }
 
-      const inserted = await tx.query<{ id: string }>(
-        `INSERT INTO imaging_upload_files
-           (session_id, client_file_id, file_name, size_bytes, client_sha256,
-            chunk_size_bytes, content_encoding)
-         VALUES ($1, $2, $3, $4, $5, $6, $7)
-         RETURNING id`,
-        [
-          input.sessionId,
-          input.clientFileId,
-          input.fileName,
-          input.sizeBytes,
-          input.sha256,
-          chunkSize,
-          input.contentEncoding ?? 'identity',
-        ],
-      );
-      const row = inserted.rows[0];
-      if (row === undefined) throw new NotFoundException('Upload session not found');
-
       return {
-        fileId: row.id,
-        receivedBytes: 0,
-        nextChunkIndex: 0,
-        chunkSizeBytes: chunkSize,
-        status: 'pending',
+        fileId: found.id,
+        receivedBytes: Number(found.received_bytes),
+        nextChunkIndex: found.next_chunk_index,
+        chunkSizeBytes: found.chunk_size_bytes,
+        status: found.status,
       };
     });
   }

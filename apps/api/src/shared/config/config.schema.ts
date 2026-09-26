@@ -29,7 +29,6 @@ const intFromEnv = (label: string, min: number, max: number) =>
 export const configSchema = z.object({
   NODE_ENV: z.enum(['development', 'test', 'staging', 'production']),
   PORT: intFromEnv('PORT', 1, 65535).prefault('3000'),
-  LOG_LEVEL: z.enum(['fatal', 'error', 'warn', 'info', 'debug', 'trace']).default('info'),
 
   // --- database ------------------------------------------------------------
   // Must be the non-superuser application role. It must NOT have BYPASSRLS
@@ -41,6 +40,13 @@ export const configSchema = z.object({
     'DATABASE_URL must be a postgres:// or postgresql:// connection string',
   ),
   DATABASE_POOL_MAX: intFromEnv('DATABASE_POOL_MAX', 1, 200).prefault('10'),
+  // TLS to the database. `off` suits a database on the same host or private
+  // network (local compose). A hosted database (Supabase) is reached over the
+  // internet, and without TLS every query — patient rows included — crosses it
+  // in clear: `require` encrypts, `verify` also checks the server certificate
+  // against DATABASE_SSL_CA_FILE (or the system roots when unset).
+  DATABASE_SSL: z.enum(['off', 'require', 'verify']).default('off'),
+  DATABASE_SSL_CA_FILE: z.string().min(1).optional(),
 
   // --- cache / queue -------------------------------------------------------
   REDIS_URL: nonEmpty('REDIS_URL').refine(
@@ -222,6 +228,32 @@ export const configSchema = z.object({
 
   // --- consent (BLOCKING L4) ----------------------------------------------
   CONSENT_TERMS_VERSION: nonEmpty('CONSENT_TERMS_VERSION').default('v1'),
+}).superRefine((cfg, ctx) => {
+  // Transport rules for deployed environments. Each default above suits a
+  // laptop; in staging and production the same default is patient data in
+  // clear or a MITM-able link, and it should fail the boot, not the audit.
+  if (cfg.NODE_ENV !== 'staging' && cfg.NODE_ENV !== 'production') return;
+  if (cfg.DATABASE_SSL !== 'verify') {
+    ctx.addIssue({
+      code: 'custom',
+      path: ['DATABASE_SSL'],
+      message: `must be 'verify' in ${cfg.NODE_ENV}: 'off' is clear text and 'require' accepts any certificate`,
+    });
+  }
+  if (!cfg.REDIS_URL.startsWith('rediss://')) {
+    ctx.addIssue({
+      code: 'custom',
+      path: ['REDIS_URL'],
+      message: `must be rediss:// (TLS) in ${cfg.NODE_ENV}`,
+    });
+  }
+  if (cfg.SIGNED_URL_SECRET.includes('change-me')) {
+    ctx.addIssue({
+      code: 'custom',
+      path: ['SIGNED_URL_SECRET'],
+      message: 'is the published development placeholder',
+    });
+  }
 });
 
 export type AppConfig = z.infer<typeof configSchema>;

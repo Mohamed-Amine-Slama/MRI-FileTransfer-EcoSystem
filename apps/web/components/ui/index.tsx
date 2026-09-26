@@ -3,6 +3,7 @@ import type {
   InputHTMLAttributes,
   ReactNode,
   SelectHTMLAttributes,
+  TextareaHTMLAttributes,
 } from 'react';
 import { Check, CircleAlert, CircleCheck, Info, Loader2, TriangleAlert } from 'lucide-react';
 import { cn } from '../../lib/utils';
@@ -19,7 +20,7 @@ import { CardContent, CardHeader, CardRoot, CardTitle } from './card';
  * comes from logical utilities only, enforced by lint (D4).
  */
 
-type Tone = 'info' | 'warning' | 'danger' | 'success';
+export type Tone = 'info' | 'warning' | 'danger' | 'success';
 
 // Re-exports: pages and new screens compose these directly.
 export { buttonVariants } from './button';
@@ -162,6 +163,19 @@ export function Input({
       {...rest}
       className={cn(controlClasses, invalid === true && 'border-danger', className)}
       aria-invalid={invalid === true ? 'true' : undefined}
+    />
+  );
+}
+
+export function Textarea({
+  className,
+  ...rest
+}: TextareaHTMLAttributes<HTMLTextAreaElement>): React.JSX.Element {
+  return (
+    <textarea
+      rows={3}
+      {...rest}
+      className={cn(controlClasses, 'h-auto min-h-20 py-2', className)}
     />
   );
 }

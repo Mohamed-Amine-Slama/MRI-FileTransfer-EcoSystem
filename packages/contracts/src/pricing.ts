@@ -83,3 +83,55 @@ export function quoteAmountMinor(baseMinor: number, tierBp: number, surgeBp: num
   const scaled = BigInt(baseMinor) * BigInt(tierBp) * BigInt(surgeBp);
   return Number((scaled + divisor / 2n) / divisor);
 }
+
+/**
+ * The consult split — spec 2026-09-21 §3.
+ *
+ * A consult has ONE price and three parties. The clinic collects the full
+ * price from the patient and keeps its share; it remits the rest to the
+ * platform, which pays the doctor their share and keeps what is left:
+ *
+ *   $100 consult · clinic keeps $30 · clinic remits $70 · doctor $20 · platform $50
+ *
+ * The platform's share is DERIVED, never stored, so the three shares cannot
+ * disagree with the price. The rates live in `pricing_consult_price` (a table,
+ * so changing them is an UPDATE and not a deploy); this function is only the
+ * arithmetic, shared by the API that locks a quote and the screen that shows it.
+ */
+export interface ConsultSplit {
+  amountMinor: number;
+  clinicShareMinor: number;
+  doctorShareMinor: number;
+  platformShareMinor: number;
+  /** What the clinic owes the platform for this case: the price less its own share. */
+  clinicRemitsMinor: number;
+  currency: string;
+}
+
+export function splitOf(
+  amountMinor: number,
+  clinicShareMinor: number,
+  doctorShareMinor: number,
+  currency: string,
+): ConsultSplit {
+  for (const [name, value] of [
+    ['amountMinor', amountMinor],
+    ['clinicShareMinor', clinicShareMinor],
+    ['doctorShareMinor', doctorShareMinor],
+  ] as const) {
+    if (!Number.isInteger(value) || value < 0) {
+      throw new RangeError(`${name} must be a non-negative integer, got ${value}`);
+    }
+  }
+  if (clinicShareMinor + doctorShareMinor > amountMinor) {
+    throw new RangeError('the clinic and doctor shares exceed the consult price');
+  }
+  return {
+    amountMinor,
+    clinicShareMinor,
+    doctorShareMinor,
+    platformShareMinor: amountMinor - clinicShareMinor - doctorShareMinor,
+    clinicRemitsMinor: amountMinor - clinicShareMinor,
+    currency,
+  };
+}

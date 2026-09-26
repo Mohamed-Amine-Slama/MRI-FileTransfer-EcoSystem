@@ -3,16 +3,24 @@
 import { useEffect, useState } from 'react';
 import { Download } from 'lucide-react';
 import { summariseLedger, type LedgerEntry, type Provider } from '@mir/contracts';
+import { adminLedgerRows } from '../../../lib/ledger/admin-rows';
 import { casesApi } from '../../../lib/api/mock';
 import { rolesForSides } from '../../../lib/corridor/registry';
-import { coordinationFeeCsv, downloadCsv, subscriptionCsv } from '../../../lib/ledger/csv';
+import {
+  coordinationFeeCsv,
+  doctorPayoutCsv,
+  downloadCsv,
+  subscriptionCsv,
+} from '../../../lib/ledger/csv';
 import { useLocale, useT } from '../../../lib/i18n/provider';
 import { RoleGate } from '../../../components/RoleGate';
 import { CurrencyTotals } from '../../../components/ledger/CurrencyTotals';
+import { platformMargin } from '../../../lib/ledger/margin';
 import {
   Alert,
   Badge,
   Button,
+  Card,
   EmptyState,
   Main,
   PageHeader,
@@ -69,12 +77,13 @@ function AdminLedger(): React.JSX.Element {
           casesApi.listProviders(),
         ]);
         if (cancelled) return;
+        // Rows come from the providers, so an organisation with no entries
+        // still appears with zero totals.
         setRows(
-          ledgers.map(({ providerId, entries }) => ({
-            providerId,
-            entries,
-            provider: providers.find((p) => p.id === providerId) ?? null,
-          })),
+          adminLedgerRows(
+            providers,
+            ledgers.map((l) => ({ organisationId: l.providerId, entries: l.entries })),
+          ),
         );
       } catch {
         if (cancelled) return;
@@ -98,6 +107,9 @@ function AdminLedger(): React.JSX.Element {
   // The export is still two files, for the same reason it is on the provider
   // ledger: there is no schema in which the two kinds share a row.
   const all = rows.flatMap((row) => row.entries);
+  // The platform's own position (spec 2026-09-21 §3): in from clinics, out to
+  // doctors, and what is left. Subscriptions are not in it (§5.7 P0).
+  const platform = summariseLedger(all);
 
   return (
     <Main wide>
@@ -113,6 +125,14 @@ function AdminLedger(): React.JSX.Element {
             >
               <Download className="size-4" />
               {t.ledgerCoordinationFees}
+            </Button>
+            <Button
+              size="sm"
+              data-testid="export-payouts"
+              onClick={() => downloadCsv('payouts-all.csv', doctorPayoutCsv(all))}
+            >
+              <Download className="size-4" />
+              {t.ledgerDoctorPayouts}
             </Button>
             <Button
               size="sm"
@@ -132,6 +152,29 @@ function AdminLedger(): React.JSX.Element {
         {t.ledgerSeparateNote}
       </Alert>
 
+      <Card title={t.adminLedgerPlatformTitle}>
+        <dl className="grid gap-4 sm:grid-cols-3" data-testid="admin-ledger-platform">
+          <div>
+            <dt className="text-xs text-muted-foreground">{t.adminLedgerIn}</dt>
+            <dd data-testid="platform-in">
+              <CurrencyTotals totals={platform.coordinationFees} locale={locale} />
+            </dd>
+          </div>
+          <div>
+            <dt className="text-xs text-muted-foreground">{t.adminLedgerOut}</dt>
+            <dd data-testid="platform-out">
+              <CurrencyTotals totals={platform.doctorPayouts} locale={locale} />
+            </dd>
+          </div>
+          <div>
+            <dt className="text-xs text-muted-foreground">{t.adminLedgerMargin}</dt>
+            <dd data-testid="platform-margin">
+              <CurrencyTotals totals={platformMargin(platform)} locale={locale} />
+            </dd>
+          </div>
+        </dl>
+      </Card>
+
       {rows.length === 0 ? (
         <EmptyState testId="admin-ledger-empty">{t.ledgerEmpty}</EmptyState>
       ) : (
@@ -140,6 +183,7 @@ function AdminLedger(): React.JSX.Element {
             <TableRow>
               <TableHead>{t.colProvider}</TableHead>
               <TableHead>{t.ledgerCoordinationFees}</TableHead>
+              <TableHead>{t.ledgerDoctorPayouts}</TableHead>
               <TableHead>{t.ledgerSubscriptions}</TableHead>
               <TableHead>{t.ledgerOutstanding}</TableHead>
             </TableRow>
@@ -148,7 +192,9 @@ function AdminLedger(): React.JSX.Element {
             {rows.map((row) => {
               const summary = summariseLedger(row.entries);
               const outstanding =
-                summary.outstanding.coordination_fee + summary.outstanding.saas_subscription;
+                summary.outstanding.coordination_fee +
+                summary.outstanding.saas_subscription +
+                summary.outstanding.doctor_payout;
               return (
                 <TableRow key={row.providerId}>
                   <TableCell className="font-medium">
@@ -156,6 +202,9 @@ function AdminLedger(): React.JSX.Element {
                   </TableCell>
                   <TableCell>
                     <CurrencyTotals totals={summary.coordinationFees} locale={locale} />
+                  </TableCell>
+                  <TableCell>
+                    <CurrencyTotals totals={summary.doctorPayouts} locale={locale} />
                   </TableCell>
                   <TableCell>
                     <CurrencyTotals totals={summary.subscriptions} locale={locale} />

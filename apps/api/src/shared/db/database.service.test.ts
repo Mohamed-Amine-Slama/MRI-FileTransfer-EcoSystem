@@ -5,7 +5,7 @@ import {
   runWithContext,
   type RequestContext,
 } from '../context/request-context';
-import { DatabaseService } from './database.service';
+import { DatabaseService, sslOptions } from './database.service';
 import {
   appUrl,
   createPatient,
@@ -71,6 +71,23 @@ describe('DatabaseService RLS context', () => {
 
     expect(settings?.uid).toBe(userId);
     expect(settings?.role).toBe('libya_doctor');
+  });
+
+  it('bounds every transaction: a runaway statement or an idle-open tx cannot pin a connection', async () => {
+    const limits = await db.txAs(ctx('018f8e6a-0000-7000-8000-0000000000ab', 'admin'), async (tx) => {
+      const r = await tx.query<{ stmt: string; idle: string }>(
+        `SELECT current_setting('statement_timeout') AS stmt,
+                current_setting('idle_in_transaction_session_timeout') AS idle`,
+      );
+      return r.rows[0];
+    });
+    expect(limits).toEqual({ stmt: '30s', idle: '1min' });
+
+    await expect(
+      db.txAs(ctx('018f8e6a-0000-7000-8000-0000000000ab', 'admin'), (tx) =>
+        tx.query(`SET LOCAL statement_timeout = '50ms'; SELECT pg_sleep(1)`),
+      ),
+    ).rejects.toThrow(/statement timeout/);
   });
 
   it('does not leak the context to the next transaction on the same pooled connection', async () => {
@@ -157,5 +174,24 @@ describe('DatabaseService RLS context', () => {
       }),
     );
     expect(result).toBe(userId);
+  });
+});
+
+describe('database TLS (DATABASE_SSL)', () => {
+  it('is off unless asked for, which is what the harness relies on', () => {
+    expect(sslOptions({ DATABASE_SSL: 'off' } as AppConfig)).toBe(false);
+    expect(sslOptions({} as AppConfig)).toBe(false);
+  });
+
+  it('require encrypts without checking the certificate', () => {
+    expect(sslOptions({ DATABASE_SSL: 'require' } as AppConfig)).toEqual({
+      rejectUnauthorized: false,
+    });
+  });
+
+  it('verify checks the certificate', () => {
+    expect(sslOptions({ DATABASE_SSL: 'verify' } as AppConfig)).toEqual({
+      rejectUnauthorized: true,
+    });
   });
 });

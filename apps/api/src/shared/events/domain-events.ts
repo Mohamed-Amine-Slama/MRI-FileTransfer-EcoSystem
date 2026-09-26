@@ -152,6 +152,21 @@ export interface CaseAccepted extends DomainEventBase {
   doctorId: string;
 }
 
+/** The doctor submitted the structured report; the case is answered. */
+export interface CaseAnswered extends DomainEventBase {
+  type: 'CaseAnswered';
+  caseId: string;
+  patientId: string;
+  doctorId: string;
+}
+
+/** Someone downloaded a case's report. Clinical content leaving the platform. */
+export interface CaseReportDownloaded extends DomainEventBase {
+  type: 'CaseReportDownloaded';
+  caseId: string;
+  patientId: string;
+  format: 'pdf';
+}
 
 export interface StudyAccessed extends DomainEventBase {
   type: 'StudyAccessed';
@@ -184,6 +199,8 @@ export type DomainEvent =
   | CaseDeclined
   | CaseExpired
   | CaseAccepted
+  | CaseAnswered
+  | CaseReportDownloaded
   | StudyAccessed;
 
 export type DomainEventType = DomainEvent['type'];

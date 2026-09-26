@@ -39,62 +39,119 @@ export class LedgerService {
   constructor(private readonly db: DatabaseService) {}
 
   /**
-   * Accrue one side's coordination fee for a referral.
+   * What the referring clinic owes the platform for one case: the consult price
+   * less the clinic's own share ($100 − $30 = $70). Accrued when the case is
+   * paid — spec 2026-09-21 §3.
    *
-   * Returns the new entry's id, or `null` when nothing was accrued — either the
-   * corridor has no active rate for that side, or the caller's role is not
-   * allowed to write the ledger. A missing rate must not invent a charge and
-   * must not block a referral: a clinical hand-off does not wait on a billing
-   * configuration.
+   * Reads the split LOCKED ON THE CASE at quote, never the price table: a
+   * price edited after a clinic was quoted must not change what that case owes.
+   *
+   * Returns the new entry's id, or `null` when nothing was accrued — the case
+   * carries no split (quoted before the split existed), or the caller's role
+   * may not write the ledger. A missing split must not invent a charge, and a
+   * clinical hand-off does not wait on billing.
    *
    * `ON CONFLICT DO NOTHING` leans on the partial unique index rather than
    * reading first: a read-then-write would still race, and billing a clinic
    * twice for one referral has to be impossible rather than unlikely.
    */
-  async accrueCoordinationFee(caseId: string, side: EndpointSide): Promise<string | null> {
+  async accrueClinicRemittance(caseId: string): Promise<string | null> {
+    return this.accrue(caseId, 'source', 'coordination_fee', (c) =>
+      c.clinic_share_minor === null ? null : Number(c.quoted_amount_minor) - Number(c.clinic_share_minor),
+    );
+  }
+
+  /**
+   * What the platform owes the receiving doctor for one case: the doctor's
+   * share ($20). Accrued when the doctor answers — the escrow rule: money moves
+   * to the doctor only once the answer exists.
+   */
+  async accrueDoctorPayout(caseId: string): Promise<string | null> {
+    return this.accrue(caseId, 'destination', 'doctor_payout', (c) =>
+      c.doctor_share_minor === null ? null : Number(c.doctor_share_minor),
+    );
+  }
+
+  private async accrue(
+    caseId: string,
+    side: EndpointSide,
+    kind: 'coordination_fee' | 'doctor_payout',
+    amountOf: (c: {
+      quoted_amount_minor: string | null;
+      clinic_share_minor: string | null;
+      doctor_share_minor: string | null;
+    }) => number | null,
+  ): Promise<string | null> {
     return this.db.tx(async (tx) => {
-      // Which organisation owes: the referring doctor's on the source side, the
-      // receiving doctor's on the destination side.
+      // Which organisation: the referring clinic on the source side, the
+      // receiving doctor's practice on the destination side.
       //
       // Read through a definer function because accrual runs as the system
-      // role, which cannot see patients — there is no admin policy on
-      // patients_patients and there must not be one, so this join is invisible
-      // to the context that has to bill for it. Doing it inline returned no
-      // rows and made every referral free, silently.
-      const org = await tx.query<{ organisation_id: string; corridor_id: string }>(
-        'SELECT organisation_id, corridor_id FROM billing_owing_organisation($1, $2)',
+      // role, which cannot see patients — the join is invisible to the context
+      // that has to bill for it. Doing it inline returned no rows and made
+      // every referral free, silently.
+      const org = await tx.query<{ organisation_id: string }>(
+        'SELECT organisation_id FROM billing_owing_organisation($1, $2)',
         [caseId, side],
       );
       const organisation = org.rows[0];
       if (organisation === undefined) return null;
 
-      const rate = await tx.query<{ amount_minor: string; currency: string }>(
-        `SELECT amount_minor, currency FROM billing_fee_schedule
-          WHERE corridor_id = $1 AND side = $2 AND active`,
-        [organisation.corridor_id, side],
+      const priced = await tx.query<{
+        quoted_amount_minor: string | null;
+        quoted_currency: string | null;
+        clinic_share_minor: string | null;
+        doctor_share_minor: string | null;
+      }>(
+        `SELECT quoted_amount_minor, quoted_currency, clinic_share_minor, doctor_share_minor
+           FROM cases_cases WHERE id = $1`,
+        [caseId],
       );
-      const row = rate.rows[0];
-      if (row === undefined) return null;
+      const c = priced.rows[0];
+      if (c === undefined || c.quoted_amount_minor === null || c.quoted_currency === null) {
+        return null;
+      }
+      const amount = amountOf(c);
+      if (amount === null || amount <= 0) return null;
 
       const inserted = await tx.query<{ id: string }>(
         `INSERT INTO billing_ledger_entries
            (organisation_id, kind, case_id, amount_minor, currency)
-         VALUES ($1, 'coordination_fee', $2, $3, $4)
+         VALUES ($1, $2, $3, $4, $5)
          ON CONFLICT DO NOTHING
          RETURNING id`,
-        [organisation.organisation_id, caseId, row.amount_minor, row.currency],
+        [organisation.organisation_id, kind, caseId, amount, c.quoted_currency],
       );
       return inserted.rows[0]?.id ?? null;
     });
   }
 
   /**
-   * The organisation's entries, newest first.
-   *
-   * RLS decides what comes back, so another organisation's id returns an empty
-   * list rather than an authorisation error — the same answer as "there is
-   * nothing there", which leaks no existence.
+   * Every organisation's entries in ONE read — for ops' ledger, which used to
+   * ask once per organisation (spec 2026-09-21 §8). RLS still decides which
+   * rows come back; the route admits only ops.
    */
+  async listAll(): Promise<{ organisationId: string; entries: LedgerEntry[] }[]> {
+    return this.db.tx(async (tx) => {
+      const res = await tx.query<DbEntry & { organisation_id: string }>(
+        `SELECT e.id, e.kind, e.amount_minor, e.currency, e.status, e.occurred_at,
+                e.organisation_id, a.case_ref
+           FROM billing_ledger_entries e
+           LEFT JOIN cases_cases a ON a.id = e.case_id
+          ORDER BY e.organisation_id, e.occurred_at DESC`,
+      );
+      const groups = new Map<string, LedgerEntry[]>();
+      for (const r of res.rows) {
+        const entry = toEntry(r);
+        if (entry == null) continue;
+        const list = groups.get(r.organisation_id) ?? [];
+        list.push(entry);
+        groups.set(r.organisation_id, list);
+      }
+      return [...groups].map(([organisationId, entries]) => ({ organisationId, entries }));
+    });
+  }
+
   async listForOrganisation(organisationId: string): Promise<LedgerEntry[]> {
     return this.db.tx(async (tx) => {
       // The case reference belongs to the referral (migration 0024), so it is
@@ -137,10 +194,10 @@ function toEntry(r: DbEntry): LedgerEntry | null {
     status: status.data,
   };
 
-  if (r.kind === 'coordination_fee') {
+  if (r.kind === 'coordination_fee' || r.kind === 'doctor_payout') {
     const caseRef = caseRefSchema.safeParse(r.case_ref);
     if (!caseRef.success) return null;
-    return { ...base, kind: 'coordination_fee', caseRef: caseRef.data };
+    return { ...base, kind: r.kind, caseRef: caseRef.data };
   }
 
   // Subscription charges are not written by anything yet — changing a plan

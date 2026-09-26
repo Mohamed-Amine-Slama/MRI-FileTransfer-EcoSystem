@@ -1,11 +1,41 @@
 import './pg-types';
+import { readFileSync } from 'node:fs';
 import { Inject, Injectable, type OnModuleDestroy } from '@nestjs/common';
-import { Pool, type PoolClient } from 'pg';
+import { Pool, type PoolClient, type PoolConfig } from 'pg';
 import { APP_CONFIG } from '../config/config.module';
 import type { AppConfig } from '../config/config.schema';
 import { requireContext, type RequestContext } from '../context/request-context';
 
 export type Tx = PoolClient;
+
+// ponytail: fixed limits. A deliberately long job (a backfill, a report) is
+// the case for making them per-call options, not config.
+const STATEMENT_TIMEOUT = '30s';
+// Above the longest outbound HTTP timeout (Orthanc, 30 s), so a caller that
+// still does network I/O inside a transaction is cut off, not a healthy one.
+const IDLE_IN_TRANSACTION_TIMEOUT = '60s';
+
+/**
+ * The pool's `ssl` option from DATABASE_SSL. Unset (as in the test harness,
+ * which builds a partial config) means off.
+ */
+export function sslOptions(
+  config: Pick<AppConfig, 'DATABASE_SSL' | 'DATABASE_SSL_CA_FILE'>,
+): PoolConfig['ssl'] {
+  switch (config.DATABASE_SSL) {
+    case 'require':
+      return { rejectUnauthorized: false };
+    case 'verify':
+      return {
+        rejectUnauthorized: true,
+        ...(config.DATABASE_SSL_CA_FILE === undefined
+          ? {}
+          : { ca: readFileSync(config.DATABASE_SSL_CA_FILE, 'utf8') }),
+      };
+    default:
+      return false;
+  }
+}
 
 /**
  * Database access under row-level security — BUILD_SPEC P4.2, ADR-6.
@@ -33,6 +63,7 @@ export class DatabaseService implements OnModuleDestroy {
     this.pool = new Pool({
       connectionString: config.DATABASE_URL,
       max: config.DATABASE_POOL_MAX,
+      ssl: sslOptions(config),
       // A request that cannot get a connection should fail fast rather than
       // pile up behind a saturated pool during an upload burst.
       connectionTimeoutMillis: 5_000,
@@ -81,8 +112,19 @@ export class DatabaseService implements OnModuleDestroy {
       // caller-influenced data straight into SQL — on the single value an
       // attacker most wants to control. set_config(name, value, is_local=true)
       // is the parameterisable equivalent.
-      await client.query('SELECT set_config($1, $2, true)', ['app.user_id', ctx.userId]);
-      await client.query('SELECT set_config($1, $2, true)', ['app.user_role', ctx.role]);
+      //
+      // One statement, one round trip, for the identity AND the limits. The
+      // limits are transaction-local rather than pool startup parameters so
+      // they pass through a transaction-mode pooler (Supabase) unchanged:
+      // without them one slow query or a transaction left open across network
+      // I/O pins a pooled connection until the pool is exhausted.
+      await client.query(
+        `SELECT set_config('app.user_id', $1, true),
+                set_config('app.user_role', $2, true),
+                set_config('statement_timeout', $3, true),
+                set_config('idle_in_transaction_session_timeout', $4, true)`,
+        [ctx.userId, ctx.role, STATEMENT_TIMEOUT, IDLE_IN_TRANSACTION_TIMEOUT],
+      );
 
       const result = await fn(client);
       await client.query('COMMIT');

@@ -8,8 +8,10 @@ import { runWithContext, type RequestContext } from '../../../shared/context/req
 import {
   buildTwinJobName,
   ingestFileJobName,
+  restowInstanceJobName,
   type BuildTwinJob,
   type IngestFileJob,
+  type RestowInstanceJob,
 } from '../../../shared/jobs/queue.tokens';
 import { IngestionService } from './ingestion.service';
 import { TwinService } from './twin.service';
@@ -82,6 +84,9 @@ export class ImagingWorker implements OnModuleInit, OnApplicationShutdown {
       }
       case buildTwinJobName:
         await this.twin.build(data as BuildTwinJob);
+        return;
+      case restowInstanceJobName:
+        await this.ingestion.restow(data as RestowInstanceJob);
         return;
       default:
         // Throwing fails the job visibly in Redis instead of silently acking

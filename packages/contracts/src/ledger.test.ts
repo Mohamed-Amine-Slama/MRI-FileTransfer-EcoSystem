@@ -165,7 +165,8 @@ describe('minor units are per-currency (§5.7 multi-currency)', () => {
  */
 describe('ledger entry kinds', () => {
   it('exposes the closed set the database CHECK mirrors', () => {
-    expect(LEDGER_ENTRY_KINDS).toEqual(['coordination_fee', 'saas_subscription']);
+    // doctor_payout added with migration 0032 (spec 2026-09-21 §3).
+    expect(LEDGER_ENTRY_KINDS).toEqual(['coordination_fee', 'saas_subscription', 'doctor_payout']);
   });
 
   it('rejects a kind outside the set', () => {
@@ -185,7 +186,39 @@ describe('ledger entry kinds', () => {
     expect(summary).not.toHaveProperty('total');
     expect(Object.keys(summary.outstanding).sort()).toEqual([
       'coordination_fee',
+      'doctor_payout',
       'saas_subscription',
     ]);
+  });
+});
+
+describe('doctor payouts (spec 2026-09-21 §3)', () => {
+  const payout: LedgerEntry = {
+    id: 'p1',
+    kind: 'doctor_payout',
+    caseRef: 'MIR-2026-0001',
+    occurredAt: '2026-09-23T10:00:00.000Z',
+    amount: { amountMinor: 2000, currency: 'USD' },
+    status: 'pending',
+  };
+  const fee: LedgerEntry = {
+    id: 'f1',
+    kind: 'coordination_fee',
+    caseRef: 'MIR-2026-0001',
+    occurredAt: '2026-09-23T09:00:00.000Z',
+    amount: { amountMinor: 7000, currency: 'USD' },
+    status: 'pending',
+  };
+
+  it('is a ledger entry kind that parses', () => {
+    expect(LEDGER_ENTRY_KINDS).toContain('doctor_payout');
+    expect(() => ledgerEntrySchema.parse(payout)).not.toThrow();
+  });
+
+  it('is totalled apart from what the clinic owes, never summed with it', () => {
+    const summary = summariseLedger([payout, fee]);
+    expect(summary.doctorPayouts.USD?.amountMinor).toBe(2000);
+    expect(summary.coordinationFees.USD?.amountMinor).toBe(7000);
+    expect(summary.outstanding.doctor_payout).toBe(1);
   });
 });

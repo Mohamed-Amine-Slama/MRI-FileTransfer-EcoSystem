@@ -1,6 +1,7 @@
 'use client';
 
 import { useCallback, useEffect, useState } from 'react';
+import { ApiError } from '../../../lib/api/client';
 import { api } from '../../../lib/api/endpoints';
 import { useT } from '../../../lib/i18n/provider';
 import { DESTINATION_ROLES } from '../../../lib/corridor/registry';
@@ -60,8 +61,11 @@ function AvailabilitySwitch(): React.JSX.Element {
       try {
         const res = await api.cases.setAccepting(next);
         setAccepting(res.accepting);
-      } catch {
-        setError(t.genericError);
+      } catch (err) {
+        // 404: this account has the doctor role but no doctor profile, so
+        // there is nothing to switch. Say so — "something went wrong" sent
+        // doctors round in circles (spec 2026-09-21 §7).
+        setError(err instanceof ApiError && err.status === 404 ? t.availabilityNoProfile : t.genericError);
       } finally {
         setBusy(false);
       }
@@ -86,6 +90,9 @@ function AvailabilitySwitch(): React.JSX.Element {
             variant={accepting ? undefined : 'primary'}
             disabled={busy}
             data-testid="toggle-accepting"
+            // A toggle button: its on/off state belongs to assistive tech too,
+            // not only to the label text that flips with it.
+            aria-pressed={accepting}
             onClick={() => void toggle(!accepting)}
           >
             {accepting ? t.availabilityTurnOff : t.availabilityTurnOn}

@@ -75,3 +75,45 @@ describe('KeycloakAdminClient host selection', () => {
     ]);
   });
 });
+
+/**
+ * Promotion out of `applicant` — the token verifier requires EXACTLY one
+ * application role, so a user who gains a clinical role while keeping
+ * `applicant` is refused on every request (401) the moment they sign in.
+ * Found by the plan-4 admin journey: every approved doctor was locked out.
+ */
+describe('KeycloakAdminClient.promote', () => {
+  let restore: (() => void) | null = null;
+  afterEach(() => {
+    restore?.();
+    restore = null;
+  });
+
+  it('attaches the new role and removes applicant', async () => {
+    const calls: { method: string; url: string; body: unknown }[] = [];
+    const original = globalThis.fetch;
+    globalThis.fetch = ((url: string, init?: RequestInit) => {
+      const u = String(url);
+      calls.push({ method: init?.method ?? 'GET', url: u, body: u.includes('/role-mappings/') ? JSON.parse(String(init?.body)) : null });
+      if (u.includes('/protocol/openid-connect/token')) {
+        return Promise.resolve(new Response(JSON.stringify({ access_token: 't', expires_in: 300 }), { status: 200 }));
+      }
+      const name = decodeURIComponent(u.split('/roles/')[1] ?? '');
+      if (name !== '') {
+        return Promise.resolve(new Response(JSON.stringify({ id: `id-${name}`, name }), { status: 200 }));
+      }
+      return Promise.resolve(new Response(null, { status: 204 }));
+    }) as typeof fetch;
+    restore = () => {
+      globalThis.fetch = original;
+    };
+
+    await new KeycloakAdminClient(config({})).promote('sub-1', 'tunisia_doctor');
+
+    const mappings = calls.filter((c) => c.url.endsWith('/users/sub-1/role-mappings/realm'));
+    expect(mappings).toEqual([
+      expect.objectContaining({ method: 'POST', body: [{ id: 'id-tunisia_doctor', name: 'tunisia_doctor' }] }),
+      expect.objectContaining({ method: 'DELETE', body: [{ id: 'id-applicant', name: 'applicant' }] }),
+    ]);
+  });
+});

@@ -1,6 +1,6 @@
 'use client';
 
-import Link from 'next/link';
+import Link from '../ui/link';
 import { usePathname } from 'next/navigation';
 import { useEffect, useState, type ReactNode } from 'react';
 import { Menu } from 'lucide-react';
@@ -10,7 +10,9 @@ import type { Dictionary } from '../../lib/i18n/dictionary';
 import { cn } from '../../lib/utils';
 import { AccountPreferencesSync } from '../../lib/account/preferences';
 import { SessionTimeoutNotice } from '../SessionTimeoutNotice';
-import { Sheet, SheetContent, SheetTrigger } from '../ui';
+import { useSession } from '../../lib/session/session';
+import { useCurrentProvider } from '../../lib/provider/current-provider';
+import { Avatar, Sheet, SheetContent, SheetTrigger } from '../ui';
 import { BrandMark } from './BrandMark';
 import { LocaleSelect } from './LocaleSelect';
 import { ThemeToggle } from './ThemeToggle';
@@ -76,7 +78,7 @@ export function AppChrome({
          * horizontally scrollable, which §4.5 forbids and which is invisible to
          * anyone looking for it: nothing appears cut off, the page just moves.
          */
-        className="sr-only start-0 top-0 focus:not-sr-only focus:absolute focus:start-4 focus:top-4 focus:z-50 focus:rounded-md focus:bg-primary focus:px-4 focus:py-2 focus:text-sm focus:font-semibold focus:text-primary-foreground"
+        className="sr-only m-0 start-0 top-0 focus:not-sr-only focus:absolute focus:start-4 focus:top-4 focus:z-50 focus:rounded-md focus:bg-primary focus:px-4 focus:py-2 focus:text-sm focus:font-semibold focus:text-primary-foreground"
       >
         {t.skipToContent}
       </a>
@@ -93,6 +95,7 @@ export function AppChrome({
                 {t.appName}
               </Link>
               <SidebarNav sections={sections} isCurrent={isCurrent} t={t} />
+              <SidebarIdentity localeId="locale-select" />
             </div>
           </aside>
         )}
@@ -117,6 +120,7 @@ export function AppChrome({
                     <div className="overflow-y-auto">
                       <SidebarNav sections={sections} isCurrent={isCurrent} t={t} />
                     </div>
+                    <SidebarIdentity localeId="locale-select-drawer" />
                   </SheetContent>
                 </Sheet>
               )}
@@ -135,8 +139,14 @@ export function AppChrome({
               </Link>
 
               <div className="ms-auto flex items-center gap-1.5">
-                <LocaleSelect />
-                <ThemeToggle />
+                {/* With a sidebar, the appearance controls live at its foot. A
+                    role with no navigation has no sidebar, so they stay here. */}
+                {sections.length === 0 && (
+                  <>
+                    <LocaleSelect />
+                    <ThemeToggle />
+                  </>
+                )}
                 <UserMenu />
               </div>
             </div>
@@ -151,15 +161,11 @@ export function AppChrome({
             {children}
           </div>
 
-          <footer className="border-t bg-card">
-            <div className="flex flex-wrap items-center justify-between gap-2 px-4 py-4 text-xs text-muted-foreground sm:px-6">
-              <span className="flex items-center gap-1.5 font-medium">
-                <BrandMark className="size-4" />
-                {t.appName} — {t.appTagline}
-              </span>
-              <span>{t.footerDisclaimer}</span>
-            </div>
-          </footer>
+          {/* No sidebar means no identity block, so the disclaimer is kept here
+              for those accounts rather than lost with the footer. */}
+          {sections.length === 0 && (
+            <p className="px-4 py-4 text-xs text-muted-foreground sm:px-6">{t.footerDisclaimer}</p>
+          )}
         </div>
       </div>
     </div>
@@ -208,5 +214,41 @@ function SidebarNav({
         </div>
       ))}
     </nav>
+  );
+}
+
+/**
+ * Who is working, for which organisation, and the two appearance controls.
+ *
+ * Pinned to the bottom of the rail so the header carries only navigation and
+ * the account menu. The controls cannot move INTO the account menu: the theme
+ * control is itself a menu and the language control a native select, and a
+ * menu captures the keys both need. The disclaimer lives here now that the
+ * signed-in footer is gone — it must stay on every screen.
+ */
+function SidebarIdentity({ localeId }: { localeId: string }): React.JSX.Element {
+  const t = useT();
+  const { user } = useSession();
+  const { provider } = useCurrentProvider();
+
+  return (
+    <div className="mt-auto space-y-3 border-t pt-4" data-testid="sidebar-identity">
+      {user !== null && (
+        <div className="flex items-center gap-2 px-2">
+          <Avatar name={user.displayName} size="sm" />
+          <div className="min-w-0">
+            <p className="truncate text-sm font-medium">{user.displayName}</p>
+            {provider !== null && (
+              <p className="truncate text-xs text-muted-foreground">{provider.legalName}</p>
+            )}
+          </div>
+        </div>
+      )}
+      <div className="flex items-center gap-1.5 px-2">
+        <LocaleSelect id={localeId} />
+        <ThemeToggle />
+      </div>
+      <p className="px-2 text-xs text-muted-foreground">{t.footerDisclaimer}</p>
+    </div>
   );
 }

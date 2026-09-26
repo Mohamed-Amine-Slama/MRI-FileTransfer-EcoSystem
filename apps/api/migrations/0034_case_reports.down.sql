@@ -1,0 +1,3 @@
+BEGIN;
+DROP TABLE IF EXISTS cases_reports;
+COMMIT;

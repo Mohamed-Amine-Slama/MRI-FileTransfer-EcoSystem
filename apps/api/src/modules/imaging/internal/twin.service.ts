@@ -83,6 +83,7 @@ interface TwinInput {
   twin_study_uid: string | null;
   age_years: number;
   sex: string;
+  file_count: number;
 }
 
 @Injectable()
@@ -122,7 +123,7 @@ export class TwinService {
 
     const input: TwinInput | null = await this.db.txAs(ctx, async (tx) => {
       const res = await tx.query<TwinInput>(
-        `SELECT s.study_instance_uid, s.status, s.twin_study_uid,
+        `SELECT s.study_instance_uid, s.status, s.twin_study_uid, s.file_count,
                 LEAST(90, EXTRACT(YEAR FROM age(
                   COALESCE(s.study_date, CURRENT_DATE), p.date_of_birth))::int) AS age_years,
                 p.sex
@@ -155,6 +156,16 @@ export class TwinService {
       // Retryable: ingest stores to Orthanc best-effort, so the study may
       // simply not have landed yet.
       throw new Error(`Study ${input.study_instance_uid} is not in Orthanc yet`);
+    }
+
+    // Retryable, and the same reasoning one level down: a STOW that failed at
+    // ingest leaves the study in Orthanc short of slices until its re-send job
+    // lands. Anonymising now would release a twin that silently misses them.
+    const inOrthanc = await this.orthanc.countInstances(orthancId);
+    if (inOrthanc < input.file_count) {
+      throw new Error(
+        `Study ${job.studyId} has ${inOrthanc}/${input.file_count} instances in Orthanc; waiting for re-sends`,
+      );
     }
 
     const twin = await this.orthanc.anonymiseStudy(

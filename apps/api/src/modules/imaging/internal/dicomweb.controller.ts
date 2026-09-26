@@ -49,7 +49,7 @@ export class DicomWebController {
     const study = await this.access.authoriseStudyAccess(studyUid, 'metadata');
     const ctx = requireContext();
 
-    // WHY THE DOCTOR'S LIST COMES FROM ORTHANC AND THE LAB'S FROM THE DATABASE.
+    // WHY THE LIST COMES FROM ORTHANC, AND THE DATABASE IS ONLY A FALLBACK.
     //
     // Anonymisation reallocates every UID, so the twin's instances do not carry
     // the SOP UIDs recorded in `imaging_instances` — those belong to the
@@ -57,10 +57,18 @@ export class DicomWebController {
     // that resolve against nothing in the copy they are allowed to read, and
     // every frame request would 404 for a reason that looks like an outage.
     //
-    // The lab keeps the database list: it reads the original, the rows describe
-    // exactly that, and it stays readable when Orthanc is unavailable.
+    // The lab reads the original, so Orthanc's list is also right for it — and
+    // it is the one that carries InstanceNumber, which is slice order. The
+    // database rows do not, so they are only the fallback that keeps the list
+    // readable when Orthanc is unavailable.
     if (ctx.role === 'tunisia_doctor') {
       return { instances: await this.orthanc.listInstances(study.orthancStudyUid) };
+    }
+    try {
+      const ordered = await this.orthanc.listInstances(study.orthancStudyUid);
+      if (ordered.length > 0) return { instances: ordered };
+    } catch {
+      // Fall through to the stored list.
     }
 
     const rows = await this.db.tx(async (tx) => {
@@ -238,6 +246,29 @@ export class DicomWebController {
     );
 
     if (!upstream.ok) throw new NotFoundException('Instance metadata not found');
+    return upstream.json();
+  }
+
+  /**
+   * WADO-RS metadata for a whole series, in ONE request: the viewer registers
+   * every slice's header before setting the stack, rather than one round trip
+   * per slice on a slow link. No pixels. Audited as `metadata`.
+   */
+  @RequiresRole('tunisia_doctor', 'libya_doctor')
+  @Get('studies/:studyUid/series/:seriesUid/metadata')
+  @Header('cache-control', 'no-store')
+  async seriesMetadata(
+    @Param('studyUid') studyUid: string,
+    @Param('seriesUid') seriesUid: string,
+  ): Promise<unknown> {
+    // The RESOLVED uid: for a doctor the path names the de-identified twin.
+    const study = await this.access.authoriseStudyAccess(studyUid, 'metadata');
+    const upstream = await this.orthanc.retrieve(
+      `/dicom-web/studies/${encodeURIComponent(study.orthancStudyUid)}` +
+        `/series/${encodeURIComponent(seriesUid)}/metadata`,
+      'application/dicom+json',
+    );
+    if (!upstream.ok) throw new NotFoundException('Series metadata not found');
     return upstream.json();
   }
 

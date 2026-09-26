@@ -1,0 +1,441 @@
+<!DOCTYPE html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=1920, height=1080">
+    <title>MIR — brag</title>
+    <script src="assets/vendor/gsap.min.js"></script>
+    <script src="assets/audio-bass.js"></script>
+    <style>
+      /* Faces shipped by apps/web/app/fonts — the landing page's own three. */
+      @font-face {
+        font-family: "Sans Flex";
+        src: url("assets/fonts/GoogleSansFlex-latin.woff2") format("woff2");
+        font-weight: 300 500;
+      }
+      @font-face {
+        font-family: "Plex Mono";
+        src: url("assets/fonts/IBMPlexMono-Regular-latin.woff2") format("woff2");
+        font-weight: 400;
+      }
+      @font-face {
+        font-family: "Plex Arabic";
+        src: url("assets/fonts/IBMPlexSansArabic-Light.woff2") format("woff2");
+        font-weight: 300;
+      }
+
+      /* Tokens — apps/web/app/corridor.css :root */
+      :root {
+        --ground: #ffffff;
+        --panel: #eff4f2;
+        --panel-deep: #e5f1ed;
+        --ink: #000000;
+        --ink-subtle: rgb(0 0 0 / 0.62);
+        --line: rgb(0 0 0 / 0.1);
+        --accent: #246f65;
+        --accent-deep: #054038;
+        --lime: #f8ffb4;
+        --lime-edge: #e5ed9b;
+        --alert: #b3261e;
+      }
+
+      * { margin: 0; padding: 0; box-sizing: border-box; }
+      html, body { width: 1920px; height: 1080px; overflow: hidden; background: var(--ground); }
+      #root {
+        position: relative; width: 100%; height: 100%; overflow: hidden;
+        background: var(--ground); color: var(--ink);
+        font-family: "Sans Flex", system-ui, sans-serif; font-weight: 300;
+      }
+      .scene { position: absolute; inset: 0; }
+      .wrap { position: absolute; inset: 0; background: var(--ground); }
+      .mono { font-family: "Plex Mono", ui-monospace, monospace; font-weight: 400; }
+      .word { display: inline-block; white-space: pre; }
+
+      /* ---------- logo lockup (MirMark: ring + four ticks, lime on teal) ---------- */
+      .lockup { position: absolute; top: 72px; display: flex; align-items: center; gap: 20px; }
+      .tile { width: 64px; height: 64px; border-radius: 16px; background: var(--accent); display: grid; place-items: center; }
+      .tile svg { width: 40px; height: 40px; fill: none; stroke: var(--lime); stroke-width: 1.6; stroke-linecap: round; }
+      .wordmark { font-size: 40px; font-weight: 400; letter-spacing: 0.08em; }
+
+      /* ---------- hero ---------- */
+      #helix { position: absolute; right: -120px; top: 60px; width: 1140px; height: 900px; opacity: 0.3; }
+      #helix img { width: 100%; height: 100%; display: block; }
+      .hero-text { position: absolute; top: 300px; width: 860px; }
+      #en-text { left: 140px; }
+      #ar-text { right: 140px; direction: rtl; text-align: right; }
+      .eyebrow { font-size: 26px; color: var(--accent); letter-spacing: 0.04em; margin-bottom: 36px; }
+      #ar-text .eyebrow { font-family: "Plex Arabic", sans-serif; font-weight: 300; font-size: 34px; letter-spacing: 0; }
+      .headline { font-size: 104px; line-height: 1.1; letter-spacing: -0.02em; font-weight: 300; }
+      #ar-text .headline { font-family: "Plex Arabic", sans-serif; font-size: 112px; line-height: 1.35; letter-spacing: 0; }
+      #scan-tile {
+        position: absolute; left: 1020px; top: 300px; width: 760px; height: 428px;
+        border-radius: 24px; overflow: hidden; background: #05070a;
+      }
+      #scan-tile img { position: absolute; inset: 0; width: 100%; height: 100%; object-fit: cover; opacity: 0; }
+      #scan-meta { position: absolute; left: 1020px; top: 752px; width: 760px; display: flex; justify-content: space-between; font-size: 22px; color: var(--ink-subtle); }
+      .chips { display: flex; gap: 16px; margin-top: 52px; justify-content: flex-start; }
+      .chip { display: inline-block; font-size: 28px; padding: 10px 28px; border-radius: 37px; border: 2px solid var(--line); color: var(--ink); }
+      .chip.on { background: var(--accent); border-color: var(--accent-deep); color: #fff; }
+      #rtl-caption { margin-top: 28px; font-size: 24px; color: var(--ink-subtle); direction: ltr; text-align: right; }
+
+      /* ---------- upload ---------- */
+      .left-col { position: absolute; left: 140px; top: 300px; width: 640px; }
+      .display-h { font-size: 96px; line-height: 1.08; letter-spacing: -0.02em; font-weight: 300; }
+      .standfirst { font-size: 26px; color: var(--accent); letter-spacing: 0.04em; margin-bottom: 32px; }
+      .demo-card {
+        position: absolute; left: 860px; top: 250px; width: 920px;
+        background: var(--panel); border: 2px solid var(--line); border-radius: 24px; overflow: hidden;
+      }
+      .demo-head { display: flex; justify-content: space-between; padding: 26px 44px; border-bottom: 2px solid var(--line); font-size: 22px; color: var(--ink-subtle); letter-spacing: 0.06em; }
+      .demo-body { padding: 40px 44px 44px; }
+      .up-head { display: flex; justify-content: space-between; font-size: 28px; }
+      #up-state { color: var(--accent); }
+      #up-state.alert { color: var(--alert); }
+      #up-rate { color: var(--ink-subtle); }
+      .bar { margin-top: 26px; height: 14px; border-radius: 46px; background: var(--panel-deep); overflow: hidden; }
+      #up-fill { display: block; width: 100%; height: 100%; background: var(--accent); transform-origin: 0 50%; }
+      .controls { margin-top: 36px; height: 72px; position: relative; }
+      .btn {
+        position: absolute; left: 0; top: 0; height: 72px; padding: 0 44px; border-radius: 46px;
+        display: flex; align-items: center; font-size: 28px; font-weight: 400; border: 2px solid transparent;
+      }
+      #cut-btn { background: var(--lime); border-color: var(--lime-edge); color: var(--ink); }
+      #retry { position: absolute; left: 0; top: 18px; font-size: 30px; color: var(--alert); opacity: 0; }
+      .log { margin-top: 30px; min-height: 84px; font-size: 27px; line-height: 1.5; }
+      .log p { opacity: 0; }
+      #log-resumed { color: var(--ink); }
+      #log-complete { color: var(--accent); }
+
+      .cursor { position: absolute; width: 44px; height: 44px; left: 0; top: 0; opacity: 0; }
+      .cursor svg { width: 100%; height: 100%; }
+
+      /* ---------- consent ---------- */
+      #consent-card { top: 230px; }
+      .doc-title { font-size: 38px; font-weight: 400; line-height: 1.25; }
+      .kv { margin-top: 26px; font-size: 25px; color: var(--ink-subtle); }
+      .kv b { font-weight: 400; color: var(--ink); }
+      .thumbs-label { margin-top: 30px; font-size: 22px; color: var(--ink-subtle); letter-spacing: 0.04em; }
+      .thumbs { margin-top: 16px; display: flex; gap: 20px; align-items: center; }
+      .thumb { position: relative; width: 200px; height: 112px; border-radius: 8px; overflow: hidden; background: #05070a; }
+      .thumb img { width: 100%; height: 100%; object-fit: cover; display: block; }
+      .thumb .lock { position: absolute; inset: 0; display: grid; place-items: center; opacity: 0; background: rgb(255 255 255 / 0.35); }
+      .thumb .lock svg { width: 40px; height: 40px; fill: none; stroke: var(--ink); stroke-width: 2; }
+      #revoke-btn { position: relative; margin-left: auto; height: 64px; padding: 0 36px; border-radius: 46px; border: 2px solid var(--alert); color: var(--alert); display: flex; align-items: center; font-size: 26px; font-weight: 400; background: var(--ground); }
+      #revoked-notice { margin-top: 26px; font-size: 26px; color: var(--alert); opacity: 0; }
+
+      /* ---------- terminal ---------- */
+      #term .wrap { background: var(--accent-deep); }
+      .term { position: absolute; left: 160px; top: 170px; width: 1600px; font-size: 36px; line-height: 1.7; color: rgb(255 255 255 / 0.92); }
+      .term .dim { color: rgb(255 255 255 / 0.66); }
+      .term .ln { opacity: 0; white-space: pre; }
+      .tag { display: inline-block; width: 110px; }
+      .ok { color: var(--lime); }
+      .blkd { color: #fff; background: var(--alert); border-radius: 6px; padding: 0 10px; margin-left: -10px; margin-right: 10px; width: auto; }
+      #cmd-caret { display: inline-block; width: 18px; height: 40px; background: var(--lime); vertical-align: -6px; margin-left: 4px; }
+      #verdict { margin-top: 40px; display: inline-block; font-size: 88px; line-height: 1.2; letter-spacing: 0.02em; color: #fff; background: var(--alert); padding: 10px 36px; border-radius: 14px; opacity: 0; }
+
+      /* ---------- close ---------- */
+      #close-line { position: absolute; left: 140px; top: 330px; width: 1400px; font-size: 100px; line-height: 1.12; letter-spacing: -0.02em; }
+      #close-foot { position: absolute; left: 140px; top: 700px; display: flex; align-items: center; gap: 22px; }
+      #close-foot .caption { margin-left: 28px; font-size: 26px; color: var(--ink-subtle); }
+      #close-helix { position: absolute; right: -260px; top: 90px; width: 1140px; height: 900px; opacity: 0.16; }
+      #close-helix img { width: 100%; height: 100%; }
+    </style>
+  </head>
+  <body>
+    <div data-hf-id="hf-nzls" id="root" data-composition-id="main" data-start="0" data-duration="24.6" data-width="1920" data-height="1080">
+
+      <!-- ================= Scenes 1+2 — the promise, then mirrored (0 – 6.6s) ================= -->
+      <section data-hf-id="hf-sboe" id="hero" class="scene clip" data-start="0" data-duration="6.6" data-track-index="0">
+        <div data-hf-id="hf-3zs5" class="wrap" id="hero-wrap" data-layout-allow-overlap="">
+          <div data-hf-id="hf-i8xr" id="helix"><img data-hf-id="hf-fb0j" src="assets/img/helix.png" alt=""></div>
+
+          <div data-hf-id="hf-dnfu" class="lockup" id="lock-ltr" style="left: 140px">
+            <div data-hf-id="hf-f6ek" class="tile"><svg data-hf-id="hf-ulu9" viewBox="0 0 24 24"><circle data-hf-id="hf-k1ww" cx="12" cy="12" r="5.5" /><path data-hf-id="hf-y3h8" d="M12 2.5v4M12 17.5v4M2.5 12h4M17.5 12h4" /></svg></div>
+            <span data-hf-id="hf-ixki" class="wordmark">MIR</span>
+          </div>
+          <div data-hf-id="hf-89lj" class="lockup" id="lock-rtl" style="right: 140px; opacity: 0">
+            <span data-hf-id="hf-t3xy" class="wordmark">MIR</span>
+            <div data-hf-id="hf-8r7o" class="tile"><svg data-hf-id="hf-1tol" viewBox="0 0 24 24"><circle data-hf-id="hf-bybs" cx="12" cy="12" r="5.5" /><path data-hf-id="hf-5es4" d="M12 2.5v4M12 17.5v4M2.5 12h4M17.5 12h4" /></svg></div>
+          </div>
+
+          <div data-hf-id="hf-e0tj" id="scan-tile"></div>
+          <div data-hf-id="hf-ooau" id="scan-meta" class="mono"><span data-hf-id="hf-0t24">SHEPP–LOGAN PHANTOM · SYNTHETIC</span><span data-hf-id="hf-gkjh" id="slice-n">SLICE 01 / 24</span></div>
+
+          <div data-hf-id="hf-v8mx" id="en-text" class="hero-text">
+            <p data-hf-id="hf-gcfz" class="eyebrow mono" id="en-eyebrow">Cross-border medical imaging transfer</p>
+            <h1 data-hf-id="hf-ir7w" class="headline" id="en-head"></h1>
+          </div>
+
+          <div data-hf-id="hf-rwxj" id="ar-text" class="hero-text" lang="ar">
+            <p data-hf-id="hf-y4zw" class="eyebrow" id="ar-eyebrow">نقل التصوير الطبي عبر الحدود</p>
+            <h1 data-hf-id="hf-s1oc" class="headline" id="ar-head"></h1>
+            <div data-hf-id="hf-79yy" class="chips mono">
+              <span data-hf-id="hf-zl55" class="chip on" id="chip-ar">ar</span>
+              <span data-hf-id="hf-41rg" class="chip" id="chip-fr">fr</span>
+              <span data-hf-id="hf-nvxe" class="chip" id="chip-en">en</span>
+            </div>
+            <p data-hf-id="hf-ybez" id="rtl-caption" class="mono">RTL from day one</p>
+          </div>
+        </div>
+      </section>
+
+      <!-- ================= Scene 3 — Try to break it (6.1 – 13.6s) ================= -->
+      <section data-hf-id="hf-x3v5" id="upload" class="scene clip" data-start="6.1" data-duration="7.5" data-track-index="1">
+        <div data-hf-id="hf-g19c" class="wrap" id="upload-wrap" data-layout-allow-overlap="">
+          <div data-hf-id="hf-3asb" class="left-col" id="up-left">
+            <p data-hf-id="hf-wcb9" class="standfirst mono">The connection drops. The upload does not start again.</p>
+            <h2 data-hf-id="hf-zx7s" class="display-h" id="up-title"></h2>
+          </div>
+
+          <div data-hf-id="hf-mx7k" class="demo-card" id="up-card">
+            <div data-hf-id="hf-65rx" class="demo-head mono"><span data-hf-id="hf-xtl9">TRANSFER · SIMULATED</span><span data-hf-id="hf-fwhq" id="up-count">0 / 312</span></div>
+            <div data-hf-id="hf-cafq" class="demo-body">
+              <div data-hf-id="hf-vyej" class="up-head mono"><span data-hf-id="hf-0xao" id="up-state">Ready</span><span data-hf-id="hf-krvd" id="up-rate">Rate 0.0 MB/s</span></div>
+              <div data-hf-id="hf-ufsv" class="bar"><span data-hf-id="hf-vwxt" id="up-fill"></span></div>
+              <div data-hf-id="hf-fycu" class="controls">
+                <div data-hf-id="hf-fbkg" class="btn" id="cut-btn">Cut the connection</div>
+                <div data-hf-id="hf-5gte" class="mono" id="retry">Retrying in 3s</div>
+              </div>
+              <div data-hf-id="hf-rltv" class="log mono">
+                <p data-hf-id="hf-fyhp" id="log-resumed">Resumed exactly where it stopped. Nothing re-sent.</p>
+                <p data-hf-id="hf-uz4z" id="log-complete">Transfer complete. The study’s checksum matched.</p>
+              </div>
+            </div>
+          </div>
+
+          <div data-hf-id="hf-3n1w" class="cursor" id="cursor-up"><svg data-hf-id="hf-30lo" viewBox="0 0 24 24"><path data-hf-id="hf-byew" d="M4 2l15 9.5-6.6 1.3 3.9 7.4-2.8 1.5-3.9-7.5L4 19z" fill="#000" stroke="#fff" stroke-width="1.4" stroke-linejoin="round" /></svg></div>
+        </div>
+      </section>
+
+      <!-- ================= Scene 4 — Consent is a record (13.0 – 17.2s) ================= -->
+      <section data-hf-id="hf-5lu2" id="consent" class="scene clip" data-start="13.0" data-duration="4.2" data-track-index="2">
+        <div data-hf-id="hf-51vb" class="wrap" id="consent-wrap" data-layout-allow-overlap="">
+          <div data-hf-id="hf-2s2o" class="left-col" id="co-left" style="top: 320px">
+            <h2 data-hf-id="hf-pfih" class="display-h" id="co-title"></h2>
+          </div>
+
+          <div data-hf-id="hf-3u97" class="demo-card" id="consent-card">
+            <div data-hf-id="hf-5rrl" class="demo-head mono"><span data-hf-id="hf-zmz3">CONSENT · cross_border_transfer</span><span data-hf-id="hf-eft8">v1</span></div>
+            <div data-hf-id="hf-i18a" class="demo-body">
+              <p data-hf-id="hf-yv0z" class="doc-title">Consent to cross-border transfer of a medical study</p>
+              <p data-hf-id="hf-58wp" class="kv mono">Granted to <b data-hf-id="hf-mqu6">Receiving doctor — the name is shown to the patient</b></p>
+              <p data-hf-id="hf-ruho" class="thumbs-label mono">Studies covered by this consent</p>
+              <div data-hf-id="hf-go5f" class="thumbs">
+                <div data-hf-id="hf-mixc" class="thumb"><img data-hf-id="hf-7t9d" src="assets/img/seq/slice-0008.webp" alt=""><div data-hf-id="hf-fhcd" class="lock"><svg data-hf-id="hf-2man" viewBox="0 0 24 24"><rect data-hf-id="hf-6c2c" x="5" y="11" width="14" height="9" rx="2" /><path data-hf-id="hf-tdb4" d="M8 11V8a4 4 0 0 1 8 0v3" /></svg></div></div>
+                <div data-hf-id="hf-opbc" class="thumb"><img data-hf-id="hf-ouu6" src="assets/img/seq/slice-0012.webp" alt=""><div data-hf-id="hf-xrcx" class="lock"><svg data-hf-id="hf-3t7q" viewBox="0 0 24 24"><rect data-hf-id="hf-y9ws" x="5" y="11" width="14" height="9" rx="2" /><path data-hf-id="hf-uv14" d="M8 11V8a4 4 0 0 1 8 0v3" /></svg></div></div>
+                <div data-hf-id="hf-nie9" class="thumb"><img data-hf-id="hf-pf6q" src="assets/img/seq/slice-0016.webp" alt=""><div data-hf-id="hf-yya0" class="lock"><svg data-hf-id="hf-3ewp" viewBox="0 0 24 24"><rect data-hf-id="hf-x2zp" x="5" y="11" width="14" height="9" rx="2" /><path data-hf-id="hf-to41" d="M8 11V8a4 4 0 0 1 8 0v3" /></svg></div></div>
+                <div data-hf-id="hf-zok6" id="revoke-btn">Revoke</div>
+              </div>
+              <p data-hf-id="hf-jybc" class="mono" id="revoked-notice">Consent revoked. The study is no longer reachable.</p>
+            </div>
+          </div>
+
+          <div data-hf-id="hf-0c3l" class="cursor" id="cursor-co"><svg data-hf-id="hf-4lts" viewBox="0 0 24 24"><path data-hf-id="hf-ciq8" d="M4 2l15 9.5-6.6 1.3 3.9 7.4-2.8 1.5-3.9-7.5L4 19z" fill="#000" stroke="#fff" stroke-width="1.4" stroke-linejoin="round" /></svg></div>
+        </div>
+      </section>
+
+      <!-- ================= Scene 5 — The turn (hard cut, 17.2 – 22.1s) ================= -->
+      <section data-hf-id="hf-n16s" id="term" class="scene clip" data-start="17.2" data-duration="4.9" data-track-index="3">
+        <div data-hf-id="hf-fwcn" class="wrap" id="term-wrap" data-layout-allow-overlap="">
+          <div data-hf-id="hf-yp97" class="term mono">
+            <div data-hf-id="hf-yeow"><span data-hf-id="hf-zuq3" class="dim">$ </span><span data-hf-id="hf-wuvq" id="cmd"></span><span data-hf-id="hf-doig" id="cmd-caret"></span></div>
+            <div data-hf-id="hf-mge0" class="ln" id="g1"><span data-hf-id="hf-1uqt" class="tag ok">OK</span>P7.2   Interrupted upload resumes</div>
+            <div data-hf-id="hf-rgh1" class="ln" id="g2"><span data-hf-id="hf-0iex" class="tag ok">OK</span>P4.4   Audit immutable under tamper</div>
+            <div data-hf-id="hf-ci84" class="ln" id="g3"><span data-hf-id="hf-1pc0" class="tag ok">OK</span>P5.3   Consent evidence + revocation</div>
+            <div data-hf-id="hf-e4e9" class="ln" id="g4"><span data-hf-id="hf-nkej" class="tag blkd">BLKD</span>P14.4  Pen test, high/critical remediated</div>
+            <div data-hf-id="hf-5wb4" class="ln dim" id="g5">verified 29   local 3   partial 5   open 1   blocked 9   (of 47)</div>
+            <div data-hf-id="hf-pglg" class="ln dim" id="g6">BLOCKING LEGAL: L1 L2 L3 L4 L5 L6 L7 L8 — none answered.</div>
+            <div data-hf-id="hf-cq52" id="verdict">NOT LAUNCHABLE.</div>
+          </div>
+        </div>
+      </section>
+
+      <!-- ================= Scene 6 — The close (21.3 – 24.6s) ================= -->
+      <section data-hf-id="hf-u76g" id="close" class="scene clip" data-start="21.3" data-duration="3.3" data-track-index="4">
+        <div data-hf-id="hf-bhs1" class="wrap" id="close-wrap" data-layout-allow-overlap="">
+          <div data-hf-id="hf-fsko" id="close-helix"><img data-hf-id="hf-in7n" src="assets/img/helix.png" alt=""></div>
+          <p data-hf-id="hf-126y" id="close-line">The blockers are legal and infrastructural, not code.</p>
+          <div data-hf-id="hf-lb9w" id="close-foot">
+            <div data-hf-id="hf-7kal" class="tile"><svg data-hf-id="hf-47ir" viewBox="0 0 24 24"><circle data-hf-id="hf-arep" cx="12" cy="12" r="5.5" /><path data-hf-id="hf-47v1" d="M12 2.5v4M12 17.5v4M2.5 12h4M17.5 12h4" /></svg></div>
+            <span data-hf-id="hf-ti8z" class="wordmark">MIR</span>
+            <span data-hf-id="hf-lq3x" class="caption mono">29 of 47 gates verified. 8 legal questions open.</span>
+          </div>
+        </div>
+      </section>
+
+      <!-- ================= Audio ================= -->
+      <!-- vol-12, low-passed; its duck/dip/cut envelope is baked into bed.mp3 (see brag-plan.md) -->
+      <audio data-hf-id="hf-3541" id="bed" src="assets/music/bed.mp3" data-start="0" data-duration="24.6" data-track-index="10" data-volume="1"></audio>
+      <!-- beat-grid: locale chips at 4.39 / 4.91 / 5.34 -->
+      <audio data-hf-id="hf-z5ap" id="sfx-chip1" src="assets/sfx/interface/click_003.ogg" data-start="4.39" data-duration="0.3" data-track-index="11" data-volume="0.45"></audio>
+      <audio data-hf-id="hf-j9tz" id="sfx-chip2" src="assets/sfx/interface/click_003.ogg" data-start="4.91" data-duration="0.3" data-track-index="12" data-volume="0.38"></audio>
+      <audio data-hf-id="hf-8qxn" id="sfx-chip3" src="assets/sfx/interface/click_003.ogg" data-start="5.34" data-duration="0.3" data-track-index="13" data-volume="0.3"></audio>
+      <audio data-hf-id="hf-iw2m" id="sfx-cut-click" src="assets/sfx/ui/click2.ogg" data-start="8.72" data-duration="0.3" data-track-index="14" data-volume="0.7"></audio>
+      <audio data-hf-id="hf-zpqc" id="sfx-cut-drop" src="assets/sfx/impact/impactSoft_medium_001.ogg" data-start="8.76" data-duration="0.4" data-track-index="15" data-volume="0.6"></audio>
+      <audio data-hf-id="hf-lkus" id="sfx-checksum" src="assets/sfx/interface/bong_001.ogg" data-start="12.3" data-duration="0.5" data-track-index="16" data-volume="0.5"></audio>
+      <audio data-hf-id="hf-397v" id="sfx-revoke-click" src="assets/sfx/ui/click2.ogg" data-start="15.27" data-duration="0.3" data-track-index="17" data-volume="0.7"></audio>
+      <audio data-hf-id="hf-t9k2" id="sfx-revoke-lock" src="assets/sfx/impact/impactSoft_medium_004.ogg" data-start="15.36" data-duration="0.4" data-track-index="18" data-volume="0.55"></audio>
+      <audio data-hf-id="hf-bjpe" id="sfx-key1" src="assets/sfx/keyboard/keypress-003.wav" data-start="17.42" data-duration="0.2" data-track-index="19" data-volume="0.32"></audio>
+      <audio data-hf-id="hf-unhy" id="sfx-key2" src="assets/sfx/keyboard/keypress-018.wav" data-start="17.53" data-duration="0.2" data-track-index="20" data-volume="0.28"></audio>
+      <audio data-hf-id="hf-r78k" id="sfx-key3" src="assets/sfx/keyboard/keypress-007.wav" data-start="17.65" data-duration="0.2" data-track-index="21" data-volume="0.32"></audio>
+      <audio data-hf-id="hf-fm9h" id="sfx-key4" src="assets/sfx/keyboard/keypress-026.wav" data-start="17.77" data-duration="0.2" data-track-index="22" data-volume="0.26"></audio>
+      <audio data-hf-id="hf-qisk" id="sfx-key5" src="assets/sfx/keyboard/keypress-012.wav" data-start="17.89" data-duration="0.2" data-track-index="23" data-volume="0.3"></audio>
+      <audio data-hf-id="hf-s8kd" id="sfx-key6" src="assets/sfx/keyboard/keypress-029.wav" data-start="18.0" data-duration="0.2" data-track-index="24" data-volume="0.28"></audio>
+      <audio data-hf-id="hf-nkix" id="sfx-key7" src="assets/sfx/keyboard/keypress-021.wav" data-start="18.12" data-duration="0.2" data-track-index="25" data-volume="0.34"></audio>
+    </div>
+
+    <script>
+      (function () {
+        var $ = function (s) { return document.querySelector(s); };
+        var tl = gsap.timeline({ paused: true });
+
+        // A driver: a linear tween whose onUpdate renders state as a pure function of
+        // timeline time, so any seek (forward, backward, cold) paints the same frame.
+        function drive(start, end, fn) {
+          var o = { p: 0 };
+          fn(start);
+          tl.to(o, { p: 1, duration: end - start, ease: "none", onUpdate: function () { fn(start + o.p * (end - start)); } }, start);
+        }
+        function words(el, text) {
+          el.innerHTML = text.split(" ").map(function (w, i, a) {
+            return '<span class="word">' + w + (i < a.length - 1 ? " " : "") + "</span>";
+          }).join("");
+          return el.querySelectorAll(".word");
+        }
+
+        // ================= Scenes 1+2 =================
+        var tileEl = $("#scan-tile");
+        var slices = [];
+        for (var i = 1; i <= 24; i++) {
+          var im = document.createElement("img");
+          im.src = "assets/img/seq/slice-" + String(i).padStart(4, "0") + ".webp";
+          im.alt = "";
+          tileEl.appendChild(im);
+          slices.push(im);
+        }
+        var sliceN = $("#slice-n");
+        var lastSlice = -1;
+        // ping-pong through the interior slices (5–17) at ~8 fps so the scan reads as a volume
+        drive(0, 6.6, function (t) {
+          var k = (Math.floor(t * 8) + 6) % 24;
+          var idx = 4 + (k < 12 ? k : 24 - k);
+          if (idx !== lastSlice) {
+            for (var j = 0; j < 24; j++) slices[j].style.opacity = j === idx ? 1 : 0;
+            sliceN.textContent = "SLICE " + String(idx + 1).padStart(2, "0") + " / 24";
+            lastSlice = idx;
+          }
+        });
+
+        // audio-reactive: the helix breathes with the bed's bass (subtle; no visualizer)
+        var helix = $("#helix");
+        drive(0, 6.6, function (t) {
+          var f = Math.min(MIR_BASS.v.length - 1, Math.max(0, Math.round(t * MIR_BASS.fps)));
+          var b = MIR_BASS.v[f];
+          var base = t < 3.9 ? 0.3 : 0.3 - Math.min(1, (t - 3.9) / 0.7) * 0.16;
+          helix.style.opacity = (base + b * 0.12).toFixed(3);
+          helix.style.transform = "scale(" + (1 + b * 0.025).toFixed(4) + ") translateY(" + (-t * 6).toFixed(1) + "px)";
+        });
+
+        var enWords = words($("#en-head"), "Their scan arrives before they do.");
+        tl.fromTo("#lock-ltr", { opacity: 0, x: -16 }, { opacity: 1, x: 0, duration: 0.6, ease: "power3.out" }, 0.1);
+        tl.fromTo("#en-eyebrow", { opacity: 0, y: 12 }, { opacity: 1, y: 0, duration: 0.5, ease: "power2.out" }, 0.2);
+        tl.fromTo(enWords, { opacity: 0, y: 28, filter: "blur(10px)" }, { opacity: 1, y: 0, filter: "blur(0px)", duration: 0.6, ease: "expo.out", stagger: 0.12 }, 0.4);
+        tl.fromTo(tileEl, { opacity: 0, scale: 0.96 }, { opacity: 1, scale: 1, duration: 0.8, ease: "power3.out" }, 0.3);
+        tl.fromTo("#scan-meta", { opacity: 0 }, { opacity: 1, duration: 0.5 }, 0.8);
+
+        // the mirror (3.8s): English out, tile + meta slide to the left, Arabic in
+        tl.to(["#en-text", "#lock-ltr"], { opacity: 0, filter: "blur(8px)", duration: 0.4, ease: "power2.in" }, 3.75);
+        tl.to([tileEl, "#scan-meta"], { x: -880, duration: 0.8, ease: "power3.inOut" }, 3.8);
+        tl.fromTo("#lock-rtl", { opacity: 0, x: 16 }, { opacity: 1, x: 0, duration: 0.5, ease: "power3.out" }, 4.2);
+        var arWords = words($("#ar-head"), "الصورة تصل قبل المريض.");
+        tl.fromTo("#ar-eyebrow", { opacity: 0, y: 12 }, { opacity: 1, y: 0, duration: 0.5, ease: "power2.out" }, 4.05);
+        tl.fromTo(arWords, { opacity: 0, y: 28, filter: "blur(10px)" }, { opacity: 1, y: 0, filter: "blur(0px)", duration: 0.6, ease: "expo.out", stagger: 0.1 }, 4.1);
+        // beat-grid: chip ar 4.39, fr 4.91, en 5.34 — then the set holds
+        tl.fromTo("#chip-ar", { opacity: 0, y: 14 }, { opacity: 1, y: 0, duration: 0.3, ease: "back.out(2)" }, 4.39);
+        tl.fromTo("#chip-fr", { opacity: 0, y: 14 }, { opacity: 1, y: 0, duration: 0.3, ease: "back.out(2)" }, 4.91);
+        tl.fromTo("#chip-en", { opacity: 0, y: 14 }, { opacity: 1, y: 0, duration: 0.3, ease: "back.out(2)" }, 5.34);
+        tl.fromTo("#rtl-caption", { opacity: 0 }, { opacity: 1, duration: 0.4 }, 5.3);
+
+        // ================= Scene 3 — upload =================
+        tl.fromTo("#upload-wrap", { opacity: 0 }, { opacity: 1, duration: 0.5, ease: "power1.inOut" }, 6.1);
+        var upWords = words($("#up-title"), "Try to break it.");
+        tl.fromTo("#up-left .standfirst", { opacity: 0, y: 12 }, { opacity: 1, y: 0, duration: 0.5, ease: "power2.out" }, 6.35);
+        tl.fromTo(upWords, { opacity: 0, y: 28, filter: "blur(10px)" }, { opacity: 1, y: 0, filter: "blur(0px)", duration: 0.6, ease: "expo.out", stagger: 0.1 }, 6.4);
+        tl.fromTo("#up-card", { opacity: 0, y: 40 }, { opacity: 1, y: 0, duration: 0.7, ease: "power3.out" }, 6.3);
+
+        var T0 = 6.9, CUT = 8.74 /* beat-locked: 8.74s */, RES = 10.93 /* beat-locked: 10.93s */, DONE = 12.3, N = 312, AT_CUT = 121;
+        var upCount = $("#up-count"), upState = $("#up-state"), upRate = $("#up-rate"), upFill = $("#up-fill"),
+          cutBtn = $("#cut-btn"), retry = $("#retry");
+        drive(6.1, 13.6, function (t) {
+          var files, phase, rate;
+          if (t < T0) { files = 0; phase = "idle"; }
+          else if (t < CUT) { files = Math.round(AT_CUT * (t - T0) / (CUT - T0)); phase = "up"; }
+          else if (t < RES) { files = AT_CUT; phase = "cut"; }
+          else if (t < DONE) { files = AT_CUT + Math.round((N - AT_CUT) * (t - RES) / (DONE - RES)); phase = "up"; }
+          else { files = N; phase = "done"; }
+          rate = phase === "up" ? (4.2 + 0.35 * Math.sin(t * 6.3)).toFixed(1) : "0.0";
+          upCount.textContent = files + " / " + N;
+          upRate.textContent = "Rate " + rate + " MB/s";
+          upState.textContent = { idle: "Ready", up: "Uploading", cut: "Connection cut", done: "Complete" }[phase];
+          upState.className = phase === "cut" ? "alert" : "";
+          upFill.style.transform = "scaleX(" + (files / N).toFixed(4) + ")";
+          // the bar STOPS and goes alert — it never restarts
+          upFill.style.backgroundColor = phase === "cut" ? "#b3261e" : "#246f65";
+          cutBtn.style.opacity = phase === "cut" || phase === "done" ? 0 : phase === "idle" ? 0.55 : 1;
+          retry.style.opacity = phase === "cut" ? 1 : 0;
+          if (phase === "cut") retry.textContent = "Retrying in " + Math.max(1, 3 - Math.floor((t - CUT) / 0.73)) + "s";
+        });
+        tl.fromTo("#log-resumed", { opacity: 0, y: 10 }, { opacity: 1, y: 0, duration: 0.35, ease: "power2.out" }, RES + 0.05);
+        tl.fromTo("#log-complete", { opacity: 0, y: 10 }, { opacity: 1, y: 0, duration: 0.35, ease: "power2.out" }, DONE);
+
+        // cursor: in from lower right, presses "Cut the connection" on the beat
+        tl.fromTo("#cursor-up", { opacity: 0, x: 1720, y: 1010 }, { opacity: 1, x: 1080, y: 612, duration: 0.8, ease: "power3.out" }, 7.8);
+        tl.to("#cursor-up", { scale: 0.85, duration: 0.08, ease: "power1.in" }, CUT - 0.08);
+        tl.to("#cut-btn", { scale: 0.96, duration: 0.08, ease: "power1.in" }, CUT - 0.08);
+        tl.to(["#cursor-up", "#cut-btn"], { scale: 1, duration: 0.18, ease: "power2.out" }, CUT);
+        tl.to("#cursor-up", { opacity: 0, x: 1300, y: 760, duration: 0.6, ease: "power2.in" }, 9.3);
+
+        // ================= Scene 4 — consent =================
+        tl.fromTo("#consent-wrap", { opacity: 0 }, { opacity: 1, duration: 0.5, ease: "power1.inOut" }, 13.0);
+        var coWords = words($("#co-title"), "Consent is a record, not a checkbox.");
+        tl.fromTo(coWords, { opacity: 0, y: 28, filter: "blur(10px)" }, { opacity: 1, y: 0, filter: "blur(0px)", duration: 0.6, ease: "expo.out", stagger: 0.08 }, 13.3);
+        tl.fromTo("#consent-card", { opacity: 0, y: 40 }, { opacity: 1, y: 0, duration: 0.7, ease: "power3.out" }, 13.25);
+
+        var REV = 15.29; // beat
+        tl.fromTo("#cursor-co", { opacity: 0, x: 1760, y: 1000 }, { opacity: 1, x: 1712, y: 668, duration: 0.7, ease: "power3.out" }, 14.5);
+        tl.to(["#cursor-co", "#revoke-btn"], { scale: 0.9, duration: 0.07, ease: "power1.in" }, REV - 0.07);
+        tl.to(["#cursor-co", "#revoke-btn"], { scale: 1, duration: 0.18, ease: "power2.out" }, REV);
+        tl.to("#revoke-btn", { backgroundColor: "#b3261e", color: "#ffffff", duration: 0.15 }, REV);
+        tl.to(".thumb img", { filter: "grayscale(1) brightness(0.55)", duration: 0.25, stagger: 0.12, ease: "power2.out" }, REV + 0.05);
+        tl.fromTo(".thumb .lock", { opacity: 0, scale: 0.7 }, { opacity: 1, scale: 1, duration: 0.25, stagger: 0.12, ease: "back.out(2)" }, REV + 0.08);
+        tl.fromTo("#revoked-notice", { opacity: 0, y: 10 }, { opacity: 1, y: 0, duration: 0.3, ease: "power2.out" }, REV + 0.15);
+        tl.to("#cursor-co", { opacity: 0, duration: 0.4 }, 16.0);
+
+        // ================= Scene 5 — the turn (hard cut at 17.2) =================
+        var CMD = "pnpm verify:gates";
+        var cmdEl = $("#cmd"), caret = $("#cmd-caret");
+        drive(17.2, 22.1, function (t) {
+          var n = Math.max(0, Math.min(CMD.length, Math.floor((t - 17.4) / 0.042)));
+          cmdEl.textContent = CMD.slice(0, n);
+          caret.style.opacity = t < 18.2 ? 1 : 0;
+        });
+        ["#g1", "#g2", "#g3", "#g4"].forEach(function (id, k) {
+          tl.fromTo(id, { opacity: 0, x: -8 }, { opacity: 1, x: 0, duration: 0.12, ease: "power1.out" }, 18.4 + k * 0.26);
+        });
+        tl.fromTo("#g5", { opacity: 0 }, { opacity: 1, duration: 0.15 }, 19.55);
+        tl.fromTo("#g6", { opacity: 0 }, { opacity: 1, duration: 0.15 }, 19.8);
+        // the verdict lands alone, as the music is cut (bed.mp3 goes silent at 20.2)
+        tl.fromTo("#verdict", { opacity: 0 }, { opacity: 1, duration: 0.06 }, 20.2);
+
+        // ================= Scene 6 — the close =================
+        tl.fromTo("#close-wrap", { opacity: 0 }, { opacity: 1, duration: 0.8, ease: "power1.inOut" }, 21.3);
+        tl.fromTo("#close-line", { opacity: 0, y: 24, filter: "blur(8px)" }, { opacity: 1, y: 0, filter: "blur(0px)", duration: 0.8, ease: "expo.out" }, 21.6);
+        tl.fromTo("#close-foot", { opacity: 0, y: 12 }, { opacity: 1, y: 0, duration: 0.6, ease: "power2.out" }, 22.4);
+        tl.fromTo("#close-helix", { y: 20 }, { y: -20, duration: 3.3, ease: "none" }, 21.3);
+
+        window.__timelines["main"] = tl;
+      })();
+    </script>
+  </body>
+</html>

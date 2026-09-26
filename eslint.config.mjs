@@ -103,6 +103,19 @@ export default tseslint.config(
     },
   },
 
+  {
+    // next/link prefetches every visible link. The wrapper turns that off by
+    // default so pages only fetch what the user navigates to.
+    files: ['apps/web/**/*.tsx', 'apps/web/**/*.ts'],
+    ignores: ['apps/web/components/ui/link.tsx'],
+    rules: {
+      'no-restricted-imports': [
+        'error',
+        { paths: [{ name: 'next/link', message: 'Import Link from components/ui/link (prefetch off by default).' }] },
+      ],
+    },
+  },
+
 
   {
     // DECISION D4, ported to Tailwind: physical-direction utilities do not

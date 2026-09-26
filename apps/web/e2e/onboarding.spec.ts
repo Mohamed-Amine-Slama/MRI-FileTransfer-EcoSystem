@@ -83,7 +83,7 @@ test.describe('account recovery (§5.1)', () => {
 });
 
 test.describe('role gating is stated, not silent (§4.4)', () => {
-  for (const path of ['/cases', '/ledger', '/workspace', '/notifications', '/admin/cases']) {
+  for (const path of ['/cases', '/ledger', '/workspace', '/notifications', '/admin', '/admin/cases']) {
     test(`${path} tells an anonymous visitor to sign in`, async ({ page }) => {
       await page.goto(path);
       await expect(page.getByTestId('sign-in-required')).toBeVisible();

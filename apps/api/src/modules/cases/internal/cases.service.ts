@@ -1,8 +1,7 @@
 import { ConflictException, Inject, Injectable, Logger, NotFoundException } from '@nestjs/common';
-import { caseStatusSchema, isTerminalStatus } from '@mir/contracts';
 import { APP_CONFIG } from '../../../shared/config/config.module';
 import type { AppConfig } from '../../../shared/config/config.schema';
-import { requireContext } from '../../../shared/context/request-context';
+import { requireContext, runWithContext, systemContext } from '../../../shared/context/request-context';
 import { DatabaseService } from '../../../shared/db/database.service';
 import type { DomainEventBase } from '../../../shared/events/domain-events';
 import { EventBus } from '../../../shared/events/event-bus';
@@ -50,6 +49,9 @@ export interface Case {
   notes: string | null;
   quotedAmountMinor: number | null;
   quotedCurrency: string | null;
+  /** The consult split locked at quote (spec 2026-09-21 §3). Null before a quote. */
+  clinicShareMinor: number | null;
+  doctorShareMinor: number | null;
   quoteExpiresAt: Date | null;
   acceptedAt: Date | null;
   answeredAt: Date | null;
@@ -91,6 +93,8 @@ interface CaseRow {
   notes: string | null;
   quoted_amount_minor: string | null;
   quoted_currency: string | null;
+  clinic_share_minor?: string | null;
+  doctor_share_minor?: string | null;
   quote_expires_at: Date | null;
   accepted_at: Date | null;
   answered_at: Date | null;
@@ -121,6 +125,8 @@ function toSummary(row: CaseRow): CaseSummary {
     // free consult.
     quotedAmountMinor: row.quoted_amount_minor === null ? null : Number(row.quoted_amount_minor),
     quotedCurrency: row.quoted_currency,
+    clinicShareMinor: row.clinic_share_minor == null ? null : Number(row.clinic_share_minor),
+    doctorShareMinor: row.doctor_share_minor == null ? null : Number(row.doctor_share_minor),
     quoteExpiresAt: row.quote_expires_at,
     acceptedAt: row.accepted_at,
     answeredAt: row.answered_at,
@@ -141,6 +147,7 @@ function toSummary(row: CaseRow): CaseSummary {
 const CASE_COLUMNS = `a.id, a.patient_id, a.doctor_id, a.organisation_id, a.specialty,
                 a.status, a.reason, a.notes,
                 a.quoted_amount_minor, a.quoted_currency, a.quote_expires_at,
+                a.clinic_share_minor, a.doctor_share_minor,
                 a.accepted_at, a.answered_at, a.answer_due_at,
                 a.case_ref, a.created_at, a.quoted_at,
                 GREATEST(a.created_at, a.quoted_at, a.accepted_at, a.answered_at, a.terminal_at)
@@ -162,7 +169,7 @@ const CASE_COLUMNS = `a.id, a.patient_id, a.doctor_id, a.organisation_id, a.spec
  */
 const RLS_REFUSED = '42501';
 
-function translateCaseWriteError(err: unknown, notFound: string): never {
+export function translateCaseWriteError(err: unknown, notFound: string): never {
   const code = (err as { code?: string }).code;
   // 23505 is the ledger's one-fee-per-case index, or a repeated study link.
   // Both mean "already recorded", which is a conflict rather than a failure.
@@ -173,6 +180,28 @@ function translateCaseWriteError(err: unknown, notFound: string): never {
     throw new NotFoundException(notFound);
   }
   throw err;
+}
+
+/**
+ * The audit fields every domain event carries, read from the request scope.
+ *
+ * `ipAddress` and `userAgent` are always PRESENT and sometimes undefined,
+ * matching DomainEventBase — spreading them away when absent would make the
+ * object structurally incompatible with the event union.
+ */
+export function actorFields(): Pick<
+  DomainEventBase,
+  'actorId' | 'actorRole' | 'occurredAt' | 'requestId' | 'ipAddress' | 'userAgent'
+> {
+  const ctx = requireContext();
+  return {
+    actorId: ctx.userId,
+    actorRole: ctx.role,
+    occurredAt: new Date(),
+    requestId: ctx.requestId,
+    ipAddress: ctx.ipAddress,
+    userAgent: ctx.userAgent,
+  };
 }
 
 @Injectable()
@@ -266,7 +295,7 @@ export class CasesService {
       patientId: item.patientId,
       organisationId: item.organisationId,
       specialty: item.specialty,
-      ...this.actorFields(),
+      ...actorFields(),
     });
     return item;
   }
@@ -328,11 +357,23 @@ export class CasesService {
                 quoted_currency = $4,
                 quoted_at = now(),
                 quote_expires_at = now() + ($5 || ' minutes')::interval,
+                -- The split is locked with the price (spec 2026-09-21 §3):
+                -- payment and payout read these, never the price table.
+                clinic_share_minor = $6,
+                doctor_share_minor = $7,
                 status = 'quoted'
           WHERE id = $1
             AND status IN ('submitted', 'declined')
             AND cases_doctor_accepting($2)`,
-        [caseId, doctorId, quote.amountMinor, quote.currency, this.config.CASES_QUOTE_TTL_MINUTES],
+        [
+          caseId,
+          doctorId,
+          quote.amountMinor,
+          quote.currency,
+          this.config.CASES_QUOTE_TTL_MINUTES,
+          quote.clinicShareMinor,
+          quote.doctorShareMinor,
+        ],
       );
       return res.rowCount ?? 0;
     });
@@ -366,9 +407,15 @@ export class CasesService {
       throw new ConflictException('This quote has lapsed; request a new one');
     }
 
-    // The referring side's fee. Accrued on payment rather than on submission:
-    // a case the lab abandons before paying costs it nothing.
-    await this.ledger.accrueCoordinationFee(caseId, 'source');
+    // The referring clinic's remittance fee. Accrued on payment rather than
+    // on submission: a case the lab abandons before paying costs it nothing.
+    //
+    // As the system role: the ledger's INSERT policy admits nobody else, so
+    // run as the clinic this silently accrued nothing. The caller has already
+    // proved the right to move the case; the entry is the platform's record.
+    await runWithContext(systemContext('case-accrual'), () =>
+      this.ledger.accrueClinicRemittance(caseId),
+    );
   }
 
   /**
@@ -536,12 +583,6 @@ export class CasesService {
     });
     if (accepted === undefined) throw new NotFoundException('Case not found');
 
-    // The receiving side's fee, accrued on acceptance rather than on
-    // assignment: the destination organisation owes for a referral it took on,
-    // and a declined one costs it nothing. `decline` deliberately accrues
-    // neither side's — see the plan's split.
-    await this.ledger.accrueCoordinationFee(caseId, 'destination');
-
     // Published where PaymentSucceeded used to be. The card's capture is what
     // told audit and notifications a booking was confirmed; the doctor's
     // acceptance says it now. Emitted only when a row actually changed, so a
@@ -551,7 +592,7 @@ export class CasesService {
       caseId,
       patientId: accepted.patient_id,
       doctorId: accepted.doctor_id,
-      ...this.actorFields(),
+      ...actorFields(),
     });
   }
 
@@ -576,7 +617,7 @@ export class CasesService {
       caseId,
       patientId: changed.patient_id,
       doctorId: changed.doctor_id,
-      ...this.actorFields(),
+      ...actorFields(),
     });
   }
 
@@ -601,19 +642,6 @@ export class CasesService {
   // the answer to both "no such case" and "not yours", which §6 requires be
   // indistinguishable.
   // -------------------------------------------------------------------------
-
-  /**
-   * The doctor's answer exists. Only from `accepted`: answering a case nobody
-   * accepted would skip the moment imaging unlocks, so the guard is the state
-   * and not a clock.
-   */
-  async markAnswered(caseId: string): Promise<void> {
-    await this.transition(caseId, 'answered', "status = 'accepted'");
-    await this.db.tx(async (tx) => {
-      await tx.query(`UPDATE cases_cases SET answered_at = now() WHERE id = $1`, [caseId]);
-    });
-  }
-
 
   /**
    * The receiving side withdraws, with a reason.
@@ -645,7 +673,7 @@ export class CasesService {
       patientId: item.patientId,
       doctorId: item.doctorId,
       ...(reason === undefined ? {} : { reason }),
-      ...this.actorFields(),
+      ...actorFields(),
     });
   }
 
@@ -673,65 +701,6 @@ export class CasesService {
     if (changed === 0) throw new NotFoundException('Case not found');
     return this.getCase(caseId);
   }
-
-  /** One status move, guarded by the states it is legal from. */
-  private async transition(
-    caseId: string,
-    to: string,
-    fromCondition: string,
-  ): Promise<void> {
-    // `terminal_at` is stamped for any state the contract calls terminal.
-    //
-    // This helper covers the generic moves, including the ops override. The
-    // four verbs that write their own UPDATE — decline, both cancels, expire —
-    // stamp it inline, because they set other columns in the same statement.
-    // That split is a standing hazard: a fifth such verb would forget. The
-    // lifecycle test asserting the stamp is what keeps them honest, which is
-    // why it is written against the observable column rather than against this
-    // code path.
-    //
-    // A missed stamp fails SAFE. The twin reap treats NULL as "never reap", so
-    // the cost is wasted storage, never a twin deleted while a case needs it.
-    //
-    // `answered` is deliberately not terminal: it still moves to `closed`.
-    const parsed = caseStatusSchema.safeParse(to);
-    const terminal = parsed.success && isTerminalStatus(parsed.data);
-
-    const changed = await this.db.tx(async (tx) => {
-      const res = await tx.query(
-        `UPDATE cases_cases
-         SET status = $2${terminal ? ', terminal_at = now()' : ''}
-         WHERE id = $1 AND ${fromCondition}`,
-        [caseId, to],
-      );
-      return res.rowCount ?? 0;
-    });
-    // Not visible, no such row, or not in a state this move is legal from.
-    if (changed === 0) throw new NotFoundException('Case not found');
-  }
-
-  /**
-   * The audit fields every domain event carries, read from the request scope.
-   *
-   * `ipAddress` and `userAgent` are always PRESENT and sometimes undefined,
-   * matching DomainEventBase — spreading them away when absent would make the
-   * object structurally incompatible with the event union.
-   */
-  private actorFields(): Pick<
-    DomainEventBase,
-    'actorId' | 'actorRole' | 'occurredAt' | 'requestId' | 'ipAddress' | 'userAgent'
-  > {
-    const ctx = requireContext();
-    return {
-      actorId: ctx.userId,
-      actorRole: ctx.role,
-      occurredAt: new Date(),
-      requestId: ctx.requestId,
-      ipAddress: ctx.ipAddress,
-      userAgent: ctx.userAgent,
-    };
-  }
-
 
   /**
    * Move accepted-but-unanswered cases to `expired`.

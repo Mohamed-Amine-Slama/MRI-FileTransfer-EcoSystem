@@ -10,8 +10,14 @@ import {
   type ReactNode,
 } from 'react';
 import type { Role } from '@mir/contracts';
-import { ApiError, setAccessToken } from '../api/client';
+import { ApiError, getAccessToken, refreshAccessToken, setAccessToken } from '../api/client';
 import { api, type SessionUser } from '../api/endpoints';
+
+/**
+ * Renew ahead of the five-minute token expiry, so requests that cannot retry
+ * on 401 themselves (Cornerstone's image XHRs) never go out with a dead token.
+ */
+const RENEW_EVERY_MS = 4 * 60_000;
 
 /**
  * Client session state.
@@ -24,7 +30,8 @@ import { api, type SessionUser } from '../api/endpoints';
  * edits their own memory gains access; they do not.
  *
  * The token is held in memory by the API client, so a reload requires a fresh
- * one from the identity provider. See setAccessToken for why not localStorage.
+ * one from the identity provider — which /auth/refresh gets with the httpOnly
+ * refresh cookie. See setAccessToken for why not localStorage.
  */
 
 type Status = 'loading' | 'authenticated' | 'anonymous';
@@ -45,6 +52,16 @@ export function SessionProvider({ children }: { children: ReactNode }): React.JS
   const [user, setUser] = useState<SessionUser | null>(null);
 
   const load = useCallback(async () => {
+    // After a reload the in-memory token is gone; the httpOnly refresh cookie
+    // (set at sign-in, see lib/auth/keycloak-token.ts) mints a new one.
+    if (getAccessToken() === null) await refreshAccessToken();
+    // Still no token: the API authenticates by bearer only, so /me would be a
+    // guaranteed 401. Skip the round trip — every signed-out page load paid it.
+    if (getAccessToken() === null) {
+      setUser(null);
+      setStatus('anonymous');
+      return;
+    }
     try {
       const me = await api.session.me();
       setUser(me);
@@ -61,11 +78,17 @@ export function SessionProvider({ children }: { children: ReactNode }): React.JS
     }
   }, []);
 
-  // On mount, ask the API who we are. If the edge carries a session cookie
-  // this succeeds with no token; otherwise it 401s and we render anonymous.
+  // On mount, restore the token from the refresh cookie and, if one comes
+  // back, ask the API who we are; otherwise render anonymous.
   useEffect(() => {
     void load();
   }, [load]);
+
+  useEffect(() => {
+    if (status !== 'authenticated') return;
+    const id = setInterval(() => void refreshAccessToken(), RENEW_EVERY_MS);
+    return () => clearInterval(id);
+  }, [status]);
 
   const signInWithToken = useCallback(
     async (token: string) => {
@@ -76,6 +99,8 @@ export function SessionProvider({ children }: { children: ReactNode }): React.JS
   );
 
   const signOut = useCallback(() => {
+    // Revoke and clear the refresh cookie, or the next reload signs back in.
+    void fetch('/auth/logout', { method: 'POST', credentials: 'same-origin' }).catch(() => undefined);
     setAccessToken(null);
     setUser(null);
     setStatus('anonymous');

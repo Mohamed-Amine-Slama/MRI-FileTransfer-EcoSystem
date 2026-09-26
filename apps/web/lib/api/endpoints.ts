@@ -1,4 +1,6 @@
 import type {
+  ConsultReport,
+  ConsultReportDraft,
   CurrencyCode,
   EndpointSide,
   InviteMemberInput,
@@ -9,6 +11,7 @@ import type {
   PlanTier,
   PlanUsage,
   RegistrationInput,
+  ReportStatus,
   Role,
   Subscription,
   UpdateProfileInput,
@@ -187,6 +190,12 @@ export interface CaseRecord {
   quotedAmountMinor: number | null;
   quotedCurrency: CurrencyCode | null;
   quoteExpiresAt: string | null;
+  /**
+   * The split locked with the quote (spec 2026-09-21 §3): what the clinic keeps
+   * and what the doctor is paid. The platform's share is derived, never sent.
+   */
+  clinicShareMinor?: number | null;
+  doctorShareMinor?: number | null;
   acceptedAt: string | null;
   answeredAt: string | null;
   answerDueAt: string | null;
@@ -357,9 +366,27 @@ export const api = {
     decline: (id: string) =>
       apiFetch<{ status: 'declined' }>(`/cases/${id}/decline`, { method: 'POST' }),
 
-    /** The doctor's answer exists. This is what will release their payment. */
-    answer: (id: string) =>
-      apiFetch<{ status: 'answered' }>(`/cases/${id}/answer`, { method: 'POST' }),
+    /**
+     * The doctor's answer: the complete structured report. This is what
+     * releases their payment. A 404 on a repeat means it already went through.
+     */
+    answer: (id: string, report: ConsultReport) =>
+      apiFetch<{ status: 'answered' }>(`/cases/${id}/answer`, {
+        method: 'POST',
+        body: { report },
+      }),
+
+    /** The report, or null: no draft yet (doctor), or not submitted yet (clinic). */
+    report: (id: string) =>
+      apiFetch<{
+        status: ReportStatus;
+        content: ConsultReportDraft;
+        submittedAt: string | null;
+      } | null>(`/cases/${id}/report`),
+
+    /** Autosave of the doctor's draft. */
+    saveReport: (id: string, draft: ConsultReportDraft) =>
+      apiFetch<void>(`/cases/${id}/report`, { method: 'PUT', body: draft }),
 
     /** Coordination detail the sides may correct — never a clinical finding. */
     update: (id: string, patch: { reason?: string | null; notes?: string | null }) =>
@@ -452,6 +479,11 @@ export const api = {
    * organisation, ops reads any.
    */
   ledger: {
+    /** Ops only: every organisation's entries in one request. */
+    all: () =>
+      apiFetch<{ organisations: { organisationId: string; entries: LedgerEntry[] }[] }>(
+        '/ledger/all',
+      ),
     forOrganisation: (organisationId: string) =>
       apiFetch<{ entries: LedgerEntry[] }>(
         `/ledger?organisationId=${encodeURIComponent(organisationId)}`,

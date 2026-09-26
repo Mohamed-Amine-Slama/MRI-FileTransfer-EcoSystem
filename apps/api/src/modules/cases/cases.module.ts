@@ -7,11 +7,13 @@ import { CasesController } from './internal/cases.controller';
 import { CasesMaintenance } from './internal/cases.maintenance';
 import { CasesService } from './internal/cases.service';
 import { DirectoryService } from './internal/directory.service';
+import { ReportPdfService } from './internal/report-pdf';
+import { ReportsService } from './internal/reports.service';
 
 @Module({
   imports: [DatabaseModule, EventsModule, LedgerModule, PricingModule],
   controllers: [CasesController],
-  providers: [CasesService, CasesMaintenance, DirectoryService],
+  providers: [CasesService, CasesMaintenance, DirectoryService, ReportsService, ReportPdfService],
   exports: [CasesService, DirectoryService],
 })
 export class CasesModule {}

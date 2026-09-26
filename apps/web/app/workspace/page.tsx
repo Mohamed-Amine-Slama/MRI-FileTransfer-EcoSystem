@@ -1,25 +1,23 @@
 'use client';
 
-import Link from 'next/link';
+import Link from '../../components/ui/link';
 import { useEffect, useState } from 'react';
-import { ChevronRight, Users } from 'lucide-react';
-import { isTerminalStatus, type Case } from '@mir/contracts';
+import { Users } from 'lucide-react';
+import type { Case, CaseSide } from '@mir/contracts';
 import { casesApi } from '../../lib/api/mock';
 import { PROVIDER_ROLES } from '../../lib/corridor/registry';
 import { useCurrentProvider } from '../../lib/provider/current-provider';
-import { useDateFormat, useT } from '../../lib/i18n/provider';
+import { useSession } from '../../lib/session/session';
+import { useT } from '../../lib/i18n/provider';
+import type { Dictionary } from '../../lib/i18n/dictionary';
+import { cn } from '../../lib/utils';
+import { capQueue } from '../../lib/dashboard/queue';
+import { isStale } from '../../lib/dashboard/time';
+import { workspaceModel } from '../../lib/dashboard/workspace-model';
 import { RoleGate } from '../../components/RoleGate';
-import { CaseStatusBadge } from '../../components/case/CaseStatusBadge';
-import { isAwaitingSide, nextActionLabel } from '../../components/case/labels';
-import {
-  Alert,
-  Card,
-  EmptyState,
-  Main,
-  PageHeader,
-  Spinner,
-  buttonVariants,
-} from '../../components/ui';
+import { caseStatusTone, nextActionKey, nextActionLabel } from '../../components/case/labels';
+import { DashboardHeader, QueueRow, QueueSection } from '../../components/dashboard/queue';
+import { Alert, Card, Main, Spinner, StatGrid, StatTile, buttonVariants } from '../../components/ui';
 
 /**
  * The practice workspace — brief §5.5.
@@ -42,7 +40,7 @@ export default function WorkspacePage(): React.JSX.Element {
 
 function Workspace(): React.JSX.Element {
   const t = useT();
-  const formatDate = useDateFormat();
+  const { user } = useSession();
   const { provider, providerId, side, loading } = useCurrentProvider();
   const [cases, setCases] = useState<Case[] | null>(null);
   const [error, setError] = useState<string | null>(null);
@@ -70,81 +68,87 @@ function Workspace(): React.JSX.Element {
     );
   }
 
-  const active = cases.filter((item) => !isTerminalStatus(item.status));
-  // `isAwaitingSide` reads the same next-action table the case list renders,
-  // so a case cannot be a task here and "nothing to do" three clicks away.
-  const tasks = side === null ? [] : active.filter((item) => isAwaitingSide(item.status, side));
+  const now = Date.now();
+  const { tasks, waiting, stale, answered } = workspaceModel(cases, side, now);
+  const shownTasks = capQueue(tasks);
+  const shownWaiting = capQueue(waiting);
+  const isSource = side === 'source';
 
   return (
-    <Main wide>
-      <PageHeader
-        title={t.workspaceTitle}
-        description={t.workspaceDescription}
-        actions={
-          <Link href="/cases" className={buttonVariants({ variant: 'outline' })}>
-            {t.casesTitle}
-          </Link>
+    <Main wide className="space-y-6">
+      <DashboardHeader
+        greeting={user === null ? t.workspaceTitle : `${t.dashHello} ${user.displayName}`}
+        subtitle={t.workspaceDescription}
+        action={
+          isSource ? (
+            <Link href="/cases/new" className={buttonVariants()}>
+              {t.casesNew}
+            </Link>
+          ) : undefined
         }
-      />
+      >
+        <StatGrid>
+          <StatTile label={t.dashNeedsYou} value={tasks.length} href="/cases" emphasis testId="tile-needs-you" />
+          <StatTile label={t.dashWaitingDoctor} value={waiting.length} testId="tile-waiting" />
+          <StatTile label={t.dashStaleTile} value={stale.length} hint={t.dashStale} testId="tile-stale" />
+          <StatTile label={t.dashAnswered7d} value={answered.length} testId="tile-answered" />
+        </StatGrid>
+      </DashboardHeader>
 
       {error !== null && <Alert tone="danger">{error}</Alert>}
 
-      <div className="grid gap-5 lg:grid-cols-3">
-        <div className="space-y-5 lg:col-span-2">
-          <Card>
-            <h2 className="mb-3 font-display text-lg font-medium">{t.workspaceTasks}</h2>
-            {tasks.length === 0 ? (
-              <EmptyState testId="tasks-empty">{t.workspaceTasksEmpty}</EmptyState>
-            ) : (
-              <ul className="space-y-2" data-testid="task-list">
-                {tasks.map((item) => (
-                  <li key={item.ref}>
-                    <Link
-                      href={`/cases/${item.ref}`}
-                      className="flex items-center justify-between gap-3 rounded-md border p-3 transition-colors hover:border-primary"
-                    >
-                      <span className="min-w-0">
-                        <bdi className="font-mono text-xs font-semibold">{item.ref}</bdi>
-                        <span className="mt-0.5 block text-sm">
-                          {side === null ? '—' : nextActionLabel(t, item.status, side)}
-                        </span>
-                      </span>
-                      <ChevronRight className="size-4 shrink-0 text-muted-foreground rtl:rotate-180" />
-                    </Link>
-                  </li>
-                ))}
-              </ul>
-            )}
-          </Card>
+      <div className="grid gap-6 lg:grid-cols-3">
+        <div className="space-y-6 lg:col-span-2">
+          <QueueSection
+            title={t.dashNeedsYou}
+            count={tasks.length}
+            more={shownTasks.more}
+            seeAllHref="/cases"
+            empty={t.workspaceTasksEmpty}
+            testId="task-list"
+            emptyTestId="tasks-empty"
+          >
+            {shownTasks.shown.map((item) => (
+              <QueueRow
+                key={item.ref}
+                reference={item.ref}
+                href={`/cases/${item.ref}`}
+                label={side === null ? '—' : nextActionLabel(t, item.status, side)}
+                tone={caseStatusTone(item.status)}
+                at={item.updatedAt}
+                stale={isStale(item, now)}
+                dataStatus={item.status}
+                action={side === null ? undefined : <TaskAction t={t} item={item} side={side} />}
+              />
+            ))}
+          </QueueSection>
 
-          <Card>
-            <h2 className="mb-3 font-display text-lg font-medium">{t.workspaceActiveCases}</h2>
-            {active.length === 0 ? (
-              <EmptyState testId="active-empty">{t.casesEmpty}</EmptyState>
-            ) : (
-              <ul className="space-y-2" data-testid="active-list">
-                {active.map((item) => (
-                  <li
-                    key={item.ref}
-                    className="flex flex-wrap items-center justify-between gap-2 rounded-md border p-3"
-                  >
-                    <span className="flex flex-wrap items-center gap-2">
-                      <bdi className="font-mono text-xs font-semibold">{item.ref}</bdi>
-                      <CaseStatusBadge status={item.status} />
-                    </span>
-                    <span className="text-xs text-muted-foreground">
-                      {formatDate(item.updatedAt)}
-                    </span>
-                  </li>
-                ))}
-              </ul>
-            )}
-          </Card>
+          <QueueSection
+            title={t.dashWaitingDoctor}
+            count={waiting.length}
+            more={shownWaiting.more}
+            seeAllHref="/cases"
+            empty={t.dashWaitingEmpty}
+            testId="waiting-list"
+            emptyTestId="waiting-empty"
+          >
+            {shownWaiting.shown.map((item) => (
+              <QueueRow
+                key={item.ref}
+                reference={item.ref}
+                href={`/cases/${item.ref}`}
+                label={side === null ? '—' : nextActionLabel(t, item.status, side)}
+                tone={caseStatusTone(item.status)}
+                at={item.updatedAt}
+                stale={isStale(item, now)}
+                dataStatus={item.status}
+              />
+            ))}
+          </QueueSection>
         </div>
 
-        <div className="space-y-5">
-          <Card>
-            <h2 className="mb-3 font-display text-lg font-medium">{t.workspaceSeats}</h2>
+        <aside className="space-y-5">
+          <Card title={t.dashYourClinic}>
             {/* §5.5 P0: the account is an organisation with several users, so
                 the seat count is stated rather than implied by whoever is
                 logged in. */}
@@ -153,21 +157,50 @@ function Workspace(): React.JSX.Element {
               <span className="font-display text-2xl font-medium tabular-nums" data-testid="seat-count">
                 {provider?.seatCount ?? '—'}
               </span>
+              <span className="text-muted-foreground">{t.workspaceSeats}</span>
             </p>
-            <p className="mt-2 text-sm text-muted-foreground">{provider?.legalName ?? ''}</p>
-          </Card>
-
-          <Card>
-            <h2 className="mb-3 font-display text-lg font-medium">{t.navCases}</h2>
-            {/* The workspace links into the case list rather than carrying its
-                own copy of it: two views of the same rows competing to be the
-                real one is how they drift apart. */}
-            <Link href="/cases" className={buttonVariants({ variant: 'outline', size: 'sm' })}>
-              {t.casesTitle}
+            <p className="mt-1 text-sm text-muted-foreground">{provider?.legalName ?? ''}</p>
+            <Link
+              href="/settings/team"
+              className={cn(buttonVariants({ variant: 'outline', size: 'sm' }), 'mt-3')}
+            >
+              {t.settingsTeam}
             </Link>
           </Card>
-        </div>
+
+          {isSource && (
+            <Card title={t.dashQuickLinks}>
+              <ul className="space-y-1 text-sm">
+                {(
+                  [
+                    ['/cases/new', t.casesNew],
+                    ['/upload', t.navUpload],
+                    ['/patients', t.navPatients],
+                  ] as const
+                ).map(([href, label]) => (
+                  <li key={href}>
+                    <Link href={href} className="font-medium text-primary hover:underline">
+                      {label}
+                    </Link>
+                  </li>
+                ))}
+              </ul>
+            </Card>
+          )}
+        </aside>
       </div>
     </Main>
+  );
+}
+
+/** The one button a task row needs, chosen from the same table as its label. */
+function TaskAction({ t, item, side }: { t: Dictionary; item: Case; side: CaseSide }): React.JSX.Element {
+  const key = nextActionKey(item.status, side);
+  const label = key === 'pickDoctor' ? t.dashActionPick : key === 'pay' ? t.dashActionPay : t.dashActionOpen;
+  const href = key === 'pickDoctor' ? `/cases/${item.ref}/pick-doctor` : `/cases/${item.ref}`;
+  return (
+    <Link href={href} className={buttonVariants({ size: 'sm' })} data-testid="task-action">
+      {label}
+    </Link>
   );
 }

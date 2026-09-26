@@ -1,12 +1,22 @@
 'use client';
 
-import Link from 'next/link';
+import Link from '../../../components/ui/link';
 import { use, useCallback, useEffect, useState } from 'react';
 import { Paperclip, Send } from 'lucide-react';
-import type { Case, CaseEvent, FileAccessEvent, Message, Provider } from '@mir/contracts';
+import {
+  consultReportSchema,
+  type Case,
+  type CaseEvent,
+  type ConsultReportDraft,
+  type FileAccessEvent,
+  type Message,
+  type Provider,
+} from '@mir/contracts';
 import { isMockMode } from '../../../lib/api/cases';
 import { api, type CaseRecord, type Study } from '../../../lib/api/endpoints';
+import { timelineFor, toCase } from '../../../lib/api/live/adapt';
 import { findCaseRecord } from '../../../lib/api/live/live-cases';
+import { DEFAULT_CORRIDOR_ID } from '../../../lib/corridor/registry';
 import { casesApi } from '../../../lib/api/mock';
 import { rolesForSides } from '../../../lib/corridor/registry';
 import { useCaseAudience, useCurrentProvider } from '../../../lib/provider/current-provider';
@@ -14,6 +24,10 @@ import { useDateFormat, useT } from '../../../lib/i18n/provider';
 import type { Dictionary } from '../../../lib/i18n/dictionary';
 import { useSession } from '../../../lib/session/session';
 import { RoleGate } from '../../../components/RoleGate';
+import { ReportForm } from '../../../components/report/ReportForm';
+import { ReportView } from '../../../components/report/ReportView';
+import { StudyViewer } from '../../../components/viewer/StudyViewer';
+import { emptyReport } from '../../../lib/report/draft';
 import { CaseStatusBadge } from '../../../components/case/CaseStatusBadge';
 import { CaseTimeline } from '../../../components/case/CaseTimeline';
 import { FileAccessNote } from '../../../components/case/FileAccessNote';
@@ -26,6 +40,7 @@ import {
   EmptyState,
   Main,
   PageHeader,
+  Select,
   Spinner,
   buttonVariants,
 } from '../../../components/ui';
@@ -93,6 +108,13 @@ function CaseDetail({ caseRef }: { caseRef: string }): React.JSX.Element {
   const [item, setItem] = useState<Case | null | 'missing'>(null);
   const [record, setRecord] = useState<CaseRecord | null>(null);
   const [studies, setStudies] = useState<Study[]>([]);
+  /** The report: the doctor's draft while accepted, the submitted one after. */
+  const [report, setReport] = useState<{ status: string; content: ConsultReportDraft } | null>(
+    null,
+  );
+  // Fixed once per load, so the form's autosave can tell "untouched" apart.
+  const [reportInitial, setReportInitial] = useState<ConsultReportDraft | null>(null);
+  const [chosenStudy, setChosenStudy] = useState<string | null>(null);
   const [events, setEvents] = useState<CaseEvent[]>([]);
   const [messages, setMessages] = useState<Message[]>([]);
   const [access, setAccess] = useState<FileAccessEvent[]>([]);
@@ -118,18 +140,20 @@ function CaseDetail({ caseRef }: { caseRef: string }): React.JSX.Element {
         return;
       }
       setRecord(r);
-      const found = await casesApi.getCase(r.id, audience);
-      if (found === null) {
-        setItem('missing');
-        return;
-      }
-      setItem(found);
-      const [timeline, linked] = await Promise.all([
-        casesApi.listCaseEvents(r.id, audience),
-        api.imaging.studiesForCase(r.id).catch(() => ({ studies: [] as Study[] })),
-      ]);
-      setEvents(timeline);
+      // The record is already here: adapting it is free, and asking the case
+      // API for it again was two more reads of the same row (§8 baseline).
+      setItem(toCase(r, DEFAULT_CORRIDOR_ID));
+      setEvents(timelineFor(r));
+      const linked = await api.imaging
+        .studiesForCase(r.id)
+        .catch(() => ({ studies: [] as Study[] }));
       setStudies(linked.studies);
+      // Only once a doctor is on it; a 404 is "no draft yet" or "not submitted".
+      const stored = ['accepted', 'answered', 'closed'].includes(r.status)
+        ? await api.cases.report(r.id).catch(() => null)
+        : null;
+      setReport(stored);
+      setReportInitial(stored?.content ?? emptyReport(r.reason ?? '', 'en'));
       return;
     }
 
@@ -175,15 +199,14 @@ function CaseDetail({ caseRef }: { caseRef: string }): React.JSX.Element {
     }
   };
 
-  /** The receiving doctor's decisions on a paid case, and the answer on an accepted one. */
-  const act = async (what: 'accept' | 'decline' | 'answer'): Promise<void> => {
+  /** The receiving doctor's decisions on a paid case. Answering is the report form. */
+  const act = async (what: 'accept' | 'decline'): Promise<void> => {
     if (record === null) return;
     setActing(true);
     setError(null);
     try {
       if (what === 'accept') await api.cases.accept(record.id);
-      else if (what === 'decline') await api.cases.decline(record.id);
-      else await api.cases.answer(record.id);
+      else await api.cases.decline(record.id);
       await load();
     } catch {
       setError(t.genericError);
@@ -214,6 +237,10 @@ function CaseDetail({ caseRef }: { caseRef: string }): React.JSX.Element {
   }
 
   const pickable = item.status === 'submitted' || item.status === 'declined';
+  const readyStudies = studies.filter((s) => s.status === 'ready');
+  const shownStudy = chosenStudy ?? readyStudies[0]?.studyInstanceUid ?? null;
+  const submittedReport =
+    report?.status === 'submitted' ? consultReportSchema.safeParse(report.content) : null;
 
   return (
     <Main>
@@ -266,17 +293,55 @@ function CaseDetail({ caseRef }: { caseRef: string }): React.JSX.Element {
               </Button>
             </>
           )}
-          {side === 'destination' && item.status === 'accepted' && (
-            <Button
-              variant="primary"
-              data-testid="answer-case"
-              disabled={acting}
-              onClick={() => void act('answer')}
-            >
-              {t.inboxAnswer}
-            </Button>
-          )}
         </div>
+      )}
+
+      {/* Read & report: the doctor reads the images beside the form that
+          answers the case. Answering IS submitting the report. */}
+      {record !== null &&
+        side === 'destination' &&
+        item.status === 'accepted' &&
+        reportInitial !== null && (
+          <Card>
+            <h2 className="mb-3 font-display text-lg font-medium">{t.caseReadAndReport}</h2>
+            <div className="grid gap-5 lg:grid-cols-2" data-testid="read-and-report">
+              <div className="space-y-3">
+                {readyStudies.length > 1 && (
+                  <Select
+                    aria-label={t.caseFilesTitle}
+                    value={shownStudy ?? ''}
+                    onChange={(e) => setChosenStudy(e.target.value)}
+                    data-testid="workspace-study"
+                  >
+                    {readyStudies.map((study) => (
+                      <option key={study.id} value={study.studyInstanceUid}>
+                        {study.description ?? study.modality}
+                        {study.studyDate !== null ? ` · ${study.studyDate}` : ''}
+                      </option>
+                    ))}
+                  </Select>
+                )}
+                {shownStudy === null ? (
+                  <EmptyState>{t.caseNoStudy}</EmptyState>
+                ) : (
+                  <StudyViewer key={shownStudy} studyUid={shownStudy} compact />
+                )}
+              </div>
+              <ReportForm
+                caseId={record.id}
+                caseRef={item.ref}
+                initial={reportInitial}
+                onSubmitted={load}
+              />
+            </div>
+          </Card>
+        )}
+
+      {record !== null && submittedReport?.success === true && (
+        <Card>
+          <h2 className="mb-3 font-display text-lg font-medium">{t.caseReportTitle}</h2>
+          <ReportView report={submittedReport.data} caseId={record.id} caseRef={item.ref} />
+        </Card>
       )}
 
       <div className="grid gap-5 lg:grid-cols-3">

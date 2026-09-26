@@ -57,79 +57,78 @@ async function referral(): Promise<{
   return { src, dst, appt };
 }
 
-describe('coordination fee accrual', () => {
-  it('accrues one source entry and one destination entry at the corridor rates', async () => {
-    // §5.7: both sides pay, at per-corridor rates. Two entries, never one
-    // combined charge — the split is the decided part of the fee model.
-    const { src, dst, appt } = await referral();
+/** A quoted, paid case carrying the split the quote locked. */
+async function priced(): Promise<Awaited<ReturnType<typeof referral>>> {
+  const r = await referral();
+  await h.owner.query(
+    `UPDATE cases_cases
+        SET quoted_amount_minor = 10000, quoted_currency = 'USD',
+            quoted_at = now(), quote_expires_at = now() + interval '1 hour',
+            clinic_share_minor = 3000, doctor_share_minor = 2000
+      WHERE id = $1`,
+    [r.appt],
+  );
+  return r;
+}
 
-    await runWithContext(sys(src.doctorId), async () => {
-      await ledger.accrueCoordinationFee(appt, 'source');
-      await ledger.accrueCoordinationFee(appt, 'destination');
-    });
+describe('the consult split in the ledger (spec 2026-09-21 §3)', () => {
+  const entries = async (caseId: string) =>
+    (
+      await h.owner.query<{ organisation_id: string; kind: string; amount_minor: string }>(
+        `SELECT organisation_id, kind, amount_minor FROM billing_ledger_entries
+          WHERE case_id = $1 ORDER BY kind`,
+        [caseId],
+      )
+    ).rows;
 
-    const rows = await h.owner.query<{ organisation_id: string; amount_minor: string }>(
-      `SELECT organisation_id, amount_minor FROM billing_ledger_entries
-       WHERE case_id = $1 ORDER BY amount_minor DESC`,
-      [appt],
-    );
-    expect(rows.rows.length).toBe(2);
-    expect(rows.rows[0]?.organisation_id).toBe(src.orgId);
-    expect(rows.rows[0]?.amount_minor).toBe('3000');
-    expect(rows.rows[1]?.organisation_id).toBe(dst.orgId);
-    expect(rows.rows[1]?.amount_minor).toBe('2000');
-  });
-
-  it('does not double-accrue when the same side is accrued twice', async () => {
-    // A retried request must not bill a clinic twice for one referral. The
-    // partial unique index is what makes that impossible rather than unlikely.
-    const { src, appt } = await referral();
-
-    await runWithContext(sys(src.doctorId), async () => {
-      await ledger.accrueCoordinationFee(appt, 'source');
-      await ledger.accrueCoordinationFee(appt, 'source');
-    });
-
-    const rows = await h.owner.query(
-      `SELECT id FROM billing_ledger_entries WHERE case_id = $1`,
-      [appt],
-    );
-    expect(rows.rows.length).toBe(1);
-  });
-
-  it('accrues nothing and does not throw when the corridor has no active rate', async () => {
-    // Moves ONE organisation to a corridor with no rate card, rather than
-    // deactivating the seeded one.
-    //
-    // `truncateAll` does not reset billing_fee_schedule — it is seeded
-    // configuration, not test data — so a global `SET active = false` here
-    // leaks into every test that runs after this one in the file, and they fail
-    // by accruing nothing for reasons that have nothing to do with them.
-    const { src, appt } = await referral();
-    await h.owner.query(`UPDATE identity_organisations SET corridor_id = 'ly-eg' WHERE id = $1`, [
-      src.orgId,
+  it('the clinic owes the price less its own share: $100 − $30 = $70', async () => {
+    const { src, appt } = await priced();
+    await runWithContext(sys(src.doctorId), () => ledger.accrueClinicRemittance(appt));
+    expect(await entries(appt)).toEqual([
+      { organisation_id: src.orgId, kind: 'coordination_fee', amount_minor: '7000' },
     ]);
-
-    const id = await runWithContext(sys(src.doctorId), () =>
-      ledger.accrueCoordinationFee(appt, 'source'),
-    );
-
-    // A missing rate must not invent a charge, and must not block a referral:
-    // a clinical hand-off does not wait on a billing configuration.
-    expect(id).toBeNull();
-    const rows = await h.owner.query(
-      `SELECT id FROM billing_ledger_entries WHERE case_id = $1`,
-      [appt],
-    );
-    expect(rows.rows).toEqual([]);
   });
 
+  it('the doctor is owed their share: $20', async () => {
+    const { src, dst, appt } = await priced();
+    await runWithContext(sys(src.doctorId), () => ledger.accrueDoctorPayout(appt));
+    expect(await entries(appt)).toEqual([
+      { organisation_id: dst.orgId, kind: 'doctor_payout', amount_minor: '2000' },
+    ]);
+  });
+
+  it('accrues each exactly once, however often it is asked', async () => {
+    // A retried request must not bill a clinic twice or pay a doctor twice.
+    // Partial unique indexes make that impossible rather than unlikely.
+    const { src, appt } = await priced();
+    await runWithContext(sys(src.doctorId), async () => {
+      await ledger.accrueClinicRemittance(appt);
+      await ledger.accrueClinicRemittance(appt);
+      await ledger.accrueDoctorPayout(appt);
+      await ledger.accrueDoctorPayout(appt);
+    });
+    expect((await entries(appt)).map((e) => e.kind)).toEqual(['coordination_fee', 'doctor_payout']);
+  });
+
+  it('accrues nothing for a case quoted before the split existed', async () => {
+    // No invented charge: a case without a locked split has nothing to bill.
+    const { src, appt } = await referral();
+    const out = await runWithContext(sys(src.doctorId), async () => [
+      await ledger.accrueClinicRemittance(appt),
+      await ledger.accrueDoctorPayout(appt),
+    ]);
+    expect(out).toEqual([null, null]);
+    expect(await entries(appt)).toEqual([]);
+  });
+});
+
+describe('ledger visibility', () => {
   it("an organisation reads its own entries and no other organisation's", async () => {
-    const { src, dst, appt } = await referral();
+    const { src, dst, appt } = await priced();
 
     await runWithContext(sys(src.doctorId), async () => {
-      await ledger.accrueCoordinationFee(appt, 'source');
-      await ledger.accrueCoordinationFee(appt, 'destination');
+      await ledger.accrueClinicRemittance(appt);
+      await ledger.accrueDoctorPayout(appt);
     });
 
     const mine = await runWithContext({ ...sys(src.doctorId), role: 'libya_doctor' }, () =>
@@ -144,15 +143,21 @@ describe('coordination fee accrual', () => {
       ledger.listForOrganisation(dst.orgId),
     );
     expect(theirs).toEqual([]);
+
+    // The doctor's organisation reads its payout, as its own kind.
+    const payouts = await runWithContext({ ...sys(dst.doctorId), role: 'tunisia_doctor' }, () =>
+      ledger.listForOrganisation(dst.orgId),
+    );
+    expect(payouts.map((e) => [e.kind, e.amount.amountMinor])).toEqual([['doctor_payout', 2000]]);
   });
 
   it('a clinic cannot write its own ledger', async () => {
     // The INSERT policy admits only the system role. Reaching the service
     // directly as a doctor must accrue nothing.
-    const { src, appt } = await referral();
+    const { src, appt } = await priced();
 
     await runWithContext({ ...sys(src.doctorId), role: 'libya_doctor' }, () =>
-      ledger.accrueCoordinationFee(appt, 'source'),
+      ledger.accrueClinicRemittance(appt),
     );
 
     const rows = await h.owner.query(
@@ -160,5 +165,32 @@ describe('coordination fee accrual', () => {
       [appt],
     );
     expect(rows.rows).toEqual([]);
+  });
+});
+
+describe('the ledger for ops, in one read (spec 2026-09-21 §8)', () => {
+  it('groups entries by organisation, and lists only organisations that have any', async () => {
+    const one = await priced();
+    await runWithContext(sys(one.src.doctorId), () => ledger.accrueClinicRemittance(one.appt));
+    await runWithContext(sys(one.src.doctorId), () => ledger.accrueDoctorPayout(one.appt));
+    const two = await priced();
+    await runWithContext(sys(two.src.doctorId), () => ledger.accrueClinicRemittance(two.appt));
+
+    const all = await runWithContext(sys(one.src.doctorId), () => ledger.listAll());
+    const kinds = new Map(all.map((g) => [g.organisationId, g.entries.map((e) => e.kind)]));
+    expect(kinds.get(one.src.orgId)).toEqual(['coordination_fee']);
+    expect(kinds.get(one.dst.orgId)).toEqual(['doctor_payout']);
+    expect(kinds.get(two.src.orgId)).toEqual(['coordination_fee']);
+    expect(kinds.has(two.dst.orgId)).toBe(false);
+  });
+
+  it('a clinic reaching the service directly still sees only its own organisation', async () => {
+    const one = await priced();
+    await runWithContext(sys(one.src.doctorId), () => ledger.accrueClinicRemittance(one.appt));
+    await runWithContext(sys(one.src.doctorId), () => ledger.accrueDoctorPayout(one.appt));
+    const seen = await runWithContext({ ...sys(one.src.doctorId), role: 'libya_doctor' }, () =>
+      ledger.listAll(),
+    );
+    expect(seen.map((g) => g.organisationId)).toEqual([one.src.orgId]);
   });
 });

@@ -1,4 +1,4 @@
-import Link from 'next/link';
+import Link from '../../ui/link';
 import type { ReactNode } from 'react';
 
 export type CardVariant = 'lime' | 'teal' | 'glass' | 'image';

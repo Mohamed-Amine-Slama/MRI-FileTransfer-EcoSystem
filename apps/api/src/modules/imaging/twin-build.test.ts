@@ -160,6 +160,26 @@ describe('TwinService.build', () => {
     await expect(twins.build({ studyId, actorId })).rejects.toThrow(/not in orthanc/i);
     expect((await studyRow(studyId)).status).toBe('processing');
   });
+
+  it('waits while Orthanc is short of slices, and releases once the re-sends land', async () => {
+    // A STOW that failed at ingest leaves the study in Orthanc incomplete. A
+    // twin built now would reach the doctor silently missing slices.
+    const { studyId, actorId } = await pendingStudy();
+    const res = await h.owner.query<{ study_instance_uid: string }>(
+      `UPDATE imaging_studies SET file_count = 3 WHERE id = $1 RETURNING study_instance_uid`,
+      [studyId],
+    );
+    const orthancId = `orthanc-${res.rows[0]?.study_instance_uid ?? ''}`;
+    orthanc.instanceCounts.set(orthancId, 2);
+
+    await expect(twins.build({ studyId, actorId })).rejects.toThrow(/2\/3 instances/);
+    expect(orthanc.anonymised).toHaveLength(0);
+    expect((await studyRow(studyId)).status).toBe('processing');
+
+    orthanc.instanceCounts.set(orthancId, 3);
+    await twins.build({ studyId, actorId });
+    expect((await studyRow(studyId)).status).toBe('ready');
+  });
 });
 
 describe('reapTwins', () => {

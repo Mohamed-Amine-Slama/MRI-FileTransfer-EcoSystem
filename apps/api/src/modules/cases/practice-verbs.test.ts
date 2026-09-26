@@ -17,6 +17,8 @@ import {
 } from '../../shared/db/testing/rls-harness';
 import { EventBus } from '../../shared/events/event-bus';
 import { CasesService } from './internal/cases.service';
+import { ReportsService } from './internal/reports.service';
+import { sampleReport } from './sample-report';
 import { LedgerService } from '../ledger';
 import { PricingService } from '../pricing';
 
@@ -36,6 +38,7 @@ let h: Harness;
 let db: DatabaseService;
 let bus: EventBus;
 let cases: CasesService;
+let reports: ReportsService;
 
 const config = {
   CASES_ANSWER_WINDOW_HOURS: 72,
@@ -55,6 +58,7 @@ beforeAll(async () => {
   db = new DatabaseService({ DATABASE_URL: appUrl(), DATABASE_POOL_MAX: 8 } as AppConfig);
   bus = new EventBus();
   cases = new CasesService(db, bus, config, new LedgerService(db), new PricingService(db));
+  reports = new ReportsService(db, bus, new LedgerService(db));
 }, 120_000);
 
 afterAll(async () => {
@@ -80,7 +84,7 @@ async function withCase(
 describe('closing out a case', () => {
   it('marks an accepted case answered', async () => {
     const { doctor, caseId } = await withCase('accepted');
-    await runWithContext(ctx(doctor, 'tunisia_doctor'), () => cases.markAnswered(caseId));
+    await runWithContext(ctx(doctor, 'tunisia_doctor'), () => reports.submitWithAnswer(caseId, sampleReport));
 
     const { rows } = await h.owner.query<{ status: string }>(
       'SELECT status FROM cases_cases WHERE id = $1',
@@ -94,7 +98,7 @@ describe('closing out a case', () => {
     // without accepting would skip the moment imaging unlocks.
     const { doctor, caseId } = await withCase('paid');
     await expect(
-      runWithContext(ctx(doctor, 'tunisia_doctor'), () => cases.markAnswered(caseId)),
+      runWithContext(ctx(doctor, 'tunisia_doctor'), () => reports.submitWithAnswer(caseId, sampleReport)),
     ).rejects.toThrow();
   });
 

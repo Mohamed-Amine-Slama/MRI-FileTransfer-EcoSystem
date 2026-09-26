@@ -13,6 +13,7 @@ import {
   Button,
   Card,
   EmptyState,
+  Field,
   Main,
   PageHeader,
   Spinner,
@@ -22,6 +23,7 @@ import {
   TableHead,
   TableHeader,
   TableRow,
+  Textarea,
 } from '../../../../components/ui';
 
 /**
@@ -70,6 +72,9 @@ function PickDoctor(): React.JSX.Element {
   const [error, setError] = useState<string | null>(null);
   const [busyId, setBusyId] = useState<string | null>(null);
   const [paying, setPaying] = useState(false);
+  // The lab's note to the doctor. Null until typed in, so the box shows the
+  // case's saved note rather than blanking it.
+  const [note, setNote] = useState<string | null>(null);
 
   const load = useCallback(async () => {
     setError(null);
@@ -122,6 +127,13 @@ function PickDoctor(): React.JSX.Element {
     setPaying(true);
     setError(null);
     try {
+      // Saved before paying: paying is what puts the case in front of the
+      // doctor, so the note must already be on it. It rides the case's
+      // existing `notes`, which the doctor reads on the case page.
+      const trimmed = note?.trim();
+      if (trimmed !== undefined && trimmed !== (item?.notes ?? '')) {
+        await api.cases.update(caseId, { notes: trimmed === '' ? null : trimmed });
+      }
       await api.cases.pay(caseId);
       router.push(`/cases/${caseId}`);
     } catch (err) {
@@ -163,6 +175,30 @@ function PickDoctor(): React.JSX.Element {
                 })}
               </dd>
             </div>
+            {/* The clinic collects the full consult from the patient, keeps
+                its share, and owes the platform the rest. */}
+            {item.clinicShareMinor != null && (
+              <>
+                <div>
+                  <dt className="text-xs text-muted-foreground">{t.pickDoctorYouKeep}</dt>
+                  <dd className="tabular-nums" data-testid="quoted-clinic-share">
+                    {formatMoney(locale, {
+                      amountMinor: item.clinicShareMinor,
+                      currency: item.quotedCurrency ?? 'USD',
+                    })}
+                  </dd>
+                </div>
+                <div>
+                  <dt className="text-xs text-muted-foreground">{t.pickDoctorYouRemit}</dt>
+                  <dd className="font-semibold tabular-nums" data-testid="quoted-remittance">
+                    {formatMoney(locale, {
+                      amountMinor: item.quotedAmountMinor - item.clinicShareMinor,
+                      currency: item.quotedCurrency ?? 'USD',
+                    })}
+                  </dd>
+                </div>
+              </>
+            )}
           </dl>
 
           {/* The two facts. Both from the dictionary — this copy is the
@@ -175,6 +211,18 @@ function PickDoctor(): React.JSX.Element {
           <p className="mt-3 text-sm text-muted-foreground" data-testid="decline-note">
             {t.declineNoSecondCharge}
           </p>
+
+          <div className="mt-4">
+            <Field label={t.pickDoctorNoteLabel} hint={t.pickDoctorNoteHint}>
+              <Textarea
+                maxLength={500}
+                value={note ?? item.notes ?? ''}
+                onChange={(e) => setNote(e.target.value)}
+                disabled={paying}
+                data-testid="doctor-note"
+              />
+            </Field>
+          </div>
 
           {/* Paying is what puts the case in front of the doctor. The quote
               expires server-side, so a 409 here means "choose again", never

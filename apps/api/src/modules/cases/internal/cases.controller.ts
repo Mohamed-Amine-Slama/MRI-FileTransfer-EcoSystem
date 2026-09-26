@@ -1,4 +1,5 @@
 import {
+  BadRequestException,
   Body,
   Controller,
   Delete,
@@ -8,13 +9,19 @@ import {
   ParseUUIDPipe,
   Patch,
   Post,
+  Put,
   Query,
+  Res,
 } from '@nestjs/common';
+import type { Response } from 'express';
+import { consultReportDraftSchema, consultReportSchema } from '@mir/contracts';
 import { z } from 'zod';
 import { RequiresRole } from '../../../shared/authz/access-metadata';
 import { RateLimit } from '../../../shared/ratelimit/rate-limit.guard';
 import { CasesService, type CaseSummary } from './cases.service';
 import { DirectoryService, type DirectoryEntry } from './directory.service';
+import { ReportPdfService } from './report-pdf';
+import { ReportsService } from './reports.service';
 
 /**
  * Case HTTP layer — consult-model spec Part 1.
@@ -88,6 +95,8 @@ interface CaseDto {
   notes: string | null;
   quotedAmountMinor: number | null;
   quotedCurrency: string | null;
+  clinicShareMinor: number | null;
+  doctorShareMinor: number | null;
   quoteExpiresAt: string | null;
   acceptedAt: string | null;
   answeredAt: string | null;
@@ -116,6 +125,8 @@ function toDto(a: CaseSummary): CaseDto {
     notes: a.notes,
     quotedAmountMinor: a.quotedAmountMinor,
     quotedCurrency: a.quotedCurrency,
+    clinicShareMinor: a.clinicShareMinor,
+    doctorShareMinor: a.doctorShareMinor,
     quoteExpiresAt: a.quoteExpiresAt?.toISOString() ?? null,
     acceptedAt: a.acceptedAt?.toISOString() ?? null,
     answeredAt: a.answeredAt?.toISOString() ?? null,
@@ -139,6 +150,8 @@ export class CasesController {
   constructor(
     private readonly cases: CasesService,
     private readonly directory: DirectoryService,
+    private readonly reports: ReportsService,
+    private readonly pdf: ReportPdfService,
   ) {}
 
   // --- the directory and the switch ----------------------------------------
@@ -294,18 +307,69 @@ export class CasesController {
   }
 
   /**
-   * The doctor's answer exists.
+   * The report; the referring side sees it only once submitted (RLS, 0034).
    *
-   * Only the receiving doctor. It admitted the whole case-role list back when
-   * it marked a visit complete and a receptionist could reasonably do that; an
-   * answer is authored by the clinician who read the imaging, and this is the
-   * transition that will release their payment.
+   * "No report yet" is null with a 200, not a 404: it is the normal state of
+   * every accepted case, and a 404 logged a browser console error on each one.
+   * Null leaks nothing — a hidden draft, no draft and a case the caller cannot
+   * see all read the same.
+   */
+  @RequiresRole('tunisia_doctor', 'libya_doctor', 'admin')
+  @Get('cases/:id/report')
+  async report(@Param('id', ParseUUIDPipe) id: string) {
+    const r = await this.reports.get(id);
+    if (r === null) return null;
+    return { status: r.status, content: r.content, submittedAt: r.submittedAt?.toISOString() ?? null };
+  }
+
+  /**
+   * The submitted report as a PDF. `report.pdf` is its own path segment, so
+   * `:id` is only the uuid. No caching: it is clinical content.
+   */
+  @RequiresRole('tunisia_doctor', 'libya_doctor', 'admin')
+  @Get('cases/:id/report.pdf')
+  async reportPdf(@Param('id', ParseUUIDPipe) id: string, @Res() res: Response): Promise<void> {
+    const { filename, bytes } = await this.pdf.forCase(id);
+    res.status(200);
+    res.setHeader('content-type', 'application/pdf');
+    res.setHeader('content-disposition', `attachment; filename="${filename}"`);
+    res.setHeader('cache-control', 'no-store, private');
+    res.end(bytes);
+  }
+
+  /** Autosave. Caps hold on a draft; the 64 KB bound stops parking data in it. */
+  @RequiresRole('tunisia_doctor')
+  @Put('cases/:id/report')
+  @HttpCode(204)
+  async saveReport(@Param('id', ParseUUIDPipe) id: string, @Body() body: unknown): Promise<void> {
+    const draft = consultReportDraftSchema.safeParse(body);
+    if (!draft.success || JSON.stringify(draft.data).length > 64 * 1024) {
+      throw new BadRequestException('Invalid draft');
+    }
+    await this.reports.saveDraft(id, draft.data);
+  }
+
+  /**
+   * The doctor's answer: the complete structured report, submitted.
+   *
+   * Only the receiving doctor — an answer is authored by the clinician who
+   * read the imaging, and this is the transition that releases their payment.
    */
   @RequiresRole('tunisia_doctor')
   @Post('cases/:id/answer')
   @HttpCode(200)
-  async answer(@Param('id', ParseUUIDPipe) id: string): Promise<{ status: 'answered' }> {
-    await this.cases.markAnswered(id);
+  async answer(
+    @Param('id', ParseUUIDPipe) id: string,
+    @Body() body: unknown,
+  ): Promise<{ status: 'answered' }> {
+    const parsed = z.object({ report: consultReportSchema }).safeParse(body);
+    if (!parsed.success) {
+      throw new BadRequestException({
+        message: 'A complete report is required',
+        issues: parsed.error.issues,
+      });
+    }
+    await this.reports.submitWithAnswer(id, parsed.data.report);
     return { status: 'answered' };
   }
 

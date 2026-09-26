@@ -129,3 +129,33 @@ describe('OrthancHttpClient.anonymiseStudy', () => {
     ).rejects.toThrow(/anonymise failed: 500/);
   });
 });
+
+describe('OrthancHttpClient.listInstances', () => {
+  let restore: (() => void) | null = null;
+  afterEach(() => { restore?.(); restore = null; });
+
+  const row = (sop: string, series: string, seriesNo: number | null, instanceNo: number | null) => ({
+    '00080018': { vr: 'UI', Value: [sop] },
+    '0020000E': { vr: 'UI', Value: [series] },
+    ...(seriesNo === null ? {} : { '00200011': { vr: 'IS', Value: [seriesNo] } }),
+    ...(instanceNo === null ? {} : { '00200013': { vr: 'IS', Value: [instanceNo] } }),
+  });
+
+  it('orders slices by series number then InstanceNumber, numerically — never by uid', async () => {
+    // Uids sort as text: "x.10" before "x.2". An MR scrolled in that order
+    // jumps back and forth through the anatomy.
+    restore = stubFetch(() =>
+      json([
+        row('s.10', 'b', 2, 10),
+        row('s.2', 'b', 2, 2),
+        row('s.1', 'b', 2, 1),
+        row('a.3', 'a', 1, 3),
+        row('a.x', 'a', 1, null),
+      ]),
+    ).restore;
+
+    const list = await new OrthancHttpClient(config()).listInstances('1.2.3');
+
+    expect(list.map((i) => i.sopInstanceUid)).toEqual(['a.3', 'a.x', 's.1', 's.2', 's.10']);
+  });
+});

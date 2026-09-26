@@ -1,6 +1,6 @@
 'use client';
 
-import Link from 'next/link';
+import Link from '../components/ui/link';
 import { useEffect, useState } from 'react';
 import { useRouter } from 'next/navigation';
 import {
@@ -10,6 +10,7 @@ import {
   CalendarClock,
   FolderKanban,
   Inbox,
+  LayoutDashboard,
   ScrollText,
   Upload,
   Users,
@@ -291,6 +292,7 @@ type DestinationKey =
   | 'workspace'
   | 'cases'
   | 'ledger'
+  | 'adminHome'
   | 'adminCases'
   | 'adminProviders'
   | 'adminLedger';
@@ -304,6 +306,7 @@ const DESTINATION_ICONS: Record<DestinationKey, typeof Users> = {
   workspace: Briefcase,
   cases: FolderKanban,
   ledger: Banknote,
+  adminHome: LayoutDashboard,
   adminCases: FolderKanban,
   adminProviders: Building2,
   adminLedger: Banknote,
@@ -324,6 +327,7 @@ function corridorDestinationsFor(role: Role): { key: DestinationKey; href: strin
   if (side === null) return [];
   if (side === 'ops') {
     return [
+      { key: 'adminHome', href: '/admin' },
       { key: 'adminCases', href: '/admin/cases' },
       { key: 'adminProviders', href: '/admin/providers' },
       { key: 'adminLedger', href: '/admin/ledger' },
@@ -374,6 +378,7 @@ function label(key: DestinationKey, t: Dictionary): string {
     workspace: t.navWorkspace,
     cases: t.navCases,
     ledger: t.navLedger,
+    adminHome: t.navAdminHome,
     adminCases: t.navAdminCases,
     adminProviders: t.navAdminProviders,
     adminLedger: t.navAdminLedger,
@@ -392,6 +397,7 @@ function description(key: DestinationKey, t: Dictionary): string {
     workspace: t.workspaceDescription,
     cases: t.casesDescription,
     ledger: t.ledgerDescription,
+    adminHome: t.adminHomeDescription,
     adminCases: t.adminCasesDescription,
     adminProviders: t.adminProvidersDescription,
     adminLedger: t.adminLedgerDescription,

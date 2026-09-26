@@ -69,10 +69,10 @@ describe('browsing the directory', () => {
 
     expect(rows).toHaveLength(5);
     const senior = rows.find((r) => r.tierCode === 'senior');
-    expect(senior?.indicativeAmountMinor).toBe(4800); // 4000 x 1.20 x 1.00
+    expect(senior?.indicativeAmountMinor).toBe(10000); // flat $100 per consult
     expect(senior?.indicativeCurrency).toBe('USD');
     const standard = rows.find((r) => r.tierCode === 'standard');
-    expect(standard?.indicativeAmountMinor).toBe(4000);
+    expect(standard?.indicativeAmountMinor).toBe(10000);
   });
 
   it('omits the doctors who have switched off', async () => {

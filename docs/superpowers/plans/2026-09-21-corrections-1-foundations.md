@@ -1336,3 +1336,38 @@ node scripts/dev-bootstrap.mjs && node scripts/dev-seed-imaging.mjs
 ```
 
 Dev accounts: `dev-doctor@example.test / dev-doctor-pass-1234` (Libyan clinic), `dev-receiver@example.test / dev-receiver-pass-1234` (Tunisian doctor, accepting), `dev-radiologist@example.test / dev-radio-pass-1234`, `dev-cardio@example.test / dev-cardio-pass-1234`, `dev-ops@example.test / dev-ops-pass-1234`, `dev-applicant@example.test / dev-applicant-pass-1234`, `dev-assistant@example.test / dev-assist-pass-1234`.
+
+---
+
+## Execution notes (completed 2026-09-23)
+
+All nine tasks landed on `feat/frontend-uplift`. Executing them against a real
+browser surfaced four root causes the plan did not anticipate; each was fixed in
+its own commit because each alone was enough to make "the MRI never opens":
+
+| Found while | Root cause | Fix |
+|---|---|---|
+| Task 1 (imaging seed) | **Nothing consumed the `imaging` queue and nothing called `IngestionService.ingestFile`.** Verified uploads sat in staging forever: no study, nothing in Orthanc, no twin. | `ImagingWorker` (in-process, `IMAGING_WORKER_ENABLED`, default on); `POST /uploads/files/:id/complete` enqueues `imaging.ingestFile`. |
+| Task 1 (doctor read) | **Metadata and frame proxies omitted the series.** Orthanc's WADO-RS 404s `/studies/{s}/instances/{i}`; full resolution never worked for anyone. | Routes and Cornerstone image ids carry `/series/{se}/`. |
+| Task 9 (browser walk) | **The viewer never sent the bearer token.** It relied on a session cookie this stack never sets (`fetch` with `credentials`, `<img src>`, Cornerstone XHR), so every DICOMweb request 401'd. | `lib/viewer/authed-fetch.ts`; preview fetched as an authenticated blob; loader `beforeSend` returns the header (its streaming path passes `xhr = null`). |
+| Task 7 (browser walk) | **`useCaseAudience` returned a new object every render**, so the case page's load effect re-ran forever — hundreds of requests a second. This is the "see details freezes the browser" report. | `useMemo`. Idle API calls on the case page went from hundreds to 0. |
+
+Measured on the seeded MR series as the receiving doctor, before → after:
+case page "not found" → 0.19 s; Open-study click ~15 s → 0.09 s; first image
+never → 0.28 s; full resolution never → 1.3 s.
+
+**Browser sweep:** 27 sidebar pages as clinic, doctor and ops — each under
+100 ms, no console errors, no failed API calls, no idle API traffic.
+**Suites:** API 400 passed / 2 skipped; web unit 356; Playwright 63 passed,
+42 skipped (the landing suite, parked by design).
+
+**Open, needs an owner decision — the session does not survive a reload.**
+The access token lives in memory only (`lib/api/client.ts`, deliberately, so an
+XSS cannot lift it from storage), and the password sign-in has no silent
+refresh. Any browser refresh, pasted URL, or new tab signs the user out. A fix
+that keeps the token out of script-readable storage is an httpOnly refresh
+cookie set by `/auth/password-login` plus a `/auth/session` route that mints a
+fresh access token on load. Not done here because it changes the security model.
+
+**Deferred to Plan 4 (UI pass):** the clinic workspace's "tasks for you" list
+includes cases that are waiting on the doctor.
