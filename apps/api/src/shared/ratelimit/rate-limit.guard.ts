@@ -9,7 +9,8 @@ import {
 } from '@nestjs/common';
 import { Reflector } from '@nestjs/core';
 import { createHash } from 'node:crypto';
-import type { Response } from 'express';
+import type { Request, Response } from 'express';
+import { clientIp } from '../auth/auth.guard';
 import { getContext } from '../context/request-context';
 import { RateLimiter, type RateLimitKind } from './rate-limiter';
 
@@ -74,8 +75,22 @@ export const RATE_LIMIT_KEY = 'mir:rate_limit';
  *   The value is HASHED into the bucket key. Rate-limiter keys outlive the
  *   request and may reach a shared store; an email address is not something to
  *   leave lying in one when a digest works identically.
+ *
+ * `body+ip:<field>` — the same, narrowed to the caller's IP. For a budget whose
+ *   exhaustion must not be a weapon: keyed on the account alone, anyone can
+ *   burn a victim's budget and lock them out of their own sign-up. Use it only
+ *   where something else bounds the per-account total (verifying a code: the
+ *   database caps attempts per code).
+ *
+ * Every IP here is `clientIp()` — Cloudflare's connecting IP — never the bare
+ * `req.ip`, which behind Cloudflare and the ALB is the proxy for every caller
+ * and would put the whole platform in one bucket.
  */
-export type RateLimitKeyBy = 'user' | `param:${string}` | `body:${string}`;
+export type RateLimitKeyBy =
+  | 'user'
+  | `param:${string}`
+  | `body:${string}`
+  | `body+ip:${string}`;
 
 export interface RateLimitOptions {
   keyBy?: RateLimitKeyBy;
@@ -112,11 +127,13 @@ export class RateLimitGuard implements CanActivate {
     const ctx = getContext();
     const request = context
       .switchToHttp()
-      .getRequest<{ ip?: string; params?: Record<string, string>; body?: unknown }>();
+      .getRequest<Request>();
+    const ip = `ip:${clientIp(request) ?? 'unknown'}`;
 
     let identifier: string;
-    if (meta.keyBy.startsWith('body:')) {
-      const name = meta.keyBy.slice('body:'.length);
+    if (meta.keyBy.startsWith('body:') || meta.keyBy.startsWith('body+ip:')) {
+      const withIp = meta.keyBy.startsWith('body+ip:');
+      const name = meta.keyBy.slice(meta.keyBy.indexOf(':') + 1);
       const body = request.body;
       const value =
         typeof body === 'object' && body !== null
@@ -126,11 +143,11 @@ export class RateLimitGuard implements CanActivate {
       // field must not join one shared bucket with every other malformed one.
       identifier =
         typeof value === 'string' && value !== ''
-          ? `${meta.keyBy}:${createHash('sha256').update(value.toLowerCase()).digest('hex')}`
-          : `ip:${request.ip ?? 'unknown'}`;
+          ? `${meta.keyBy}:${createHash('sha256').update(value.toLowerCase()).digest('hex')}${withIp ? `:${ip}` : ''}`
+          : ip;
     } else if (meta.keyBy.startsWith('param:')) {
       const name = meta.keyBy.slice('param:'.length);
-      const value = request.params?.[name];
+      const value = request.params[name];
       // A missing parameter must not collapse every caller into one shared
       // bucket — that would let one abusive request lock out the platform.
       // Fall back to the account, which is always at least as specific.
@@ -140,7 +157,7 @@ export class RateLimitGuard implements CanActivate {
       // Authenticated identity first. The IP fallback exists only so a
       // misordered guard chain degrades to *something* rather than keying
       // every caller to the same bucket and locking out the whole platform.
-      identifier = ctx?.userId ?? `ip:${request.ip ?? 'unknown'}`;
+      identifier = ctx?.userId ?? ip;
     }
 
     const decision = await this.limiter.consume(meta.kind, identifier);
