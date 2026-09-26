@@ -67,6 +67,9 @@ importers:
       bullmq:
         specifier: ^6.3.7
         version: 6.3.7(ioredis@6.0.0)(pg@8.23.0)
+      dejavu-fonts-ttf:
+        specifier: ^2.37.3
+        version: 2.37.3
       dicom-parser:
         specifier: ^1.8.21
         version: 1.8.21
@@ -113,6 +116,9 @@ importers:
       '@types/node':
         specifier: ^26.6.1
         version: 26.6.2
+      '@types/pdfkit':
+        specifier: ^0.17.6
+        version: 0.17.6
       '@types/supertest':
         specifier: ^7.2.1
         version: 7.2.1
@@ -149,6 +155,9 @@ importers:
       '@cornerstonejs/metadata':
         specifier: ^5.10.10
         version: 5.10.10
+      '@cornerstonejs/tools':
+        specifier: 5.10.10
+        version: 5.10.10(@cornerstonejs/core@5.10.10(@cornerstonejs/metadata@5.10.10)(@cornerstonejs/utils@5.10.10)(autoprefixer@10.5.4(postcss@8.5.28))(wslink@2.5.0))(@kitware/vtk.js@36.4.1(autoprefixer@10.5.4(postcss@8.5.28))(wslink@2.5.0))(@types/d3-array@3.2.1)(@types/d3-interpolate@3.0.4)(d3-array@3.2.4)(d3-interpolate@3.0.1)(gl-matrix@3.4.4)
       '@cornerstonejs/utils':
         specifier: ^5.10.10
         version: 5.10.10
@@ -204,6 +213,9 @@ importers:
       '@types/node':
         specifier: ^26.6.1
         version: 26.6.2
+      '@types/pg':
+        specifier: 8.23.1
+        version: 8.23.1
       '@types/react':
         specifier: ^19.0.7
         version: 19.3.0
@@ -315,6 +327,17 @@ packages:
 
   '@cornerstonejs/metadata@5.10.10':
     resolution: {integrity: sha512-GTNRzpcAB0La2L3uM912SIMzdlXqmt6D2xstG6I/DvXVSYqVRiUoehXcphVyVgp49hls5z1lN4LFueQyzqS4KQ==}
+
+  '@cornerstonejs/tools@5.10.10':
+    resolution: {integrity: sha512-NGieh7hcuXlw6t+Ah42Scf9fEFjfzQeZrUL4kmUvNVUFWnmW2tZODa0ELt7OuK92vaZ2OIrpJqrYrBIRbWeQ/g==}
+    peerDependencies:
+      '@cornerstonejs/core': 5.10.10
+      '@kitware/vtk.js': 36.4.1
+      '@types/d3-array': 3.2.1
+      '@types/d3-interpolate': 3.0.4
+      d3-array: 3.2.4
+      d3-interpolate: 3.0.1
+      gl-matrix: 3.4.3
 
   '@cornerstonejs/utils@5.10.10':
     resolution: {integrity: sha512-KQaF/RMghvyQbO17olXAqUtrSY7Xl2EQbSMCm7YzsxEH9xqCG59xlql+giUoisgZLZ8p1tQDU03rwBFLryj21w==}
@@ -1989,6 +2012,13 @@ packages:
     resolution: {integrity: sha512-BLrgEcRTwX2o6gGxGOCNyMvGSp35YofuYzw9h1IMTRmKqttAZZVU67bdb9Pr2vUHA8+j3i2tJfjO6C6+4myGTA==}
     engines: {node: 18 || 20 || >=22}
 
+  base64-js@0.0.8:
+    resolution: {integrity: sha512-3XSA2cR/h/73EzlXXdU6YNycmYI7+kicTxks4eJg2g39biHR84slg2+des+p7iHYhbRg/udIS4TD53WabcOUkw==}
+    engines: {node: '>= 0.4'}
+
+  base64-js@1.5.1:
+    resolution: {integrity: sha512-AKpaYlHn8t4SVbOHCy+b5+KKgvR4vrsD8vbvrbiQJps7fKDTkjkDry6ji0rUJjC0kzbNePLwzxq8iypo41qeWA==}
+
   baseline-browser-mapping@2.11.25:
     resolution: {integrity: sha512-gMmEShwwq7FJqMwvfRwvCl00v4kN+KOfJqXn+f4nrufak5gNHJOksd/60Dvjuz7sI8Y5WiSFBa8FEYr+zoyqCw==}
     engines: {node: '>=6.0.0'}
@@ -2004,6 +2034,9 @@ packages:
   brace-expansion@5.0.9:
     resolution: {integrity: sha512-ScQ4IuvIEF1TMlP7Zt+vjJ//9zlPb2SDcxWxM3bk8s6t6GGdJ7KO1dCcTidOPJKePW30LE/2cT7wCyPho9/Wxg==}
     engines: {node: 20 || >=22}
+
+  brotli@1.3.3:
+    resolution: {integrity: sha512-oTKjJdShmDuGW94SyyaoQvAjf30dZaHnjJ8uAF+u2/vGJkJbJPJAT1gDiOJP5v1Zb6f9KEyW/1HpuaWIXtGHPg==}
 
   browserslist@4.29.0:
     resolution: {integrity: sha512-3GSvyjvDI4Dur1Meg2BekJquu5uF+9R9a1+5M1Mde192eZoXbeXjzgOsgqPS2V8D5wrrip0gR5Hf/GhWQ9ZzaA==}
@@ -3232,6 +3265,9 @@ packages:
     engines: {node: '>= 0.4'}
     hasBin: true
 
+  restructure@3.0.2:
+    resolution: {integrity: sha512-gSfoiOEA0VPE6Tukkrr7I0RBdE0s7H1eFCDBk05l1KIQT1UIKNc5JZy6jdyW6eYH3aR3g5b3PuL77rq0hvwtAw==}
+
   rollup@4.63.4:
     resolution: {integrity: sha512-4U0liVayNIoLp3GFl1FcI8561WepLnZ1rqfraGh7S9B3Ur5F9S283y8Futii7RUU2C/97tOBmBy7nYvhoiOpbQ==}
     engines: {node: '>=18.0.0', npm: '>=8.0.0'}
@@ -3803,6 +3839,20 @@ snapshots:
       '@cornerstonejs/utils': 5.10.10
       dcmjs: 0.52.0
       gl-matrix: 3.4.3
+
+  '@cornerstonejs/tools@5.10.10(@cornerstonejs/core@5.10.10(@cornerstonejs/metadata@5.10.10)(@cornerstonejs/utils@5.10.10)(autoprefixer@10.5.4(postcss@8.5.28))(wslink@2.5.0))(@kitware/vtk.js@36.4.1(autoprefixer@10.5.4(postcss@8.5.28))(wslink@2.5.0))(@types/d3-array@3.2.1)(@types/d3-interpolate@3.0.4)(d3-array@3.2.4)(d3-interpolate@3.0.1)(gl-matrix@3.4.4)':
+    dependencies:
+      '@cornerstonejs/core': 5.10.10(@cornerstonejs/metadata@5.10.10)(@cornerstonejs/utils@5.10.10)(autoprefixer@10.5.4(postcss@8.5.28))(wslink@2.5.0)
+      '@kitware/vtk.js': 36.4.1(autoprefixer@10.5.4(postcss@8.5.28))(wslink@2.5.0)
+      '@types/d3-array': 3.2.1
+      '@types/d3-interpolate': 3.0.4
+      '@types/offscreencanvas': 2019.7.3
+      clipper2-ts: 2.0.1
+      comlink: 4.4.2
+      d3-array: 3.2.4
+      d3-interpolate: 3.0.1
+      gl-matrix: 3.4.4
+      lodash.get: 4.4.2
 
   '@cornerstonejs/utils@5.10.10':
     dependencies:
@@ -4875,7 +4925,7 @@ snapshots:
 
   '@types/pdfkit@0.17.6':
     dependencies:
-      '@types/node': 26.5.1
+      '@types/node': 26.6.2
 
   '@types/pg@8.23.1':
     dependencies:
@@ -5227,6 +5277,10 @@ snapshots:
 
   balanced-match@4.0.4: {}
 
+  base64-js@0.0.8: {}
+
+  base64-js@1.5.1: {}
+
   baseline-browser-mapping@2.11.25: {}
 
   body-parser@1.20.6:
@@ -5254,6 +5308,10 @@ snapshots:
   brace-expansion@5.0.9:
     dependencies:
       balanced-match: 4.0.4
+
+  brotli@1.3.3:
+    dependencies:
+      base64-js: 1.5.1
 
   browserslist@4.29.0:
     dependencies:
@@ -6418,6 +6476,8 @@ snapshots:
       is-core-module: 2.16.2
       path-parse: 1.0.7
       supports-preserve-symlinks-flag: 1.0.0
+
+  restructure@3.0.2: {}
 
   rollup@4.63.4:
     dependencies:

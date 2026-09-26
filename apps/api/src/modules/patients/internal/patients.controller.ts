@@ -1,5 +1,6 @@
 import { Body, Controller, Get, HttpCode, Param, ParseUUIDPipe, Post, Query } from '@nestjs/common';
 import { z } from 'zod';
+import { pageQuerySchema, toPage } from '../../../shared/http/pagination';
 import { RequiresRole } from '../../../shared/authz/access-metadata';
 import { PatientsService, type CreatePatientResult } from './patients.service';
 import type { PatientCandidate } from './patient-matching';
@@ -40,8 +41,13 @@ export class PatientsController {
 
   @RequiresRole('libya_doctor', 'tunisia_doctor')
   @Get()
-  async list(): Promise<{ patients: PatientCandidate[] }> {
-    return { patients: await this.patients.list() };
+  async list(
+    @Query() query: unknown,
+  ): Promise<{ patients: PatientCandidate[]; nextCursor: string | null }> {
+    const { limit, cursor } = pageQuerySchema.parse(query ?? {});
+    const rows = await this.patients.list({ limit, ...(cursor === undefined ? {} : { after: cursor }) });
+    const { items, nextCursor } = toPage(rows, limit);
+    return { patients: items, nextCursor };
   }
 
   /**

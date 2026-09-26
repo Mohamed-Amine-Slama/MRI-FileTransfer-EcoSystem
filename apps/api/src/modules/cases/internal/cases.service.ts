@@ -3,6 +3,7 @@ import { APP_CONFIG } from '../../../shared/config/config.module';
 import type { AppConfig } from '../../../shared/config/config.schema';
 import { requireContext, runWithContext, systemContext } from '../../../shared/context/request-context';
 import { DatabaseService } from '../../../shared/db/database.service';
+import type { PageRequest } from '../../../shared/http/pagination';
 import type { DomainEventBase } from '../../../shared/events/domain-events';
 import { EventBus } from '../../../shared/events/event-bus';
 import { LedgerService } from '../../ledger';
@@ -429,7 +430,15 @@ export class CasesService {
    * "an assistant sees a name and a phone number and nothing else" a property
    * of the schema rather than of this SELECT list.
    */
-  async listCases(range?: { from?: Date; to?: Date }): Promise<CaseSummary[]> {
+  /**
+   * `page` bounds the read (see shared/http/pagination.ts). Callers that pass
+   * one get up to `limit + 1` rows, the extra one only marking a next page.
+   * The assistant agenda is date-ranged by its function and not paged.
+   */
+  async listCases(
+    range?: { from?: Date; to?: Date },
+    page?: PageRequest,
+  ): Promise<CaseSummary[]> {
     const ctx = requireContext();
     const from = range?.from ?? null;
     const to = range?.to ?? null;
@@ -465,8 +474,11 @@ export class CasesService {
          LEFT JOIN LATERAL cases_patient_brief(a.id) b ON true
          WHERE ($1::timestamptz IS NULL OR a.created_at >= $1)
            AND ($2::timestamptz IS NULL OR a.created_at < $2)
-         ORDER BY a.created_at DESC`,
-        [from, to],
+           AND ($3::uuid IS NULL OR (a.created_at, a.id) <
+                (SELECT c.created_at, c.id FROM cases_cases c WHERE c.id = $3))
+         ORDER BY a.created_at DESC, a.id DESC
+         LIMIT $4`,
+        [from, to, page?.after ?? null, page === undefined ? null : page.limit + 1],
       );
       return res.rows.map(toSummary);
     });

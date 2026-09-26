@@ -20,6 +20,25 @@ import type {
 import { apiFetch, newIdempotencyKey } from './client';
 
 /**
+ * Every page of a keyset-paged list (the API bounds each response; see
+ * apps/api/src/shared/http/pagination.ts). Screens still get the whole list,
+ * one bounded request at a time. Moving filters server-side is what would
+ * let them stop asking for all of it.
+ */
+async function allPages<T, K extends string>(path: string, key: K): Promise<T[]> {
+  const sep = path.includes('?') ? '&' : '?';
+  const rows: T[] = [];
+  let cursor: string | null = null;
+  do {
+    const suffix: string = cursor === null ? '' : `${sep}cursor=${encodeURIComponent(cursor)}`;
+    const page = await apiFetch<Record<K, T[]> & { nextCursor?: string | null }>(`${path}${suffix}`);
+    rows.push(...page[key]);
+    cursor = page.nextCursor ?? null;
+  } while (cursor !== null);
+  return rows;
+}
+
+/**
  * Typed view of the API surface.
  *
  * One declaration per route, so a change to the API surface is a change to one
@@ -227,7 +246,9 @@ export const api = {
   },
 
   patients: {
-    list: () => apiFetch<{ patients: Patient[] }>('/patients'),
+    list: async (): Promise<{ patients: Patient[] }> => ({
+      patients: await allPages<Patient, 'patients'>('/patients', 'patients'),
+    }),
     searchByPhone: (phone: string) =>
       apiFetch<{ candidates: Patient[] }>(`/patients/search?phone=${encodeURIComponent(phone)}`),
     getById: (id: string) => apiFetch<Patient>(`/patients/${id}`),
@@ -320,7 +341,7 @@ export const api = {
       if (range?.from !== undefined) q.set('from', range.from);
       if (range?.to !== undefined) q.set('to', range.to);
       const suffix = q.toString() === '' ? '' : `?${q.toString()}`;
-      return apiFetch<{ cases: CaseRecord[] }>(`/cases${suffix}`);
+      return allPages<CaseRecord, 'cases'>(`/cases${suffix}`, 'cases').then((cases) => ({ cases }));
     },
     get: (id: string) => apiFetch<CaseRecord>(`/cases/${id}`),
 

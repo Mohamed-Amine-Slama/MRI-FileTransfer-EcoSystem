@@ -1,4 +1,5 @@
 import { Injectable, NotFoundException } from '@nestjs/common';
+import type { PageRequest } from '../../../shared/http/pagination';
 import { DatabaseService } from '../../../shared/db/database.service';
 import { requireContext } from '../../../shared/context/request-context';
 import { EventBus } from '../../../shared/events/event-bus';
@@ -154,7 +155,8 @@ export class PatientsService {
   }
 
   /** List the caller's own patients. Scope comes entirely from RLS. */
-  async list(): Promise<PatientCandidate[]> {
+  /** Newest first, one page at a time (shared/http/pagination.ts). */
+  async list(page: PageRequest = { limit: 500 }): Promise<PatientCandidate[]> {
     return this.db.tx(async (tx) => {
       const res = await tx.query<{
         id: string;
@@ -165,7 +167,11 @@ export class PatientsService {
       }>(
         `SELECT id, full_name, date_of_birth, phone_e164, sex
          FROM patients_patients
-         ORDER BY created_at DESC`,
+         WHERE ($1::uuid IS NULL OR (created_at, id) <
+                (SELECT q.created_at, q.id FROM patients_patients q WHERE q.id = $1))
+         ORDER BY created_at DESC, id DESC
+         LIMIT $2`,
+        [page.after ?? null, page.limit + 1],
       );
       return res.rows.map((r) => ({
         id: r.id,
