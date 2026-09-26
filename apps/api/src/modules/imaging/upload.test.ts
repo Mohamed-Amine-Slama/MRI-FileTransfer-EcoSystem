@@ -78,9 +78,10 @@ let ingestion: IngestionService;
  * Only `add` is exercised, so the cast is honest about the rest: a full BullMQ
  * Queue in a database test would need Redis for no assertion's benefit.
  */
-const enqueued: { name: string; data: Record<string, unknown> }[] = [];
+type JobData = { studyId?: string; actorId?: string; storageKey?: string };
+const enqueued: { name: string; data: JobData }[] = [];
 const queue = {
-  add: (name: string, data: Record<string, unknown>) => {
+  add: (name: string, data: JobData) => {
     enqueued.push({ name, data });
     return Promise.resolve({ id: String(enqueued.length) });
   },
