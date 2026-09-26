@@ -6,6 +6,7 @@ import {
   CalendarClock,
   FolderKanban,
   Inbox,
+  LayoutDashboard,
   ScrollText,
   Upload,
   Users,
@@ -147,6 +148,13 @@ export const NAV_SECTIONS: readonly NavSection[] = [
   {
     headingKey: 'navSectionAdmin',
     items: [
+      {
+        href: '/admin',
+        labelKey: 'navAdminHome',
+        descriptionKey: 'adminHomeDescription',
+        roles: OPS_ROLES,
+        Icon: LayoutDashboard,
+      },
       {
         href: '/admin/cases',
         labelKey: 'navAdminCases',
