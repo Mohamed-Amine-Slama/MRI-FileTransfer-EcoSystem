@@ -88,7 +88,7 @@ export class AuthGuard implements CanActivate {
       role: identity.role,
       ipAddress: clientIp(request),
       userAgent: firstHeader(request.headers['user-agent']),
-      requestId: firstHeader(request.headers['x-request-id']) ?? randomUUID(),
+      requestId: safeRequestId(firstHeader(request.headers['x-request-id'])),
     };
 
     // Fill in the scope opened by RequestContextMiddleware. Everything
@@ -109,6 +109,17 @@ function extractBearerToken(header: string | undefined): string | undefined {
 function firstHeader(value: string | string[] | undefined): string | undefined {
   if (value === undefined) return undefined;
   return Array.isArray(value) ? value[0] : value;
+}
+
+const REQUEST_ID = /^[A-Za-z0-9._:-]{1,128}$/;
+
+/**
+ * A caller-supplied request id is kept for correlation only when it is a
+ * short token. It lands in the audit log and every log line; an arbitrary
+ * header value there is a way to forge or inject lines, or to bloat rows.
+ */
+export function safeRequestId(value: string | undefined): string {
+  return value !== undefined && REQUEST_ID.test(value) ? value : randomUUID();
 }
 
 /**
