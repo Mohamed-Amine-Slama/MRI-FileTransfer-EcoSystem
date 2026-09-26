@@ -12,6 +12,7 @@ import { RequestContextMiddleware } from '../../shared/context/request-context.m
 import { setContext } from '../../shared/context/request-context';
 import {
   appUrl,
+  createPatient,
   createUser,
   setupTestDatabase,
   truncateAll,
@@ -155,6 +156,33 @@ describe('P5.1 patients over HTTP', () => {
 
     // A can still see it — otherwise this passes against a broken-for-everyone policy.
     await as(server, doctorA, 'libya_doctor').get(`/patients/${patientId}`).expect(200);
+  });
+
+  it('pages the list newest first, with no gaps or repeats, and a null cursor at the end', async () => {
+    const doctor = await createUser(h.owner, 'libya_doctor');
+    const server = app.getHttpServer();
+    const made: string[] = [];
+    for (let n = 0; n < 3; n++) made.push(await createPatient(h.owner, doctor));
+
+    const first = await as(server, doctor, 'libya_doctor').get('/patients?limit=2').expect(200);
+    expect(first.body.patients).toHaveLength(2);
+    expect(first.body.nextCursor).toBe(first.body.patients[1].id);
+
+    const second = await as(server, doctor, 'libya_doctor')
+      .get(`/patients?limit=2&cursor=${first.body.nextCursor as string}`)
+      .expect(200);
+    expect(second.body.patients).toHaveLength(1);
+    expect(second.body.nextCursor).toBeNull();
+
+    const ids = [...first.body.patients, ...second.body.patients].map((p: { id: string }) => p.id);
+    expect(ids).toEqual([...made].reverse());
+  });
+
+  it('rejects a malformed cursor or an out-of-range limit as 400', async () => {
+    const doctor = await createUser(h.owner, 'libya_doctor');
+    const server = app.getHttpServer();
+    await as(server, doctor, 'libya_doctor').get('/patients?cursor=not-a-uuid').expect(400);
+    await as(server, doctor, 'libya_doctor').get('/patients?limit=501').expect(400);
   });
 
   it('does not leak existence through the search endpoint either', async () => {

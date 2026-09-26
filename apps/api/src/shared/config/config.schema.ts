@@ -29,7 +29,6 @@ const intFromEnv = (label: string, min: number, max: number) =>
 export const configSchema = z.object({
   NODE_ENV: z.enum(['development', 'test', 'staging', 'production']),
   PORT: intFromEnv('PORT', 1, 65535).prefault('3000'),
-  LOG_LEVEL: z.enum(['fatal', 'error', 'warn', 'info', 'debug', 'trace']).default('info'),
 
   // --- database ------------------------------------------------------------
   // Must be the non-superuser application role. It must NOT have BYPASSRLS

@@ -217,6 +217,10 @@ export class KeycloakAdminClient {
    * exactly one application role, so attaching the new one without removing
    * `applicant` locks the user out (401 on every call) until an operator
    * edits Keycloak by hand.
+   *
+   * Two calls, no transaction. Grant first: if the removal then fails, the
+   * token verifier accepts applicant + the granted role as the granted role.
+   * The reverse order would leave a user with no role at all.
    */
   async promote(sub: string, role: string): Promise<void> {
     await this.mapRealmRole(sub, role, 'POST');

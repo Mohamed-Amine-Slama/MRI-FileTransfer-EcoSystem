@@ -1,9 +1,9 @@
 import { ConflictException, Inject, Injectable, Logger, NotFoundException } from '@nestjs/common';
-import { caseStatusSchema, isTerminalStatus } from '@mir/contracts';
 import { APP_CONFIG } from '../../../shared/config/config.module';
 import type { AppConfig } from '../../../shared/config/config.schema';
 import { requireContext, runWithContext, systemContext } from '../../../shared/context/request-context';
 import { DatabaseService } from '../../../shared/db/database.service';
+import type { PageRequest } from '../../../shared/http/pagination';
 import type { DomainEventBase } from '../../../shared/events/domain-events';
 import { EventBus } from '../../../shared/events/event-bus';
 import { LedgerService } from '../../ledger';
@@ -430,7 +430,15 @@ export class CasesService {
    * "an assistant sees a name and a phone number and nothing else" a property
    * of the schema rather than of this SELECT list.
    */
-  async listCases(range?: { from?: Date; to?: Date }): Promise<CaseSummary[]> {
+  /**
+   * `page` bounds the read (see shared/http/pagination.ts). Callers that pass
+   * one get up to `limit + 1` rows, the extra one only marking a next page.
+   * The assistant agenda is date-ranged by its function and not paged.
+   */
+  async listCases(
+    range?: { from?: Date; to?: Date },
+    page?: PageRequest,
+  ): Promise<CaseSummary[]> {
     const ctx = requireContext();
     const from = range?.from ?? null;
     const to = range?.to ?? null;
@@ -466,8 +474,11 @@ export class CasesService {
          LEFT JOIN LATERAL cases_patient_brief(a.id) b ON true
          WHERE ($1::timestamptz IS NULL OR a.created_at >= $1)
            AND ($2::timestamptz IS NULL OR a.created_at < $2)
-         ORDER BY a.created_at DESC`,
-        [from, to],
+           AND ($3::uuid IS NULL OR (a.created_at, a.id) <
+                (SELECT c.created_at, c.id FROM cases_cases c WHERE c.id = $3))
+         ORDER BY a.created_at DESC, a.id DESC
+         LIMIT $4`,
+        [from, to, page?.after ?? null, page === undefined ? null : page.limit + 1],
       );
       return res.rows.map(toSummary);
     });
@@ -701,42 +712,6 @@ export class CasesService {
     });
     if (changed === 0) throw new NotFoundException('Case not found');
     return this.getCase(caseId);
-  }
-
-  /** One status move, guarded by the states it is legal from. */
-  private async transition(
-    caseId: string,
-    to: string,
-    fromCondition: string,
-  ): Promise<void> {
-    // `terminal_at` is stamped for any state the contract calls terminal.
-    //
-    // This helper covers the generic moves, including the ops override. The
-    // four verbs that write their own UPDATE — decline, both cancels, expire —
-    // stamp it inline, because they set other columns in the same statement.
-    // That split is a standing hazard: a fifth such verb would forget. The
-    // lifecycle test asserting the stamp is what keeps them honest, which is
-    // why it is written against the observable column rather than against this
-    // code path.
-    //
-    // A missed stamp fails SAFE. The twin reap treats NULL as "never reap", so
-    // the cost is wasted storage, never a twin deleted while a case needs it.
-    //
-    // `answered` is deliberately not terminal: it still moves to `closed`.
-    const parsed = caseStatusSchema.safeParse(to);
-    const terminal = parsed.success && isTerminalStatus(parsed.data);
-
-    const changed = await this.db.tx(async (tx) => {
-      const res = await tx.query(
-        `UPDATE cases_cases
-         SET status = $2${terminal ? ', terminal_at = now()' : ''}
-         WHERE id = $1 AND ${fromCondition}`,
-        [caseId, to],
-      );
-      return res.rowCount ?? 0;
-    });
-    // Not visible, no such row, or not in a state this move is legal from.
-    if (changed === 0) throw new NotFoundException('Case not found');
   }
 
   /**

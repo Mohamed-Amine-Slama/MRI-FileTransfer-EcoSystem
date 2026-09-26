@@ -237,7 +237,6 @@ services:
       # lost. This stack holds synthetic data only (ADR-7).
       NODE_ENV: development
       PORT: '3000'
-      LOG_LEVEL: ${LOG_LEVEL:-debug}
 
       # The non-superuser application role, so RLS is genuinely enforced here
       # rather than silently bypassed (ADR-6, P3.2). Password attached by

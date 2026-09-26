@@ -15,7 +15,14 @@ import { stagingKey } from './upload.service';
 import { ORTHANC_CLIENT, type OrthancClient } from './orthanc.client';
 import { ThumbnailService } from './thumbnail.service';
 import { decideRelease } from './burned-in';
-import { IMAGING_QUEUE, buildTwinJobName, type BuildTwinJob } from '../../../shared/jobs/queue.tokens';
+import {
+  DURABLE_RETRY,
+  IMAGING_QUEUE,
+  buildTwinJobName,
+  restowInstanceJobName,
+  type BuildTwinJob,
+  type RestowInstanceJob,
+} from '../../../shared/jobs/queue.tokens';
 import type { Queue } from 'bullmq';
 
 /**
@@ -138,7 +145,7 @@ export class IngestionService {
     // the object and its row — is already durable. Losing a thumbnail is a
     // slow viewer; losing the original is a lost scan. Both are idempotent
     // per SOP instance, so a job retry repeating them is harmless.
-    await this.storeDerived(session.patient_id, header, bytes);
+    await this.storeDerived(session.patient_id, key, header, bytes);
 
     const { result, completion } = await this.db.tx(async (tx) => {
       // Re-read under the transaction: a sibling file may have fixed the
@@ -237,15 +244,24 @@ export class IngestionService {
   /** Steps 6 and 7. Never throws: both are rebuildable from the original. */
   private async storeDerived(
     patientId: string,
+    storageKey: string,
     header: DicomHeader,
     bytes: Uint8Array,
   ): Promise<void> {
     try {
       await this.orthanc.storeInstance(bytes);
     } catch (err) {
+      // Not fatal to the ingest (the original is durable), but not ignorable
+      // either: the twin is built from Orthanc, so a missing instance keeps
+      // the study unreleased (TwinService refuses a short study) until this
+      // re-send lands.
       this.logger.error(
-        `Orthanc STOW-RS failed for ${header.sopInstanceUID}: ${errMessage(err)}`,
+        `Orthanc STOW-RS failed for ${header.sopInstanceUID}, queued re-send: ${errMessage(err)}`,
       );
+      const job: RestowInstanceJob = { storageKey };
+      await this.queue.add(restowInstanceJobName, job, DURABLE_RETRY).catch((qErr: unknown) => {
+        this.logger.error(`re-send not queued for ${storageKey}: ${errMessage(qErr)}`);
+      });
     }
     try {
       const thumb = await this.thumbnails.generate(bytes);
@@ -272,9 +288,18 @@ export class IngestionService {
    * reaches its doctor, so it is logged as an error rather than a warning —
    * unlike the thumbnail, which only costs a slow first paint.
    */
+  /**
+   * Re-send one original to Orthanc. Throws on failure so BullMQ retries it;
+   * STOW is idempotent per SOP instance, so a redelivery is harmless.
+   */
+  async restow(job: RestowInstanceJob): Promise<void> {
+    await this.orthanc.storeInstance(await this.blobs.getOriginal(job.storageKey));
+  }
+
   private async enqueueTwin(job: BuildTwinJob): Promise<void> {
     try {
-      await this.queue.add(buildTwinJobName, job);
+      // Durable budget: the twin waits on every instance being in Orthanc.
+      await this.queue.add(buildTwinJobName, job, DURABLE_RETRY);
     } catch (err) {
       this.logger.error(
         `twin not enqueued for study ${job.studyId}; it will stay unreleased: ${errMessage(err)}`,

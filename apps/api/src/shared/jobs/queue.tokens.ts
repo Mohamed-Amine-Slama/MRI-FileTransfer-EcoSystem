@@ -37,6 +37,28 @@ export interface BuildTwinJob {
  */
 export const ingestFileJobName = 'imaging.ingestFile';
 
+/**
+ * Enqueued when ingest could not STOW an instance to Orthanc (ADR-3: Orthanc
+ * is rebuilt from the originals). Carries the original's blob key only — the
+ * job reads the bytes back and re-sends them, touching no table, so it needs
+ * no identity.
+ */
+export const restowInstanceJobName = 'imaging.restowInstance';
+
+export interface RestowInstanceJob {
+  storageKey: string;
+}
+
+/**
+ * Retry budget for work that waits on Orthanc: 12 attempts, exponential from
+ * 30s, ~34 hours in all. The queue default (5 attempts from 5s, ~2.5 minutes)
+ * dead-letters a twin during any Orthanc outage longer than a coffee break.
+ */
+export const DURABLE_RETRY = {
+  attempts: 12,
+  backoff: { type: 'exponential', delay: 30_000 },
+} as const;
+
 export interface IngestFileJob {
   fileId: string;
   /** The uploading doctor. Ingestion runs under their identity, like the twin. */

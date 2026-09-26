@@ -78,9 +78,10 @@ let ingestion: IngestionService;
  * Only `add` is exercised, so the cast is honest about the rest: a full BullMQ
  * Queue in a database test would need Redis for no assertion's benefit.
  */
-const enqueued: { name: string; data: { studyId: string; actorId: string } }[] = [];
+type JobData = { studyId?: string; actorId?: string; storageKey?: string };
+const enqueued: { name: string; data: JobData }[] = [];
 const queue = {
-  add: (name: string, data: { studyId: string; actorId: string }) => {
+  add: (name: string, data: JobData) => {
     enqueued.push({ name, data });
     return Promise.resolve({ id: String(enqueued.length) });
   },
@@ -236,6 +237,45 @@ describe('P7.1 upload session', () => {
         }),
       ),
     ).rejects.toThrow(/not found/i);
+  });
+
+  it('a registration racing another for the same file resumes from the winner, not 500', async () => {
+    const doctor = await createUser(h.owner, 'libya_doctor');
+    const patient = await createPatient(h.owner, doctor);
+    const sessionId = await newSession(doctor, patient, 1);
+    const sha = 'b'.repeat(64);
+
+    // The "other request": its row is inserted but not yet committed, so our
+    // SELECT sees nothing and our INSERT has to wait on the unique key.
+    const other = await h.owner.connect();
+    try {
+      await other.query('BEGIN');
+      const won = await other.query<{ id: string }>(
+        `INSERT INTO imaging_upload_files
+           (session_id, client_file_id, file_name, size_bytes, client_sha256, chunk_size_bytes)
+         VALUES ($1, 'DICOM/IM000001', 'IM000001', 10, $2, $3) RETURNING id`,
+        [sessionId, sha, config.UPLOAD_CHUNK_SIZE_BYTES],
+      );
+
+      const ours = runWithContext(ctx(doctor), () =>
+        uploads.registerFile({
+          sessionId,
+          clientFileId: 'DICOM/IM000001',
+          fileName: 'IM000001',
+          sizeBytes: 10,
+          sha256: sha,
+        }),
+      );
+      // Commit only once our INSERT is actually blocked behind it.
+      await expect
+        .poll(async () => (await h.owner.query('SELECT 1 FROM pg_locks WHERE NOT granted')).rowCount)
+        .toBeGreaterThan(0);
+      await other.query('COMMIT');
+
+      await expect(ours).resolves.toMatchObject({ fileId: won.rows[0]?.id, nextChunkIndex: 0 });
+    } finally {
+      other.release();
+    }
   });
 });
 
@@ -747,6 +787,14 @@ describe('P7.4 server-side ingestion', () => {
     if (key !== undefined) {
       expect(sha256(await blobs.getOriginal(key))).toBe(sha256(file.bytes));
     }
+
+    // …and Orthanc is not left short: a re-send of that original is queued,
+    // and running it puts the instance into Orthanc.
+    const restow = enqueued.find((j) => j.name === 'imaging.restowInstance');
+    expect(restow?.data).toEqual({ storageKey: key });
+    const storedBefore = orthanc.stored.length; // the double is shared by the whole file
+    await ingestion.restow({ storageKey: key ?? '' });
+    expect(orthanc.stored.slice(storedBefore).map((b) => sha256(b))).toEqual([sha256(file.bytes)]);
   });
 
   it('emits StudyUploadCompleted exactly once, on completion', async () => {

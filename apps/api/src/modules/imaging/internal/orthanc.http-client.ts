@@ -67,6 +67,18 @@ export class OrthancHttpClient implements OrthancClient {
     return this.lookup(studyInstanceUid, 'Study');
   }
 
+  async countInstances(orthancStudyId: string): Promise<number> {
+    const res = await this.request(`/studies/${encodeURIComponent(orthancStudyId)}/statistics`, {
+      method: 'GET',
+    });
+    if (!res.ok) throw new Error(`Orthanc study statistics failed: ${res.status}`);
+    const stats = (await res.json()) as { CountInstances?: unknown };
+    if (typeof stats.CountInstances !== 'number') {
+      throw new Error('Orthanc study statistics returned an unexpected shape');
+    }
+    return stats.CountInstances;
+  }
+
   /**
    * Resolve any DICOM UID to Orthanc's resource id of the requested kind.
    *
