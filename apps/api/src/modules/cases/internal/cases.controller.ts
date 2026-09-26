@@ -16,6 +16,7 @@ import {
 import type { Response } from 'express';
 import { consultReportDraftSchema, consultReportSchema } from '@mir/contracts';
 import { z } from 'zod';
+import { pageQuerySchema, toPage } from '../../../shared/http/pagination';
 import { RequiresRole } from '../../../shared/authz/access-metadata';
 import { RateLimit } from '../../../shared/ratelimit/rate-limit.guard';
 import { CasesService, type CaseSummary } from './cases.service';
@@ -191,10 +192,14 @@ export class CasesController {
   // patient join yields no name for them.
   @RequiresRole('libya_doctor', 'tunisia_doctor', 'assistant', 'admin')
   @Get('cases')
-  async list(@Query() query: unknown): Promise<{ cases: CaseDto[] }> {
-    const range = rangeQuerySchema.parse(query ?? {});
-    const rows = await this.cases.listCases(range);
-    return { cases: rows.map(toDto) };
+  async list(@Query() query: unknown): Promise<{ cases: CaseDto[]; nextCursor: string | null }> {
+    const { from, to, limit, cursor } = rangeQuerySchema.extend(pageQuerySchema.shape).parse(query ?? {});
+    const rows = await this.cases.listCases(
+      { ...(from === undefined ? {} : { from }), ...(to === undefined ? {} : { to }) },
+      { limit, ...(cursor === undefined ? {} : { after: cursor }) },
+    );
+    const { items, nextCursor } = toPage(rows, limit);
+    return { cases: items.map(toDto), nextCursor };
   }
 
   @RequiresRole('libya_doctor', 'tunisia_doctor', 'assistant', 'admin')
