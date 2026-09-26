@@ -160,7 +160,9 @@ export function QueueRow({
           <span className="text-sm">{label}</span>
         </div>
         {secondary !== undefined && (
-          <p className="mt-0.5 truncate text-xs text-muted-foreground">{secondary}</p>
+          // Wraps rather than truncates: for a doctor this line is the referral
+          // reason they accept on, and a cut sentence is information lost.
+          <p className="mt-0.5 text-xs text-muted-foreground">{secondary}</p>
         )}
       </div>
       <span className="flex items-center gap-1.5 text-xs tabular-nums text-muted-foreground">

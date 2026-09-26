@@ -70,7 +70,11 @@ function CasesList(): React.JSX.Element {
   const invalidRange = from !== '' && to !== '' && from > to;
 
   const load = useCallback(async () => {
-    if (providerId === null) return;
+    // No organisation yet means no cases, not "still loading".
+    if (providerId === null) {
+      setCases([]);
+      return;
+    }
     setError(null);
     try {
       setCases(
