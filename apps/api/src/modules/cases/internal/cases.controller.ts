@@ -17,12 +17,7 @@ import {
 import type { Response } from 'express';
 import { consultReportDraftSchema, consultReportSchema } from '@mir/contracts';
 import { z } from 'zod';
-
-/** One submission's key, reused on its retries (migration 0036). Optional. */
-const idempotencyKeySchema = z
-  .string()
-  .regex(/^[A-Za-z0-9._:-]{1,128}$/, 'idempotency-key must be a short token')
-  .optional();
+import { pageQuerySchema, toPage } from '../../../shared/http/pagination';
 import { RequiresRole } from '../../../shared/authz/access-metadata';
 import { RateLimit } from '../../../shared/ratelimit/rate-limit.guard';
 import { CasesService, type CaseSummary } from './cases.service';
@@ -48,6 +43,12 @@ const isoDate = z
   .string()
   .datetime({ offset: true })
   .transform((s) => new Date(s));
+
+/** One submission's key, reused on its retries (migration 0036). Optional. */
+const idempotencyKeySchema = z
+  .string()
+  .regex(/^[A-Za-z0-9._:-]{1,128}$/, 'idempotency-key must be a short token')
+  .optional();
 
 const rangeQuerySchema = z.object({ from: isoDate.optional(), to: isoDate.optional() });
 
