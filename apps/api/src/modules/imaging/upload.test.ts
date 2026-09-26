@@ -78,9 +78,10 @@ let ingestion: IngestionService;
  * Only `add` is exercised, so the cast is honest about the rest: a full BullMQ
  * Queue in a database test would need Redis for no assertion's benefit.
  */
-const enqueued: { name: string; data: { studyId: string; actorId: string } }[] = [];
+type JobData = { studyId?: string; actorId?: string; storageKey?: string };
+const enqueued: { name: string; data: JobData }[] = [];
 const queue = {
-  add: (name: string, data: { studyId: string; actorId: string }) => {
+  add: (name: string, data: JobData) => {
     enqueued.push({ name, data });
     return Promise.resolve({ id: String(enqueued.length) });
   },
@@ -747,6 +748,14 @@ describe('P7.4 server-side ingestion', () => {
     if (key !== undefined) {
       expect(sha256(await blobs.getOriginal(key))).toBe(sha256(file.bytes));
     }
+
+    // …and Orthanc is not left short: a re-send of that original is queued,
+    // and running it puts the instance into Orthanc.
+    const restow = enqueued.find((j) => j.name === 'imaging.restowInstance');
+    expect(restow?.data).toEqual({ storageKey: key });
+    const storedBefore = orthanc.stored.length; // the double is shared by the whole file
+    await ingestion.restow({ storageKey: key ?? '' });
+    expect(orthanc.stored.slice(storedBefore).map((b) => sha256(b))).toEqual([sha256(file.bytes)]);
   });
 
   it('emits StudyUploadCompleted exactly once, on completion', async () => {
