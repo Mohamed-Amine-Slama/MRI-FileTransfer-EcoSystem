@@ -389,6 +389,9 @@ const ar = {
   dashActionPick: 'اختر',
   dashActionPay: 'ادفع',
   dashActionOpen: 'فتح',
+  dashToTriage: 'بانتظار قرارك',
+  dashToAnswer: 'بانتظار ردك',
+  dashToAnswerEmpty: 'لا حالات بانتظار ردك.',
   workspaceTasksEmpty: 'لا توجد مهام معلّقة.',
   workspaceSeats: 'مستخدمو الحساب',
   // admin (§5.8)
@@ -1110,6 +1113,9 @@ const fr: Dictionary = {
   dashActionPick: 'Choisir',
   dashActionPay: 'Payer',
   dashActionOpen: 'Ouvrir',
+  dashToTriage: 'À trier',
+  dashToAnswer: 'À répondre',
+  dashToAnswerEmpty: 'Aucun dossier en attente de votre réponse.',
   workspaceTasksEmpty: 'Aucune tâche en attente.',
   workspaceSeats: 'Utilisateurs du compte',
   // admin (§5.8)
@@ -1851,6 +1857,9 @@ const en: Dictionary = {
   dashActionPick: 'Pick',
   dashActionPay: 'Pay',
   dashActionOpen: 'Open',
+  dashToTriage: 'To triage',
+  dashToAnswer: 'To answer',
+  dashToAnswerEmpty: 'No cases waiting for your answer.',
   workspaceTasksEmpty: 'No outstanding tasks.',
   workspaceSeats: 'Account users',
   // admin (§5.8)

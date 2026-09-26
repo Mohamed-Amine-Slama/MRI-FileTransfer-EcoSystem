@@ -4,24 +4,14 @@ import Link from '../../components/ui/link';
 import { useCallback, useEffect, useState } from 'react';
 import { api, type CaseRecord } from '../../lib/api/endpoints';
 import { useDateFormat, useT } from '../../lib/i18n/provider';
-import { patientBriefLabel, specialtyLabel } from '../../components/case/labels';
+import { useSession } from '../../lib/session/session';
+import { cn } from '../../lib/utils';
+import { doctorModel } from '../../lib/dashboard/doctor-model';
+import { isStale } from '../../lib/dashboard/time';
+import { caseStatusTone, patientBriefLabel, specialtyLabel } from '../../components/case/labels';
+import { DashboardHeader, QueueRow, QueueSection } from '../../components/dashboard/queue';
 import { RoleGate } from '../../components/RoleGate';
-import {
-  Alert,
-  Badge,
-  Button,
-  buttonVariants,
-  EmptyState,
-  Main,
-  PageHeader,
-  Spinner,
-  Table,
-  TableBody,
-  TableCell,
-  TableHead,
-  TableHeader,
-  TableRow,
-} from '../../components/ui';
+import { Alert, Button, buttonVariants, Card, Main, Spinner, StatGrid, StatTile } from '../../components/ui';
 
 /**
  * Receiving doctor's inbox — the Tunisian side of the consult.
@@ -47,12 +37,10 @@ export default function DoctorInboxPage(): React.JSX.Element {
   );
 }
 
-/** The states a receiving doctor still has a decision to make about. */
-const ACTIONABLE: ReadonlySet<CaseRecord['status']> = new Set(['paid', 'accepted']);
-
 function Inbox(): React.JSX.Element {
   const t = useT();
   const formatDate = useDateFormat();
+  const { user } = useSession();
 
   const [cases, setCases] = useState<CaseRecord[] | null>(null);
   const [error, setError] = useState<string | null>(null);
@@ -92,105 +80,135 @@ function Inbox(): React.JSX.Element {
     }
   };
 
-  const rows = cases === null ? null : cases.filter((c) => ACTIONABLE.has(c.status));
+  if (cases === null) {
+    return (
+      <Main>
+        <Spinner label={t.loading} />
+      </Main>
+    );
+  }
+
+  const now = Date.now();
+  const { triage, answering, answered } = doctorModel(cases, now);
+  // Age and sex, then the referral reason — the summary a doctor decides on.
+  // Never the patient's name: migration 0028 removed that grant.
+  const summary = (c: CaseRecord): string =>
+    [patientBriefLabel(t, c), c.reason]
+      .filter((part) => part !== null && part !== '' && part !== '\u2014')
+      .join(' · ');
 
   return (
-    <Main wide>
-      <PageHeader title={t.inboxTitle} description={t.inboxDescription} />
+    <Main wide className="space-y-6">
+      <DashboardHeader
+        greeting={user === null ? t.inboxTitle : `${t.dashHello} ${user.displayName}`}
+        subtitle={t.inboxDescription}
+      >
+        <StatGrid className="lg:grid-cols-3">
+          <StatTile label={t.dashToTriage} value={triage.length} emphasis testId="tile-triage" />
+          <StatTile label={t.dashToAnswer} value={answering.length} testId="tile-answer" />
+          <StatTile label={t.dashAnswered7d} value={answered.length} testId="tile-answered" />
+        </StatGrid>
+      </DashboardHeader>
 
       {notice !== null && <Alert tone="success">{notice}</Alert>}
       {error !== null && <Alert tone="danger">{error}</Alert>}
 
-      {rows === null ? (
-        <Spinner label={t.loading} />
-      ) : rows.length === 0 ? (
-        <EmptyState testId="inbox-empty">{t.inboxEmpty}</EmptyState>
-      ) : (
-        <Table data-testid="inbox-list">
-          <TableHeader>
-            <TableRow>
-              <TableHead>{t.colSpecialty}</TableHead>
-              <TableHead>{t.colPatient}</TableHead>
-              <TableHead>{t.colReason}</TableHead>
-              <TableHead>{t.inboxAnswerDue}</TableHead>
-              <TableHead>
-                <span className="sr-only">{t.colActions}</span>
-              </TableHead>
-            </TableRow>
-          </TableHeader>
-          <TableBody>
-            {rows.map((c) => (
-              <TableRow key={c.id} data-testid="inbox-row" data-status={c.status}>
-                {/*
-                 * The case reference, never the patient. A doctor works from
-                 * the pseudonym and the clinical summary; the identity stays on
-                 * the lab's side of the corridor.
-                 */}
-                <TableCell className="font-medium">
+      <div className="grid gap-6 lg:grid-cols-3">
+        <div className="space-y-6 lg:col-span-2">
+          <QueueSection
+            title={t.dashToTriage}
+            count={triage.length}
+            empty={t.inboxEmpty}
+            testId="inbox-list"
+            emptyTestId="inbox-empty"
+          >
+            {triage.map((c) => (
+              <QueueRow
+                key={c.id}
+                testId="inbox-row"
+                dataStatus={c.status}
+                reference={c.caseRef}
+                href={`/cases/${c.id}`}
+                label={specialtyLabel(t, c.specialty)}
+                secondary={summary(c)}
+                tone={caseStatusTone(c.status)}
+                at={c.updatedAt}
+                stale={isStale(c, now)}
+                action={
+                  <>
+                    <Button
+                      variant="primary"
+                      size="sm"
+                      data-testid="accept-case"
+                      disabled={busyId === c.id}
+                      onClick={() => void act(c.id, 'accept')}
+                    >
+                      {t.inboxAccept}
+                    </Button>
+                    <Button
+                      size="sm"
+                      data-testid="decline-case"
+                      disabled={busyId === c.id}
+                      onClick={() => void act(c.id, 'decline')}
+                    >
+                      {t.inboxDecline}
+                    </Button>
+                  </>
+                }
+              />
+            ))}
+          </QueueSection>
+
+          <QueueSection
+            title={t.dashToAnswer}
+            count={answering.length}
+            empty={t.dashToAnswerEmpty}
+            testId="answer-list"
+            emptyTestId="answer-empty"
+          >
+            {answering.map((c) => (
+              <QueueRow
+                key={c.id}
+                testId="inbox-row"
+                dataStatus={c.status}
+                reference={c.caseRef}
+                href={`/cases/${c.id}`}
+                label={specialtyLabel(t, c.specialty)}
+                secondary={
+                  c.answerDueAt === null
+                    ? summary(c)
+                    : `${t.inboxAnswerDue}: ${formatDate(c.answerDueAt)} · ${summary(c)}`
+                }
+                tone={caseStatusTone(c.status)}
+                at={c.updatedAt}
+                stale={isStale(c, now)}
+                action={
+                  // Answering IS submitting the report, written beside the images.
                   <Link
                     href={`/cases/${c.id}`}
-                    className="rounded-sm hover:text-primary hover:underline"
+                    data-testid="write-report"
+                    className={buttonVariants({ variant: 'default', size: 'sm' })}
                   >
-                    {specialtyLabel(t, c.specialty)}
+                    {t.inboxWriteReport}
                   </Link>
-                </TableCell>
-                {/*
-                 * Age and sex, which change how imaging is read — and nothing
-                 * else. Migration 0028 removed this doctor's grant on the
-                 * patient row, so there is no name here to render even if a
-                 * later edit asked for one.
-                 */}
-                <TableCell className="text-muted-foreground tabular-nums">
-                  {patientBriefLabel(t, c)}
-                </TableCell>
-                <TableCell className="text-muted-foreground">{c.reason ?? '—'}</TableCell>
-                <TableCell className="text-muted-foreground tabular-nums">
-                  {c.answerDueAt === null ? (
-                    <Badge>{t.caseStatusPaid}</Badge>
-                  ) : (
-                    formatDate(c.answerDueAt)
-                  )}
-                </TableCell>
-                <TableCell>
-                  {c.status === 'paid' && (
-                    <div className="flex flex-wrap justify-end gap-2">
-                      <Button
-                        variant="primary"
-                        size="sm"
-                        data-testid="accept-case"
-                        disabled={busyId === c.id}
-                        onClick={() => void act(c.id, 'accept')}
-                      >
-                        {t.inboxAccept}
-                      </Button>
-                      <Button
-                        size="sm"
-                        data-testid="decline-case"
-                        disabled={busyId === c.id}
-                        onClick={() => void act(c.id, 'decline')}
-                      >
-                        {t.inboxDecline}
-                      </Button>
-                    </div>
-                  )}
-                  {c.status === 'accepted' && (
-                    <div className="flex justify-end">
-                      {/* Answering IS submitting the report, written beside the images. */}
-                      <Link
-                        href={`/cases/${c.id}`}
-                        data-testid="write-report"
-                        className={buttonVariants({ variant: 'default', size: 'sm' })}
-                      >
-                        {t.inboxWriteReport}
-                      </Link>
-                    </div>
-                  )}
-                </TableCell>
-              </TableRow>
+                }
+              />
             ))}
-          </TableBody>
-        </Table>
-      )}
+          </QueueSection>
+        </div>
+
+        <aside>
+          <Card title={t.navAvailability}>
+            <p className="text-sm text-muted-foreground">{t.availabilityDescription}</p>
+            <Link
+              href="/doctor/availability"
+              className={cn(buttonVariants({ variant: 'outline', size: 'sm' }), 'mt-3')}
+            >
+              {t.availabilityTitle}
+            </Link>
+          </Card>
+        </aside>
+      </div>
     </Main>
   );
 }
