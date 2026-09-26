@@ -20,7 +20,7 @@ import { CardContent, CardHeader, CardRoot, CardTitle } from './card';
  * comes from logical utilities only, enforced by lint (D4).
  */
 
-type Tone = 'info' | 'warning' | 'danger' | 'success';
+export type Tone = 'info' | 'warning' | 'danger' | 'success';
 
 // Re-exports: pages and new screens compose these directly.
 export { buttonVariants } from './button';

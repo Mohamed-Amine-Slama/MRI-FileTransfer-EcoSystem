@@ -18,6 +18,7 @@ import {
   type UiLocale,
 } from '@mir/contracts';
 import { DICTIONARIES, type Dictionary } from './dictionary';
+import { relativeAge } from '../dashboard/time';
 
 /**
  * Locale context — DECISION D4.
@@ -124,8 +125,9 @@ export function useT(): Dictionary {
  */
 const DATE_LOCALE: Record<UiLocale, string> = { ar: 'ar-LY', fr: 'fr-TN', en: 'en-GB' };
 
-export function useDateFormat(): (value: Date | string) => string {
+export function useDateFormat(options: { short?: boolean } = {}): (value: Date | string) => string {
   const { locale } = useLocale();
+  const short = options.short === true;
   return useCallback(
     (value: Date | string) => {
       const date = typeof value === 'string' ? new Date(value) : value;
@@ -133,8 +135,10 @@ export function useDateFormat(): (value: Date | string) => string {
       // Explicit components rather than dateStyle/timeStyle: the spec forbids
       // mixing the styles with timeZoneName, and compliant engines throw. The
       // zone stays visible — that requirement (P10.1) is the whole point.
+      // `short` only drops a year the reader already knows: this one.
+      const sameYear = date.getFullYear() === new Date().getFullYear();
       return new Intl.DateTimeFormat(DATE_LOCALE[locale], {
-        year: 'numeric',
+        year: short && sameYear ? undefined : 'numeric',
         month: 'short',
         day: 'numeric',
         hour: '2-digit',
@@ -142,8 +146,14 @@ export function useDateFormat(): (value: Date | string) => string {
         timeZoneName: 'short',
       }).format(date);
     },
-    [locale],
+    [locale, short],
   );
+}
+
+/** "2 hr. ago" in the interface language, measured at render time. */
+export function useRelativeAge(): (iso: string) => string {
+  const { locale } = useLocale();
+  return useCallback((iso: string) => relativeAge(iso, Date.now(), DATE_LOCALE[locale]), [locale]);
 }
 
 /**

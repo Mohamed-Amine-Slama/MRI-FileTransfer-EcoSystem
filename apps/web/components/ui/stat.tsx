@@ -21,6 +21,7 @@ export function StatTile({
   value,
   hint,
   href,
+  emphasis = false,
   testId,
 }: {
   label: string;
@@ -28,8 +29,14 @@ export function StatTile({
   hint?: string;
   /** Makes the whole tile a link to the list the number came from. */
   href?: string;
+  /**
+   * The one tile per dashboard that answers "is there work for me?". It wears
+   * the lime highlight; the numeral still wears text ink (rule above).
+   */
+  emphasis?: boolean;
   testId?: string;
 }): React.JSX.Element {
+  const labelTone = emphasis ? 'text-highlight-foreground' : 'text-muted-foreground';
   const body = (
     <CardContent className="space-y-1">
       {value === null ? (
@@ -37,20 +44,23 @@ export function StatTile({
       ) : (
         <p className="font-display text-3xl font-medium leading-none tabular-nums">{value}</p>
       )}
-      <p className="text-sm font-medium text-muted-foreground">{label}</p>
-      {hint !== undefined && <p className="text-xs text-muted-foreground">{hint}</p>}
+      <p className={cn('text-sm font-medium', labelTone)}>{label}</p>
+      {hint !== undefined && <p className={cn('text-xs', labelTone)}>{hint}</p>}
     </CardContent>
   );
+  const surface = emphasis ? 'border-highlight-edge bg-highlight text-highlight-foreground' : undefined;
 
   if (href === undefined) {
     return (
-      <CardRoot data-testid={testId}>{body}</CardRoot>
+      <CardRoot className={surface} data-testid={testId}>
+        {body}
+      </CardRoot>
     );
   }
 
   return (
     <CardRoot
-      className="transition-colors hover:border-primary focus-within:border-primary"
+      className={cn('transition-colors hover:border-primary focus-within:border-primary', surface)}
       data-testid={testId}
     >
       <Link href={href} className="block rounded-lg outline-none">

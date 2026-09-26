@@ -12,17 +12,17 @@ import { Select } from '../ui';
  * back to Arabic for any locale it did not name, which would have made English
  * unselectable the moment it existed.
  */
-export function LocaleSelect(): React.JSX.Element {
+export function LocaleSelect({ id = 'locale-select' }: { id?: string } = {}): React.JSX.Element {
   const t = useT();
   const { locale, setLocale } = useLocale();
 
   return (
     <>
-      <label className="sr-only" htmlFor="locale-select">
+      <label className="sr-only" htmlFor={id}>
         {t.navLanguage}
       </label>
       <Select
-        id="locale-select"
+        id={id}
         data-testid="locale-switcher"
         className="h-9 w-auto"
         value={locale}
