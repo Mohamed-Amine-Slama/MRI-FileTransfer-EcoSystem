@@ -207,6 +207,13 @@ resource "aws_s3_bucket_replication_configuration" "originals" {
   bucket = aws_s3_bucket.originals.id
   role   = var.replication_role_arn
 
+  lifecycle {
+    precondition {
+      condition     = var.replication_role_arn != "" && var.replica_bucket_arn != "" && var.replica_kms_key_arn != ""
+      error_message = "enable_replication needs replication_role_arn, replica_bucket_arn and replica_kms_key_arn (see modules/replica)."
+    }
+  }
+
   rule {
     id     = "replicate-all-originals"
     status = "Enabled"

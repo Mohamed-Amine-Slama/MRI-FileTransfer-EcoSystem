@@ -99,7 +99,25 @@ module "storage" {
 
   # Replication is off in dev: it doubles storage cost for synthetic data and
   # proves nothing that the staging drill will not prove better.
-  enable_replication = true
+  enable_replication   = true
+  replication_role_arn = module.replica.replication_role_arn
+  replica_bucket_arn   = module.replica.replica_bucket_arn
+  replica_kms_key_arn  = module.replica.replica_kms_key_arn
+
+  tags = local.tags
+}
+
+# What the replication rule above points at: DR key, bucket and role, in the
+# DR region. Without this, enable_replication named nothing and could not apply.
+module "replica" {
+  source    = "../../modules/replica"
+  providers = { aws = aws.dr }
+
+  name_prefix        = "mir-${local.environment}"
+  source_bucket_arn  = module.storage.originals_bucket_arn
+  source_kms_key_arn = module.kms.key_arns["objects"]
+  source_region      = var.primary_region
+  dr_region          = var.dr_region
 
   tags = local.tags
 }
