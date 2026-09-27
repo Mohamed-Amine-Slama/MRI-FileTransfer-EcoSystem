@@ -3,6 +3,7 @@
 import type { FieldSpec } from '@mir/contracts';
 import type { Dictionary } from '../../lib/i18n/dictionary';
 import { useT } from '../../lib/i18n/provider';
+import { DOCUMENT_ACCEPT } from '../../lib/verification/documents';
 import { specialtyLabel } from './labels';
 import { Field, Input, Select } from '../ui';
 
@@ -16,7 +17,7 @@ import { Field, Input, Select } from '../ui';
  */
 
 /** Dictionary keys are strings at runtime; this narrows the lookup safely. */
-function label(t: Dictionary, key: string): string {
+export function label(t: Dictionary, key: string): string {
   const value = (t as unknown as Record<string, string | undefined>)[key];
   // Falling back to the key is deliberate: an untranslated field is a visible
   // bug in development rather than an empty label in production.
@@ -28,11 +29,14 @@ export function CorridorFields({
   values,
   errors,
   onChange,
+  onFile,
 }: {
   fields: readonly FieldSpec[];
   values: Record<string, string>;
   errors: Record<string, string>;
   onChange: (key: string, value: string) => void;
+  /** `file` fields hand over the File itself; the value becomes its name. */
+  onFile?: (key: string, file: File | null) => void;
 }): React.JSX.Element {
   const t = useT();
 
@@ -74,6 +78,27 @@ export function CorridorFields({
                 aria-invalid={error === null ? undefined : 'true'}
                 onChange={(e) => onChange(field.key, e.target.value)}
                 className="w-full rounded-md border bg-background px-3 py-2 text-sm outline-none focus-visible:ring-2 focus-visible:ring-ring"
+              />
+            </Field>
+          );
+        }
+
+        if (field.kind === 'file') {
+          return (
+            <Field key={field.key} label={labelText} hint={t.documentHint} error={error}>
+              {/* Uncontrolled: a browser never lets script set a file input. */}
+              <Input
+                type="file"
+                accept={DOCUMENT_ACCEPT}
+                // Centre the native "choose file" button inside the h-10 control.
+                className="py-1.5 file:me-3 file:h-full file:cursor-pointer file:rounded-md file:border-0 file:bg-muted file:px-3 file:text-sm file:font-medium file:text-foreground"
+                invalid={error !== null}
+                data-testid={`field-${field.key}`}
+                onChange={(e) => {
+                  const file = e.target.files?.[0] ?? null;
+                  onChange(field.key, file?.name ?? '');
+                  onFile?.(field.key, file);
+                }}
               />
             </Field>
           );

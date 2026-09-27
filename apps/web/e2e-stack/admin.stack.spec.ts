@@ -31,9 +31,13 @@ test('ops approves a doctor → the doctor switches on → the clinic can pick t
   await a.getByTestId('field-seats').fill('1');
   await a.getByTestId('field-cnomNumber').fill(`CNOM-${Date.now()}`);
   await a.getByTestId('field-specialty').selectOption('radiology');
-  // A `file` credential renders as a text box: document upload is not built
-  // (plan 4 Findings). The applicant types the permit's reference.
-  await a.getByTestId('field-facilityPermit').fill(`PERMIT-${Date.now()}`);
+  // Identity (passport / CIN / driving licence) and the medical certificate,
+  // uploaded as real files.
+  await a.getByTestId('field-identityDocumentType').selectOption('idDocNationalId');
+  await a.getByTestId('field-identityDocumentNumber').fill(`CIN-${Date.now()}`);
+  const pdf = { mimeType: 'application/pdf', buffer: Buffer.from('%PDF-1.4\n%%EOF\n') };
+  await a.getByTestId('field-identityDocument').setInputFiles({ name: 'cin.pdf', ...pdf });
+  await a.getByTestId('field-medicalCertificate').setInputFiles({ name: 'cert.pdf', ...pdf });
   await a.getByTestId('submit-signup').click();
   await expect(a.getByTestId('signup-success')).toBeVisible();
   const [org] = await query<{ id: string }>('SELECT id FROM identity_organisations WHERE legal_name = $1', [legalName]);
@@ -43,6 +47,9 @@ test('ops approves a doctor → the doctor switches on → the clinic can pick t
   const ops = await (await browser.newContext()).newPage();
   await signIn(ops, 'ops');
   await ops.goto('/admin/providers');
+  // The reviewer has the actual files in front of them, not just the names.
+  await expect(ops.getByTestId(`doc-${org.id}-identityDocument`)).toBeVisible();
+  await expect(ops.getByTestId(`doc-${org.id}-medicalCertificate`)).toBeVisible();
   await ops.getByTestId(`approve-${org.id}`).click();
   await expect
     .poll(async () =>

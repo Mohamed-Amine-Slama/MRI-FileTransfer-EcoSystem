@@ -63,6 +63,14 @@ async function bootstrap(): Promise<void> {
     raw({ type: 'application/octet-stream', limit: '80mb' }),
   );
 
+  // Verification documents (identity papers, medical certificate). Keyed on
+  // the file's own content type so the JSON routes under /organisations still
+  // get a parsed body. 10mb matches the column CHECK in migration 0037.
+  app.use(
+    '/organisations',
+    raw({ type: ['application/pdf', 'image/jpeg', 'image/png'], limit: '10mb' }),
+  );
+
   // BUILD_SPEC §6: errors must not leak internals. Nest's default 500 body is
   // already opaque; the global exception filter added in P4.2 enforces the
   // rest (404-not-403 for unauthorised reads of a specific record).
