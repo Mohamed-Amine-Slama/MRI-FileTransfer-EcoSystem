@@ -65,8 +65,8 @@ importers:
         specifier: ^8.23.1
         version: 8.23.1
       bullmq:
-        specifier: ^6.3.7
-        version: 6.3.7(ioredis@6.0.0)(pg@8.23.0)
+        specifier: ^6.3.8
+        version: 6.3.8(ioredis@6.0.0)(pg@8.23.0)
       dejavu-fonts-ttf:
         specifier: ^2.37.3
         version: 2.37.3
@@ -2049,8 +2049,8 @@ packages:
   buffer-from@1.1.2:
     resolution: {integrity: sha512-E+XQCRwSbaaiChtv6k6Dwgc+bx+Bs6vuKJHHl5kox/BaKbhiXzqQOwK4cO22yElGp2OCmjwVhT3HmxgyPGnJfQ==}
 
-  bullmq@6.3.7:
-    resolution: {integrity: sha512-Jk8pv/N2RuhZCmyDQBvUtGqgMzUQCPeiFaZBT0QyWrIcJiQJ/eRB5QdDmpmhc0OPnGF/qW3zC4U1br66wTUj3Q==}
+  bullmq@6.3.8:
+    resolution: {integrity: sha512-09zcOQ1uycyCK2C9iY2Pm+/JPa/gIXiZqGBUiIlO1v3VshwBgarmAgWRTWDL/IAvI8NFE1zqrkdKFgRfXHHM5A==}
     engines: {node: '>=14.17.0'}
     peerDependencies:
       bullmq-otel: '>=2.0.0'
@@ -5107,6 +5107,14 @@ snapshots:
     optionalDependencies:
       vite: 6.4.3(@types/node@26.6.3)(jiti@2.7.0)(lightningcss@1.32.0)(terser@5.51.2)(tsx@4.23.13)
 
+  '@vitest/mocker@4.1.11(vite@6.4.3(@types/node@26.6.3)(jiti@2.7.0)(lightningcss@1.32.0)(terser@5.51.2)(tsx@4.23.13))':
+    dependencies:
+      '@vitest/spy': 4.1.11
+      estree-walker: 3.0.3
+      magic-string: 0.30.21
+    optionalDependencies:
+      vite: 6.4.3(@types/node@26.6.3)(jiti@2.7.0)(lightningcss@1.32.0)(terser@5.51.2)(tsx@4.23.13)
+
   '@vitest/pretty-format@4.1.11':
     dependencies:
       tinyrainbow: 3.1.1
@@ -5354,7 +5362,7 @@ snapshots:
 
   buffer-from@1.1.2: {}
 
-  bullmq@6.3.7(ioredis@6.0.0)(pg@8.23.0):
+  bullmq@6.3.8(ioredis@6.0.0)(pg@8.23.0):
     dependencies:
       cron-parser: 5.10.1
       msgpackr: 2.1.0
@@ -6947,6 +6955,22 @@ snapshots:
       lightningcss: 1.32.0
       terser: 5.51.2
       tsx: 4.23.15
+
+  vite@6.4.3(@types/node@26.6.3)(jiti@2.7.0)(lightningcss@1.32.0)(terser@5.51.2)(tsx@4.23.13):
+    dependencies:
+      esbuild: 0.25.12
+      fdir: 6.5.0(picomatch@4.0.7)
+      picomatch: 4.0.7
+      postcss: 8.5.28
+      rollup: 4.63.5
+      tinyglobby: 0.2.17
+    optionalDependencies:
+      '@types/node': 26.6.3
+      fsevents: 2.3.3
+      jiti: 2.7.0
+      lightningcss: 1.32.0
+      terser: 5.51.2
+      tsx: 4.23.13
 
   vite@6.4.3(@types/node@26.6.3)(jiti@2.7.0)(lightningcss@1.32.0)(terser@5.51.2)(tsx@4.23.13):
     dependencies:
