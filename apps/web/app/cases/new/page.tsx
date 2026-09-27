@@ -5,6 +5,7 @@ import { useRouter } from 'next/navigation';
 import { useCallback, useEffect, useState } from 'react';
 import { CONSULT_SPECIALTIES, canSubmitCases, type ConsultSpecialty } from '@mir/contracts';
 import { api, type Patient, type Study } from '../../../lib/api/endpoints';
+import { newIdempotencyKey } from '../../../lib/api/client';
 import { getCorridor, SOURCE_ROLES } from '../../../lib/corridor/registry';
 import { useCurrentProvider } from '../../../lib/provider/current-provider';
 import { useT } from '../../../lib/i18n/provider';
@@ -68,6 +69,9 @@ function NewCaseForm(): React.JSX.Element {
   const [values, setValues] = useState<Record<string, string>>({});
   const [errors, setErrors] = useState<Record<string, string>>({});
   const [submitting, setSubmitting] = useState(false);
+  // One key for this form, kept across retries so a resend after a lost
+  // answer returns the case already made instead of a second one.
+  const [submitKey, setSubmitKey] = useState(newIdempotencyKey);
   const [notice, setNotice] = useState<string | null>(null);
   const [error, setError] = useState<string | null>(null);
 
@@ -152,6 +156,7 @@ function NewCaseForm(): React.JSX.Element {
     setSpecialty('radiology');
     setValues({});
     setNotice(null);
+    setSubmitKey(newIdempotencyKey());
   };
 
   const submit = async (): Promise<void> => {
@@ -174,13 +179,16 @@ function NewCaseForm(): React.JSX.Element {
       ]
         .filter((v): v is string => v !== null)
         .join(' · ');
-      const created = await api.cases.submit({
-        patientId,
-        specialty,
-        studyIds,
-        ...(values['referralReason'] ? { reason: values['referralReason'] } : {}),
-        ...(notes === '' ? {} : { notes }),
-      });
+      const created = await api.cases.submit(
+        {
+          patientId,
+          specialty,
+          studyIds,
+          ...(values['referralReason'] ? { reason: values['referralReason'] } : {}),
+          ...(notes === '' ? {} : { notes }),
+        },
+        submitKey,
+      );
       window.localStorage.removeItem(DRAFT_KEY);
       router.push(`/cases/${created.id}/pick-doctor`);
     } catch {

@@ -137,12 +137,14 @@ describe('config validation (P1.6)', () => {
     expect(issues).toMatch(/DATABASE_SSL/);
     expect(issues).toMatch(/REDIS_URL/);
     expect(issues).toMatch(/SIGNED_URL_SECRET/);
+    expect(issues).toMatch(/ORTHANC_URL/);
 
     expect(() =>
       loadConfig({
         ...deployed,
         DATABASE_SSL: 'verify',
         REDIS_URL: 'rediss://cache.internal:6379',
+        ORTHANC_URL: 'https://orthanc.internal:8042',
         SIGNED_URL_SECRET: VALID['SIGNED_URL_SECRET'],
       }),
     ).not.toThrow();

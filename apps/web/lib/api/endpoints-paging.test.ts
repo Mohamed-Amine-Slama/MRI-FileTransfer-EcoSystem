@@ -36,4 +36,15 @@ describe('paged lists', () => {
     expect(cases.map((c) => c.id)).toEqual(['x', 'y']);
     expect(fetchMock.mock.calls[1]?.[0]).toBe('/api/cases?from=2026-01-01&cursor=x');
   });
+
+  it('sends status and ref filters to the server', async () => {
+    const fetchMock = vi.fn(
+      async (_url: string) => new Response(JSON.stringify({ cases: [], nextCursor: null }), { status: 200 }),
+    );
+    vi.stubGlobal('fetch', fetchMock);
+
+    await api.cases.list({ status: 'quoted', ref: 'MIR-2026' });
+
+    expect(fetchMock.mock.calls[0]?.[0]).toBe('/api/cases?status=quoted&ref=MIR-2026');
+  });
 });

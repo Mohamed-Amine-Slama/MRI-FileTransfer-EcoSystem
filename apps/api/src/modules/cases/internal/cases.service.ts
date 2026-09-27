@@ -36,6 +36,11 @@ export interface SubmitInput {
   studyIds?: string[];
   reason?: string;
   notes?: string;
+  /**
+   * The client's key for this one submission, reused on its retries. A repeat
+   * returns the case the first request created (migration 0036).
+   */
+  idempotencyKey?: string;
 }
 
 export interface Case {
@@ -245,7 +250,7 @@ export class CasesService {
    */
   async submit(input: SubmitInput): Promise<CaseSummary> {
     const ctx = requireContext();
-    const id = await this.db.txAs(ctx, async (tx) => {
+    const { id, replay } = await this.db.txAs(ctx, async (tx) => {
       const org = await tx.query<{ id: string }>(
         `SELECT o.id
            FROM identity_memberships m
@@ -262,8 +267,12 @@ export class CasesService {
       const res = await tx
         .query<{ id: string }>(
           `INSERT INTO cases_cases
-             (patient_id, organisation_id, specialty, status, reason, notes, created_by)
-           VALUES ($1, $2, $3, 'submitted', $4, $5, $6) RETURNING id`,
+             (patient_id, organisation_id, specialty, status, reason, notes, created_by,
+              idempotency_key)
+           VALUES ($1, $2, $3, 'submitted', $4, $5, $6, $7)
+           ON CONFLICT (created_by, idempotency_key) WHERE idempotency_key IS NOT NULL
+           DO NOTHING
+           RETURNING id`,
           [
             input.patientId,
             orgId,
@@ -271,11 +280,23 @@ export class CasesService {
             input.reason ?? null,
             input.notes ?? null,
             ctx.userId,
+            input.idempotencyKey ?? null,
           ],
         )
         .catch((err: unknown) => translateCaseWriteError(err, 'Patient not found'));
 
       const row = res.rows[0];
+      if (row === undefined && input.idempotencyKey !== undefined) {
+        // A retry of a submission that already went through: answer with that
+        // case, and link no studies and announce nothing a second time.
+        const first = await tx.query<{ id: string }>(
+          `SELECT id FROM cases_cases WHERE created_by = $1 AND idempotency_key = $2`,
+          [ctx.userId, input.idempotencyKey],
+        );
+        const firstId = first.rows[0]?.id;
+        if (firstId === undefined) throw new NotFoundException('Patient not found');
+        return { id: firstId, replay: true };
+      }
       if (row === undefined) throw new NotFoundException('Patient not found');
 
       for (const studyId of input.studyIds ?? []) {
@@ -286,10 +307,11 @@ export class CasesService {
           ])
           .catch((err: unknown) => translateCaseWriteError(err, 'Study not found'));
       }
-      return row.id;
+      return { id: row.id, replay: false };
     });
 
     const item = await this.getCase(id);
+    if (replay) return item;
     await this.bus.publish({
       type: 'CaseSubmitted',
       caseId: id,
@@ -434,14 +456,20 @@ export class CasesService {
    * `page` bounds the read (see shared/http/pagination.ts). Callers that pass
    * one get up to `limit + 1` rows, the extra one only marking a next page.
    * The assistant agenda is date-ranged by its function and not paged.
+   *
+   * `status` matches exactly; `ref` is a case-insensitive substring of the
+   * case reference. The agenda carries no reference, so a `ref` filter finds
+   * nothing for an assistant.
    */
   async listCases(
-    range?: { from?: Date; to?: Date },
+    query?: { from?: Date; to?: Date; status?: string; ref?: string },
     page?: PageRequest,
   ): Promise<CaseSummary[]> {
     const ctx = requireContext();
-    const from = range?.from ?? null;
-    const to = range?.to ?? null;
+    const from = query?.from ?? null;
+    const to = query?.to ?? null;
+    const status = query?.status ?? null;
+    const ref = query?.ref ?? null;
 
     if (ctx.role === 'assistant') {
       return this.db.tx(async (tx) => {
@@ -455,8 +483,9 @@ export class CasesService {
                   NULL::timestamptz AS accepted_at,
                   NULL::timestamptz AS answered_at,
                   NULL::timestamptz AS answer_due_at
-           FROM scheduling_assistant_agenda($1, $2)`,
-          [from, to],
+           FROM scheduling_assistant_agenda($1, $2)
+           WHERE ($3::text IS NULL OR status = $3) AND $4::text IS NULL`,
+          [from, to, status, ref],
         );
         return res.rows.map(toSummary);
       });
@@ -476,9 +505,11 @@ export class CasesService {
            AND ($2::timestamptz IS NULL OR a.created_at < $2)
            AND ($3::uuid IS NULL OR (a.created_at, a.id) <
                 (SELECT c.created_at, c.id FROM cases_cases c WHERE c.id = $3))
+           AND ($5::text IS NULL OR a.status = $5)
+           AND ($6::text IS NULL OR strpos(upper(a.case_ref), upper($6)) > 0)
          ORDER BY a.created_at DESC, a.id DESC
          LIMIT $4`,
-        [from, to, page?.after ?? null, page === undefined ? null : page.limit + 1],
+        [from, to, page?.after ?? null, page === undefined ? null : page.limit + 1, status, ref],
       );
       return res.rows.map(toSummary);
     });

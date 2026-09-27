@@ -17,13 +17,12 @@ import type {
   UpdateProfileInput,
   UserPreferences,
 } from '@mir/contracts';
-import { apiFetch, newIdempotencyKey } from './client';
+import { apiFetch } from './client';
 
 /**
  * Every page of a keyset-paged list (the API bounds each response; see
  * apps/api/src/shared/http/pagination.ts). Screens still get the whole list,
- * one bounded request at a time. Moving filters server-side is what would
- * let them stop asking for all of it.
+ * one bounded request at a time; pass filters so "all" stays small.
  */
 async function allPages<T, K extends string>(path: string, key: K): Promise<T[]> {
   const sep = path.includes('?') ? '&' : '?';
@@ -297,7 +296,6 @@ export const api = {
       apiFetch<{ consentId: string; evidenceHash: string }>('/consent', {
         method: 'POST',
         body: input,
-        idempotencyKey: newIdempotencyKey(),
       }),
     revoke: (consentId: string) =>
       apiFetch<void>(`/consent/${consentId}`, { method: 'DELETE' }),
@@ -336,27 +334,34 @@ export const api = {
         body: { accepting },
       }),
 
-    list: (range?: { from?: string; to?: string }) => {
+    /** `ref` is a case-insensitive substring of the case reference. */
+    list: (query?: { from?: string; to?: string; status?: string; ref?: string }) => {
       const q = new URLSearchParams();
-      if (range?.from !== undefined) q.set('from', range.from);
-      if (range?.to !== undefined) q.set('to', range.to);
+      for (const [k, v] of Object.entries(query ?? {})) if (v !== undefined) q.set(k, v);
       const suffix = q.toString() === '' ? '' : `?${q.toString()}`;
       return allPages<CaseRecord, 'cases'>(`/cases${suffix}`, 'cases').then((cases) => ({ cases }));
     },
     get: (id: string) => apiFetch<CaseRecord>(`/cases/${id}`),
 
-    submit: (input: {
-      patientId: string;
-      specialty: string;
-      studyIds: string[];
-      reason?: string;
-      notes?: string;
-    }) =>
+    /**
+     * `idempotencyKey` is ONE per form, made when the form opens and reused on
+     * every retry — a fresh key per call cannot recognise a retry. The API
+     * answers a repeated key with the case the first request created.
+     */
+    submit: (
+      input: {
+        patientId: string;
+        specialty: string;
+        studyIds: string[];
+        reason?: string;
+        notes?: string;
+      },
+      idempotencyKey?: string,
+    ) =>
       apiFetch<CaseRecord>('/cases', {
         method: 'POST',
         body: input,
-        // Double-tap on a bad link must not produce two cases.
-        idempotencyKey: newIdempotencyKey(),
+        ...(idempotencyKey === undefined ? {} : { idempotencyKey }),
       }),
 
     /**
@@ -372,18 +377,13 @@ export const api = {
 
     /** Settles the quoted price. 409 once `quoteExpiresAt` has passed. */
     pay: (id: string) =>
-      apiFetch<CaseRecord>(`/cases/${id}/pay`, {
-        method: 'POST',
-        idempotencyKey: newIdempotencyKey(),
-      }),
+      // No key: the quoted -> paid transition refuses a repeat on its own.
+      apiFetch<CaseRecord>(`/cases/${id}/pay`, { method: 'POST' }),
 
     cancel: (id: string) => apiFetch<void>(`/cases/${id}`, { method: 'DELETE' }),
 
     accept: (id: string) =>
-      apiFetch<{ status: 'accepted' }>(`/cases/${id}/accept`, {
-        method: 'POST',
-        idempotencyKey: newIdempotencyKey(),
-      }),
+      apiFetch<{ status: 'accepted' }>(`/cases/${id}/accept`, { method: 'POST' }),
     decline: (id: string) =>
       apiFetch<{ status: 'declined' }>(`/cases/${id}/decline`, { method: 'POST' }),
 
