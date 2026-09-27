@@ -37,7 +37,7 @@ export async function findCaseRecord(refOrId: string): Promise<CaseRecord | null
       return null;
     }
   }
-  const { cases } = await api.cases.list();
+  const { cases } = await api.cases.list({ ref: refOrId });
   const found = cases.find((c) => c.caseRef === refOrId);
   if (found === undefined) return null;
   // The list row has no study ids; the single read does.
@@ -48,15 +48,14 @@ export const liveCasesApi: CasesApi = {
   supports: { messaging: false, fileAccessTrail: false, notifications: false, statusOverride: false },
 
   async listCases(query) {
+    const search = query.search?.trim() ?? '';
     const { cases } = await api.cases.list({
       ...(query.updatedFrom === undefined ? {} : { from: query.updatedFrom }),
       ...(query.updatedTo === undefined ? {} : { to: query.updatedTo }),
+      ...(query.status === undefined ? {} : { status: query.status }),
+      ...(search === '' ? {} : { ref: search }),
     });
-    const search = query.search?.trim().toUpperCase() ?? '';
-    return cases
-      .filter((c) => query.status === undefined || c.status === query.status)
-      .filter((c) => search === '' || c.caseRef.includes(search))
-      .map((c) => toCase(c, DEFAULT_CORRIDOR_ID));
+    return cases.map((c) => toCase(c, DEFAULT_CORRIDOR_ID));
   },
 
   async getCase(refOrId) {
@@ -133,9 +132,7 @@ export const liveCasesApi: CasesApi = {
   },
 
   async listAllCases(status) {
-    const { cases } = await api.cases.list();
-    return cases
-      .filter((c) => status === undefined || c.status === status)
-      .map((c) => toCase(c, DEFAULT_CORRIDOR_ID));
+    const { cases } = await api.cases.list(status === undefined ? {} : { status });
+    return cases.map((c) => toCase(c, DEFAULT_CORRIDOR_ID));
   },
 };

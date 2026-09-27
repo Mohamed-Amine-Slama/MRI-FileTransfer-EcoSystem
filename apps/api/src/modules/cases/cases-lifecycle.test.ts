@@ -213,6 +213,19 @@ describe('listing cases', () => {
     expect(second.nextCursor).toBeNull();
     expect([...first.items, ...second.items].map((c) => c.id)).toEqual([...made].reverse());
   });
+
+  it('filters by status and by a case-insensitive piece of the reference', async () => {
+    const { doctor, patient } = await lab();
+    const as = <T,>(fn: () => Promise<T>) => runWithContext(ctx(doctor, 'libya_doctor'), fn);
+    const a = await as(() => cases.submit({ patientId: patient, specialty: 'radiology' }));
+    await as(() => cases.submit({ patientId: patient, specialty: 'radiology' }));
+    const ref = (await as(() => cases.getCase(a.id))).caseRef;
+
+    const byRef = await as(() => cases.listCases({ ref: ref.toLowerCase() }));
+    expect(byRef.map((c) => c.id)).toEqual([a.id]);
+    expect(await as(() => cases.listCases({ status: 'submitted' }))).toHaveLength(2);
+    expect(await as(() => cases.listCases({ status: 'quoted' }))).toEqual([]);
+  });
 });
 
 describe('study linkage', () => {
