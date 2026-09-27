@@ -1,5 +1,6 @@
 import Link from './link';
 import type { ReactNode } from 'react';
+import type { LucideIcon } from 'lucide-react';
 import { cn } from '../../lib/utils';
 import { CardContent, CardRoot } from './card';
 import { Skeleton } from './skeleton';
@@ -22,11 +23,14 @@ export function StatTile({
   hint,
   href,
   emphasis = false,
+  icon: Icon,
   testId,
 }: {
   label: string;
   value: number | null;
   hint?: string;
+  /** Decorative glyph beside the label; the label still carries the meaning. */
+  icon?: LucideIcon;
   /** Makes the whole tile a link to the list the number came from. */
   href?: string;
   /**
@@ -37,15 +41,36 @@ export function StatTile({
   testId?: string;
 }): React.JSX.Element {
   const labelTone = emphasis ? 'text-highlight-foreground' : 'text-muted-foreground';
+  // Label first, then the figure: a row of tiles is scanned by what they
+  // count, and the eye lands on the numeral once it knows which one it wants.
   const body = (
-    <CardContent className="space-y-1">
-      {value === null ? (
-        <Skeleton className="h-9 w-16" />
-      ) : (
-        <p className="font-display text-3xl font-medium leading-none tabular-nums">{value}</p>
-      )}
-      <p className={cn('text-sm font-medium', labelTone)}>{label}</p>
-      {hint !== undefined && <p className={cn('text-xs', labelTone)}>{hint}</p>}
+    <CardContent className="flex h-full flex-col gap-3">
+      <div className="flex items-start justify-between gap-2">
+        {/* The hint rides with the label, so every numeral in a row of tiles
+            sits on the same baseline whether or not its tile has a hint. */}
+        <div className="min-w-0 space-y-0.5">
+          <p className={cn('text-sm font-medium', labelTone)}>{label}</p>
+          {hint !== undefined && <p className={cn('text-xs', labelTone)}>{hint}</p>}
+        </div>
+        {Icon !== undefined && (
+          <span
+            className={cn(
+              'flex size-8 shrink-0 items-center justify-center rounded-md',
+              emphasis ? 'bg-highlight-edge/60' : 'bg-accent text-accent-foreground',
+            )}
+            aria-hidden="true"
+          >
+            <Icon className="size-4" />
+          </span>
+        )}
+      </div>
+      <div className="mt-auto">
+        {value === null ? (
+          <Skeleton className="h-9 w-16" />
+        ) : (
+          <p className="font-display text-3xl font-medium leading-none tabular-nums">{value}</p>
+        )}
+      </div>
     </CardContent>
   );
   const surface = emphasis ? 'border-highlight-edge bg-highlight text-highlight-foreground' : undefined;
@@ -60,10 +85,13 @@ export function StatTile({
 
   return (
     <CardRoot
-      className={cn('transition-colors hover:border-primary focus-within:border-primary', surface)}
+      className={cn(
+        'transition-[border-color,box-shadow] hover:border-primary hover:shadow-2 focus-within:border-primary',
+        surface,
+      )}
       data-testid={testId}
     >
-      <Link href={href} className="block rounded-lg outline-none">
+      <Link href={href} className="block h-full rounded-lg outline-none">
         {body}
       </Link>
     </CardRoot>
@@ -77,7 +105,7 @@ export function StatGrid({
   children: ReactNode;
   className?: string;
 }): React.JSX.Element {
-  return <div className={cn('grid grid-cols-2 gap-3 lg:grid-cols-4', className)}>{children}</div>;
+  return <div className={cn('grid grid-cols-2 gap-3 sm:gap-4 lg:grid-cols-4', className)}>{children}</div>;
 }
 
 /**

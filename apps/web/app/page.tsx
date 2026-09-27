@@ -8,6 +8,7 @@ import {
   Briefcase,
   Building2,
   CalendarClock,
+  ChevronRight,
   FolderKanban,
   Inbox,
   LayoutDashboard,
@@ -410,7 +411,7 @@ function QuickActions({ role }: { role: Role }): React.JSX.Element {
   return (
     <section>
       <SectionHeading>{t.dashboardQuickActions}</SectionHeading>
-      <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-3" data-testid="home-actions">
+      <div className="grid gap-3 sm:grid-cols-2 sm:gap-4 lg:grid-cols-3" data-testid="home-actions">
         {/* Corridor destinations first: a provider's day starts with their
             caseload, not with the patient index. */}
         {[...corridorDestinationsFor(role), ...destinationsFor(role)].map((d) => {
@@ -420,13 +421,19 @@ function QuickActions({ role }: { role: Role }): React.JSX.Element {
               key={d.href}
               href={d.href}
               data-testid={`home-link-${d.key}`}
-              className="group flex flex-col gap-1.5 rounded-lg border bg-card p-4 shadow-sm transition-colors hover:border-primary"
+              className="group flex items-start gap-4 rounded-lg border bg-card p-4 shadow-sm transition-[border-color,box-shadow] hover:border-primary hover:shadow-2 sm:p-5"
             >
-              <span className="flex items-center gap-2 font-semibold group-hover:text-primary">
-                <Icon className="size-4.5 text-primary" aria-hidden="true" />
-                {label(d.key, t)}
+              <span className="flex size-10 shrink-0 items-center justify-center rounded-md bg-accent text-accent-foreground">
+                <Icon className="size-5" aria-hidden="true" />
               </span>
-              <span className="text-sm text-muted-foreground">{description(d.key, t)}</span>
+              <span className="flex min-w-0 flex-1 flex-col gap-1">
+                <span className="font-semibold group-hover:text-primary">{label(d.key, t)}</span>
+                <span className="text-sm text-muted-foreground">{description(d.key, t)}</span>
+              </span>
+              <ChevronRight
+                className="mt-0.5 size-4 shrink-0 text-muted-foreground transition-colors group-hover:text-primary rtl:rotate-180"
+                aria-hidden="true"
+              />
             </Link>
           );
         })}

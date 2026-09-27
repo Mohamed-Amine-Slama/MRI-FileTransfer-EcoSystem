@@ -2,6 +2,7 @@
 
 import Link from '../../components/ui/link';
 import { useEffect, useState } from 'react';
+import { Activity, Banknote, CalendarPlus, Clock, FolderKanban, ScrollText, ShieldCheck } from 'lucide-react';
 import { isTerminalStatus, type Case, type Provider } from '@mir/contracts';
 import { casesApi } from '../../lib/api/mock';
 import { rolesForSides } from '../../lib/corridor/registry';
@@ -11,8 +12,8 @@ import { capQueue } from '../../lib/dashboard/queue';
 import { isSameLocalDay, isStale } from '../../lib/dashboard/time';
 import { RoleGate } from '../../components/RoleGate';
 import { caseStatusLabel, caseStatusTone, providerKindLabel } from '../../components/case/labels';
-import { DashboardHeader, QueueRow, QueueSection } from '../../components/dashboard/queue';
-import { Alert, Card, Main, Spinner, StatGrid, StatTile, buttonVariants } from '../../components/ui';
+import { DashboardHeader, QueueRow, QueueSection, QuickLinks } from '../../components/dashboard/queue';
+import { Alert, Main, Spinner, StatGrid, StatTile, buttonVariants } from '../../components/ui';
 
 const OPS_ROLES = rolesForSides(['ops']);
 
@@ -84,11 +85,12 @@ function AdminHome(): React.JSX.Element {
             value={pending.length}
             href="/admin/providers"
             emphasis
+            icon={ShieldCheck}
             testId="tile-verifications"
           />
-          <StatTile label={t.dashStaleCases} value={stale.length} hint={t.dashStale} testId="tile-stale" />
-          <StatTile label={t.dashOpenedToday} value={openedToday.length} testId="tile-today" />
-          <StatTile label={t.dashActive} value={active.length} href="/admin/cases" testId="tile-active" />
+          <StatTile label={t.dashStaleCases} value={stale.length} hint={t.dashStale} icon={Clock} testId="tile-stale" />
+          <StatTile label={t.dashOpenedToday} value={openedToday.length} icon={CalendarPlus} testId="tile-today" />
+          <StatTile label={t.dashActive} value={active.length} href="/admin/cases" icon={Activity} testId="tile-active" />
         </StatGrid>
       </DashboardHeader>
 
@@ -148,28 +150,15 @@ function AdminHome(): React.JSX.Element {
         </div>
 
         <aside>
-          <Card title={t.dashQuickLinks}>
-            <ul className="space-y-1 text-sm">
-              <li>
-                <Link href="/admin/cases" className="font-medium text-primary hover:underline">
-                  {t.navAdminCases}
-                </Link>
-              </li>
-              <li>
-                <Link href="/admin/ledger" className="font-medium text-primary hover:underline">
-                  {t.navAdminLedger}
-                </Link>
-              </li>
-              {/* Same gate as the nav: the audit log is admin-only. */}
-              {role === 'admin' && (
-                <li>
-                  <Link href="/admin/audit" className="font-medium text-primary hover:underline">
-                    {t.navAudit}
-                  </Link>
-                </li>
-              )}
-            </ul>
-          </Card>
+          <QuickLinks
+            title={t.dashQuickLinks}
+            links={[
+              { href: '/admin/cases', label: t.navAdminCases, Icon: FolderKanban },
+              { href: '/admin/ledger', label: t.navAdminLedger, Icon: Banknote },
+              // Same gate as the nav: the audit log is admin-only.
+              ...(role === 'admin' ? [{ href: '/admin/audit', label: t.navAudit, Icon: ScrollText }] : []),
+            ]}
+          />
         </aside>
       </div>
     </Main>
