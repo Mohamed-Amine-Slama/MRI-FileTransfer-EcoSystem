@@ -22,8 +22,7 @@ import { apiFetch, newIdempotencyKey } from './client';
 /**
  * Every page of a keyset-paged list (the API bounds each response; see
  * apps/api/src/shared/http/pagination.ts). Screens still get the whole list,
- * one bounded request at a time. Moving filters server-side is what would
- * let them stop asking for all of it.
+ * one bounded request at a time; pass filters so "all" stays small.
  */
 async function allPages<T, K extends string>(path: string, key: K): Promise<T[]> {
   const sep = path.includes('?') ? '&' : '?';
@@ -336,10 +335,10 @@ export const api = {
         body: { accepting },
       }),
 
-    list: (range?: { from?: string; to?: string }) => {
+    /** `ref` is a case-insensitive substring of the case reference. */
+    list: (query?: { from?: string; to?: string; status?: string; ref?: string }) => {
       const q = new URLSearchParams();
-      if (range?.from !== undefined) q.set('from', range.from);
-      if (range?.to !== undefined) q.set('to', range.to);
+      for (const [k, v] of Object.entries(query ?? {})) if (v !== undefined) q.set(k, v);
       const suffix = q.toString() === '' ? '' : `?${q.toString()}`;
       return allPages<CaseRecord, 'cases'>(`/cases${suffix}`, 'cases').then((cases) => ({ cases }));
     },

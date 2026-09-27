@@ -434,14 +434,20 @@ export class CasesService {
    * `page` bounds the read (see shared/http/pagination.ts). Callers that pass
    * one get up to `limit + 1` rows, the extra one only marking a next page.
    * The assistant agenda is date-ranged by its function and not paged.
+   *
+   * `status` matches exactly; `ref` is a case-insensitive substring of the
+   * case reference. The agenda carries no reference, so a `ref` filter finds
+   * nothing for an assistant.
    */
   async listCases(
-    range?: { from?: Date; to?: Date },
+    query?: { from?: Date; to?: Date; status?: string; ref?: string },
     page?: PageRequest,
   ): Promise<CaseSummary[]> {
     const ctx = requireContext();
-    const from = range?.from ?? null;
-    const to = range?.to ?? null;
+    const from = query?.from ?? null;
+    const to = query?.to ?? null;
+    const status = query?.status ?? null;
+    const ref = query?.ref ?? null;
 
     if (ctx.role === 'assistant') {
       return this.db.tx(async (tx) => {
@@ -455,8 +461,9 @@ export class CasesService {
                   NULL::timestamptz AS accepted_at,
                   NULL::timestamptz AS answered_at,
                   NULL::timestamptz AS answer_due_at
-           FROM scheduling_assistant_agenda($1, $2)`,
-          [from, to],
+           FROM scheduling_assistant_agenda($1, $2)
+           WHERE ($3::text IS NULL OR status = $3) AND $4::text IS NULL`,
+          [from, to, status, ref],
         );
         return res.rows.map(toSummary);
       });
@@ -476,9 +483,11 @@ export class CasesService {
            AND ($2::timestamptz IS NULL OR a.created_at < $2)
            AND ($3::uuid IS NULL OR (a.created_at, a.id) <
                 (SELECT c.created_at, c.id FROM cases_cases c WHERE c.id = $3))
+           AND ($5::text IS NULL OR a.status = $5)
+           AND ($6::text IS NULL OR strpos(upper(a.case_ref), upper($6)) > 0)
          ORDER BY a.created_at DESC, a.id DESC
          LIMIT $4`,
-        [from, to, page?.after ?? null, page === undefined ? null : page.limit + 1],
+        [from, to, page?.after ?? null, page === undefined ? null : page.limit + 1, status, ref],
       );
       return res.rows.map(toSummary);
     });

@@ -45,6 +45,12 @@ const isoDate = z
 
 const rangeQuerySchema = z.object({ from: isoDate.optional(), to: isoDate.optional() });
 
+/** `GET /cases` filters. Bounded because they land in a query plan. */
+const listFilterSchema = z.object({
+  status: z.string().regex(/^[a-z_]{1,32}$/).optional(),
+  ref: z.string().trim().min(1).max(32).optional(),
+});
+
 /**
  * Free text that reaches the other side and the audit log, so it is bounded.
  * Nothing here is a clinical finding: an unbounded note box with no stated
@@ -193,9 +199,17 @@ export class CasesController {
   @RequiresRole('libya_doctor', 'tunisia_doctor', 'assistant', 'admin')
   @Get('cases')
   async list(@Query() query: unknown): Promise<{ cases: CaseDto[]; nextCursor: string | null }> {
-    const { from, to, limit, cursor } = rangeQuerySchema.extend(pageQuerySchema.shape).parse(query ?? {});
+    const { from, to, status, ref, limit, cursor } = rangeQuerySchema
+      .extend(pageQuerySchema.shape)
+      .extend(listFilterSchema.shape)
+      .parse(query ?? {});
     const rows = await this.cases.listCases(
-      { ...(from === undefined ? {} : { from }), ...(to === undefined ? {} : { to }) },
+      {
+        ...(from === undefined ? {} : { from }),
+        ...(to === undefined ? {} : { to }),
+        ...(status === undefined ? {} : { status }),
+        ...(ref === undefined ? {} : { ref }),
+      },
       { limit, ...(cursor === undefined ? {} : { after: cursor }) },
     );
     const { items, nextCursor } = toPage(rows, limit);
