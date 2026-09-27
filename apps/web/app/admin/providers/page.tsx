@@ -1,10 +1,12 @@
 'use client';
 
 import { useCallback, useEffect, useState } from 'react';
-import { Check, X } from 'lucide-react';
+import { Check, FileText, X } from 'lucide-react';
 import type { Provider } from '@mir/contracts';
 import { casesApi } from '../../../lib/api/mock';
-import { rolesForSides } from '../../../lib/corridor/registry';
+import { getCorridor, rolesForSides } from '../../../lib/corridor/registry';
+import { openVerificationDocument } from '../../../lib/verification/documents';
+import { label } from '../../../components/case/CorridorFields';
 import { useDateFormat, useT } from '../../../lib/i18n/provider';
 import { RoleGate } from '../../../components/RoleGate';
 import {
@@ -12,6 +14,7 @@ import {
   isRejectionReasonKey,
   providerKindLabel,
   sideLabel,
+  specialtyLabel,
   verificationLabel,
   verificationReasonLabel,
   verificationTone,
@@ -187,17 +190,55 @@ function AdminProviders(): React.JSX.Element {
                 </div>
 
                 {/* The submitted credentials, so a reviewer decides on the
-                    evidence rather than on the organisation's name. Keys come
-                    from the corridor's documentRequirements (§4.3). */}
-                <dl className="mt-3 grid gap-x-6 gap-y-1 border-t pt-3 sm:grid-cols-2">
-                  {Object.entries(provider.verification.credentials).map(([key, value]) => (
-                    <div key={key}>
-                      <dt className="text-xs text-muted-foreground">{key}</dt>
-                      <dd className="text-sm">
-                        <bdi>{String(value)}</bdi>
-                      </dd>
-                    </div>
-                  ))}
+                    evidence rather than on the organisation's name. Walked in
+                    the corridor's documentRequirements order (§4.3); a file
+                    requirement opens the uploaded document itself. */}
+                <dl className="mt-3 grid gap-x-6 gap-y-2 border-t pt-3 sm:grid-cols-2">
+                  {(
+                    getCorridor(provider.corridorId)?.[provider.side].documentRequirements ??
+                    Object.keys(provider.verification.credentials).map((key) => ({
+                      key,
+                      kind: 'text' as const,
+                      labelKey: key,
+                    }))
+                  ).map((field) => {
+                    const value = provider.verification.credentials[field.key];
+                    const uploaded = provider.verification.documents?.some(
+                      (d) => d.key === field.key,
+                    );
+                    return (
+                      <div key={field.key}>
+                        <dt className="text-xs text-muted-foreground">{label(t, field.labelKey)}</dt>
+                        <dd className="text-sm">
+                          {field.kind !== 'file' ? (
+                            <bdi>
+                              {value === undefined
+                                ? '—'
+                                : field.key === 'specialty'
+                                  ? specialtyLabel(t, String(value))
+                                  : label(t, String(value))}
+                            </bdi>
+                          ) : uploaded === true ? (
+                            <Button
+                              size="sm"
+                              variant="secondary"
+                              data-testid={`doc-${provider.id}-${field.key}`}
+                              onClick={() =>
+                                void openVerificationDocument(provider.id, field.key).catch(() =>
+                                  setError(t.genericError),
+                                )
+                              }
+                            >
+                              <FileText className="size-4" />
+                              {label(t, field.labelKey)}
+                            </Button>
+                          ) : (
+                            <Badge tone="danger">{t.documentMissing}</Badge>
+                          )}
+                        </dd>
+                      </div>
+                    );
+                  })}
                 </dl>
               </li>
             ))}

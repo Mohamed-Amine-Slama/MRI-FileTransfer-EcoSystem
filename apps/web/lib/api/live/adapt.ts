@@ -53,7 +53,10 @@ export function toProvider(o: Organisation): Provider {
       submittedAt: o.verification.submittedAt,
       ...(o.verification.decidedAt === undefined ? {} : { decidedAt: o.verification.decidedAt }),
       ...(o.verification.reasonKey === undefined ? {} : { reasonKey: o.verification.reasonKey }),
-      credentials: {},
+      // Passed through now that the API returns them: the reviewer decides on
+      // the evidence, not on the organisation's name.
+      credentials: o.credentials,
+      documents: o.documents,
     },
   };
 }

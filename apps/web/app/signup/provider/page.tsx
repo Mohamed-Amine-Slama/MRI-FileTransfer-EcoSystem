@@ -15,6 +15,11 @@ import { CORRIDORS, DEFAULT_CORRIDOR_ID, getCorridor } from '../../../lib/corrid
 import { useLocale, useT } from '../../../lib/i18n/provider';
 import { countryName } from '../../../lib/corridor/country-name';
 import { CorridorFields, validateFields } from '../../../components/case/CorridorFields';
+import {
+  DOCUMENT_ACCEPT,
+  DOCUMENT_MAX_BYTES,
+  uploadVerificationDocument,
+} from '../../../lib/verification/documents';
 import { providerKindLabel, sideLabel } from '../../../components/case/labels';
 import {
   Alert,
@@ -54,6 +59,10 @@ export default function ProviderSignUpPage(): React.JSX.Element {
   const [credentials, setCredentials] = useState<Record<string, string>>({});
   const [errors, setErrors] = useState<Record<string, string>>({});
   const [submitting, setSubmitting] = useState(false);
+  const [files, setFiles] = useState<Record<string, File>>({});
+  // Created but a document failed to upload: a retry re-sends the files to
+  // this organisation instead of trying to create a second one (refused).
+  const [applied, setApplied] = useState<Organisation | null>(null);
   const [created, setCreated] = useState<Organisation | null>(null);
   const [error, setError] = useState<string | null>(null);
 
@@ -76,6 +85,14 @@ export default function ProviderSignUpPage(): React.JSX.Element {
     if (legalName.trim() === '') found['legalName'] = t.required;
     const seats = Number(seatCount);
     if (!Number.isInteger(seats) || seats < 1) found['seatCount'] = t.required;
+    for (const field of requirements) {
+      if (field.kind !== 'file') continue;
+      const file = files[field.key];
+      if (file === undefined) continue; // `required` is caught above via the name
+      if (!DOCUMENT_ACCEPT.split(',').includes(file.type) || file.size > DOCUMENT_MAX_BYTES) {
+        found[field.key] = t.documentTooLarge;
+      }
+    }
     setErrors(found);
     if (Object.keys(found).length > 0) {
       setError(t.caseNewValidationFailed);
@@ -83,23 +100,35 @@ export default function ProviderSignUpPage(): React.JSX.Element {
     }
     setSubmitting(true);
     setError(null);
+    let organisation = applied;
     try {
       // The REAL endpoint, not the case layer's fixture store. An organisation
       // is an account-layer record (migration 0010) and has to survive a
       // reload — an application that vanished when the tab closed would be a
       // worse failure than one that never submitted.
-      setCreated(
-        await api.organisations.create({
-          kind,
-          legalName: legalName.trim(),
-          corridorId,
-          side,
-          credentials,
-          seatCount: seats,
-        }),
-      );
+      organisation ??= await api.organisations.create({
+        kind,
+        legalName: legalName.trim(),
+        corridorId,
+        side,
+        credentials,
+        seatCount: seats,
+      });
+      setApplied(organisation);
     } catch {
       setError(t.genericError);
+      setSubmitting(false);
+      return;
+    }
+    try {
+      // After create, because a document belongs to an organisation. Re-sent
+      // whole on retry; the API replaces by key while pending.
+      for (const [key, file] of Object.entries(files)) {
+        await uploadVerificationDocument(organisation.id, key, file);
+      }
+      setCreated(organisation);
+    } catch {
+      setError(t.documentUploadFailed);
     } finally {
       setSubmitting(false);
     }
@@ -256,6 +285,12 @@ export default function ProviderSignUpPage(): React.JSX.Element {
           values={credentials}
           errors={errors}
           onChange={setCredential}
+          onFile={(key, file) =>
+            setFiles((prev) => {
+              const { [key]: _removed, ...rest } = prev;
+              return file === null ? rest : { ...rest, [key]: file };
+            })
+          }
         />
 
         <div className="flex flex-wrap gap-3 pt-2">
