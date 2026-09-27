@@ -36,6 +36,11 @@ export interface SubmitInput {
   studyIds?: string[];
   reason?: string;
   notes?: string;
+  /**
+   * The client's key for this one submission, reused on its retries. A repeat
+   * returns the case the first request created (migration 0036).
+   */
+  idempotencyKey?: string;
 }
 
 export interface Case {
@@ -245,7 +250,7 @@ export class CasesService {
    */
   async submit(input: SubmitInput): Promise<CaseSummary> {
     const ctx = requireContext();
-    const id = await this.db.txAs(ctx, async (tx) => {
+    const { id, replay } = await this.db.txAs(ctx, async (tx) => {
       const org = await tx.query<{ id: string }>(
         `SELECT o.id
            FROM identity_memberships m
@@ -262,8 +267,12 @@ export class CasesService {
       const res = await tx
         .query<{ id: string }>(
           `INSERT INTO cases_cases
-             (patient_id, organisation_id, specialty, status, reason, notes, created_by)
-           VALUES ($1, $2, $3, 'submitted', $4, $5, $6) RETURNING id`,
+             (patient_id, organisation_id, specialty, status, reason, notes, created_by,
+              idempotency_key)
+           VALUES ($1, $2, $3, 'submitted', $4, $5, $6, $7)
+           ON CONFLICT (created_by, idempotency_key) WHERE idempotency_key IS NOT NULL
+           DO NOTHING
+           RETURNING id`,
           [
             input.patientId,
             orgId,
@@ -271,11 +280,23 @@ export class CasesService {
             input.reason ?? null,
             input.notes ?? null,
             ctx.userId,
+            input.idempotencyKey ?? null,
           ],
         )
         .catch((err: unknown) => translateCaseWriteError(err, 'Patient not found'));
 
       const row = res.rows[0];
+      if (row === undefined && input.idempotencyKey !== undefined) {
+        // A retry of a submission that already went through: answer with that
+        // case, and link no studies and announce nothing a second time.
+        const first = await tx.query<{ id: string }>(
+          `SELECT id FROM cases_cases WHERE created_by = $1 AND idempotency_key = $2`,
+          [ctx.userId, input.idempotencyKey],
+        );
+        const firstId = first.rows[0]?.id;
+        if (firstId === undefined) throw new NotFoundException('Patient not found');
+        return { id: firstId, replay: true };
+      }
       if (row === undefined) throw new NotFoundException('Patient not found');
 
       for (const studyId of input.studyIds ?? []) {
@@ -286,10 +307,11 @@ export class CasesService {
           ])
           .catch((err: unknown) => translateCaseWriteError(err, 'Study not found'));
       }
-      return row.id;
+      return { id: row.id, replay: false };
     });
 
     const item = await this.getCase(id);
+    if (replay) return item;
     await this.bus.publish({
       type: 'CaseSubmitted',
       caseId: id,
