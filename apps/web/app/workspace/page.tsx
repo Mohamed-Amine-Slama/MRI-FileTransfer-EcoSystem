@@ -2,7 +2,7 @@
 
 import Link from '../../components/ui/link';
 import { useEffect, useState } from 'react';
-import { Users } from 'lucide-react';
+import { CircleCheck, Clock, FilePlus2, Hourglass, Upload, Users, UserRoundSearch } from 'lucide-react';
 import type { Case, CaseSide } from '@mir/contracts';
 import { casesApi } from '../../lib/api/mock';
 import { PROVIDER_ROLES } from '../../lib/corridor/registry';
@@ -16,7 +16,7 @@ import { isStale } from '../../lib/dashboard/time';
 import { workspaceModel } from '../../lib/dashboard/workspace-model';
 import { RoleGate } from '../../components/RoleGate';
 import { caseStatusTone, nextActionKey, nextActionLabel } from '../../components/case/labels';
-import { DashboardHeader, QueueRow, QueueSection } from '../../components/dashboard/queue';
+import { DashboardHeader, QueueRow, QueueSection, QuickLinks } from '../../components/dashboard/queue';
 import { Alert, Card, Main, Spinner, StatGrid, StatTile, buttonVariants } from '../../components/ui';
 
 /**
@@ -88,10 +88,10 @@ function Workspace(): React.JSX.Element {
         }
       >
         <StatGrid>
-          <StatTile label={t.dashNeedsYou} value={tasks.length} href="/cases" emphasis testId="tile-needs-you" />
-          <StatTile label={t.dashWaitingDoctor} value={waiting.length} testId="tile-waiting" />
-          <StatTile label={t.dashStaleTile} value={stale.length} hint={t.dashStale} testId="tile-stale" />
-          <StatTile label={t.dashAnswered7d} value={answered.length} testId="tile-answered" />
+          <StatTile label={t.dashNeedsYou} value={tasks.length} href="/cases" emphasis icon={UserRoundSearch} testId="tile-needs-you" />
+          <StatTile label={t.dashWaitingDoctor} value={waiting.length} icon={Hourglass} testId="tile-waiting" />
+          <StatTile label={t.dashStaleTile} value={stale.length} hint={t.dashStale} icon={Clock} testId="tile-stale" />
+          <StatTile label={t.dashAnswered7d} value={answered.length} icon={CircleCheck} testId="tile-answered" />
         </StatGrid>
       </DashboardHeader>
 
@@ -169,23 +169,14 @@ function Workspace(): React.JSX.Element {
           </Card>
 
           {isSource && (
-            <Card title={t.dashQuickLinks}>
-              <ul className="space-y-1 text-sm">
-                {(
-                  [
-                    ['/cases/new', t.casesNew],
-                    ['/upload', t.navUpload],
-                    ['/patients', t.navPatients],
-                  ] as const
-                ).map(([href, label]) => (
-                  <li key={href}>
-                    <Link href={href} className="font-medium text-primary hover:underline">
-                      {label}
-                    </Link>
-                  </li>
-                ))}
-              </ul>
-            </Card>
+            <QuickLinks
+              title={t.dashQuickLinks}
+              links={[
+                { href: '/cases/new', label: t.casesNew, Icon: FilePlus2 },
+                { href: '/upload', label: t.navUpload, Icon: Upload },
+                { href: '/patients', label: t.navPatients, Icon: Users },
+              ]}
+            />
           )}
         </aside>
       </div>

@@ -116,6 +116,8 @@ const ar = {
   menuTitle: 'القائمة',
   menuOpen: 'فتح القائمة',
   menuClose: 'إغلاق القائمة',
+  sidebarPin: 'تثبيت الشريط الجانبي مفتوحًا',
+  sidebarUnpin: 'طي الشريط الجانبي',
   footerDisclaimer: 'خدمة نقل وحجز — ليست أداة تشخيص.',
   breadcrumbLabel: 'مسار التنقل',
 
@@ -855,6 +857,8 @@ const fr: Dictionary = {
   menuTitle: 'Menu',
   menuOpen: 'Ouvrir le menu',
   menuClose: 'Fermer le menu',
+  sidebarPin: 'Garder la barre latérale ouverte',
+  sidebarUnpin: 'Réduire la barre latérale',
   footerDisclaimer: 'Service de transfert et de réservation — pas un outil de diagnostic.',
   breadcrumbLabel: 'Fil d’Ariane',
 
@@ -1602,6 +1606,8 @@ const en: Dictionary = {
   menuTitle: 'Menu',
   menuOpen: 'Open menu',
   menuClose: 'Close menu',
+  sidebarPin: 'Keep sidebar open',
+  sidebarUnpin: 'Collapse sidebar',
   footerDisclaimer: 'A transfer and scheduling service — not a diagnostic tool.',
   breadcrumbLabel: 'Breadcrumb',
 
