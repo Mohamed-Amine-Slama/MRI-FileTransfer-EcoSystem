@@ -69,6 +69,8 @@ describe('toProvider', () => {
         submittedAt: '2026-09-01T10:00:00.000Z',
         decidedAt: '2026-09-02T10:00:00.000Z',
       },
+      credentials: { licenceNumber: 'LY-1' },
+      documents: [{ key: 'facilityPermit', contentType: 'application/pdf', sizeBytes: 1024 }],
       seatCount: 5,
     };
     expect(() => providerSchema.parse(toProvider(org))).not.toThrow();

@@ -1,4 +1,5 @@
 import {
+  BadRequestException,
   Body,
   Controller,
   Get,
@@ -7,7 +8,10 @@ import {
   Param,
   ParseUUIDPipe,
   Post,
+  Req,
+  Res,
 } from '@nestjs/common';
+import type { Request, Response } from 'express';
 import { z } from 'zod';
 import {
   endpointSideSchema,
@@ -58,6 +62,9 @@ const decisionSchema = z.object({
 });
 
 const acceptSchema = z.object({ token: z.string().min(16).max(256) });
+
+/** A documentRequirements key; mirrors the CHECK on the column (0037). */
+const docKeySchema = z.string().regex(/^[a-z][A-Za-z0-9]{0,63}$/);
 
 @Controller()
 export class OrganisationsController {
@@ -133,7 +140,55 @@ export class OrganisationsController {
     return organisation;
   }
 
+  /**
+   * One verification document (identity paper, medical certificate), sent as
+   * the raw file with its own Content-Type. Replaces any earlier upload for
+   * the same key while the application is pending.
+   */
+  @RequiresRole('applicant')
+  @Post('organisations/:id/documents/:key')
+  @HttpCode(204)
+  async uploadDocument(
+    @Param('id', ParseUUIDPipe) id: string,
+    @Param('key') key: string,
+    @Req() req: Request,
+  ): Promise<void> {
+    const body: unknown = req.body;
+    if (!Buffer.isBuffer(body) || body.byteLength === 0) {
+      throw new BadRequestException('Document must be a PDF, JPEG or PNG body');
+    }
+    const contentType = (req.headers['content-type'] ?? '').split(';')[0]?.trim() ?? '';
+    const ok = await this.organisations.attachDocument(
+      id,
+      docKeySchema.parse(key),
+      contentType,
+      body,
+    );
+    if (!ok) throw new NotFoundException('organisation_not_found');
+  }
+
   // --- ops (§5.8) ----------------------------------------------------------
+
+  /**
+   * The reviewer opens the file. `attachment` plus nosniff so a crafted upload
+   * is never rendered as a page on the API origin.
+   */
+  @RequiresRole('admin')
+  @Get('admin/organisations/:id/documents/:key')
+  async readDocument(
+    @Param('id', ParseUUIDPipe) id: string,
+    @Param('key') key: string,
+    @Res() res: Response,
+  ): Promise<void> {
+    const doc = await this.organisations.document(id, docKeySchema.parse(key));
+    if (doc === null) throw new NotFoundException('document_not_found');
+    res.status(200);
+    res.setHeader('content-type', doc.contentType);
+    res.setHeader('content-disposition', `attachment; filename="${key}"`);
+    res.setHeader('x-content-type-options', 'nosniff');
+    res.setHeader('cache-control', 'no-store, private');
+    res.end(doc.bytes);
+  }
 
   @RequiresRole('admin')
   @Get('admin/organisations')

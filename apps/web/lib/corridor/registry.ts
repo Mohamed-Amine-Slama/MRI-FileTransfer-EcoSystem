@@ -51,7 +51,29 @@ const LIBYA_TUNISIA: Corridor = corridorSchema.parse({
         labelKey: 'caseNewSpecialty',
         options: [...CONSULT_SPECIALTIES],
       },
-      { key: 'facilityPermit', kind: 'file', required: true, labelKey: 'fieldFacilityPermit' },
+      // A doctor applies as a person, so ops checks the person: one official
+      // identity document and the medical certificate, both as files. Options
+      // are dictionary keys, so the stored value translates on the admin page.
+      {
+        key: 'identityDocumentType',
+        kind: 'select',
+        required: true,
+        labelKey: 'fieldIdentityDocumentType',
+        options: ['idDocPassport', 'idDocNationalId', 'idDocDrivingLicence'],
+      },
+      {
+        key: 'identityDocumentNumber',
+        kind: 'text',
+        required: true,
+        labelKey: 'fieldIdentityDocumentNumber',
+      },
+      { key: 'identityDocument', kind: 'file', required: true, labelKey: 'fieldIdentityDocument' },
+      {
+        key: 'medicalCertificate',
+        kind: 'file',
+        required: true,
+        labelKey: 'fieldMedicalCertificate',
+      },
     ],
   },
   intakeFields: [

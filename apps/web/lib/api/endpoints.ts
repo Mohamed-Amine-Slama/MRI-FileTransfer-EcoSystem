@@ -100,6 +100,9 @@ export interface Organisation {
     decidedAt?: string;
     reasonKey?: string;
   };
+  credentials: Record<string, unknown>;
+  /** Uploaded verification files, metadata only. Ops sees them; members get []. */
+  documents: { key: string; contentType: string; sizeBytes: number }[];
   seatCount: number;
 }
 

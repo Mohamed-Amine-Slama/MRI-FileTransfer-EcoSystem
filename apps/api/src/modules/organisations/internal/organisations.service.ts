@@ -50,7 +50,17 @@ export interface OrganisationRow {
     decidedAt?: string;
     reasonKey?: string;
   };
+  /** What the applicant typed against the corridor's documentRequirements. */
+  credentials: Record<string, unknown>;
+  /** Uploaded files, metadata only. Empty for everyone but ops (RLS). */
+  documents: VerificationDocumentMeta[];
   seatCount: number;
+}
+
+export interface VerificationDocumentMeta {
+  key: string;
+  contentType: string;
+  sizeBytes: number;
 }
 
 /** A clinician a case can be routed to. */
@@ -80,6 +90,8 @@ interface DbOrganisation {
   submitted_at: Date;
   decided_at: Date | null;
   reason_key: string | null;
+  credentials: Record<string, unknown>;
+  documents: VerificationDocumentMeta[];
   seat_count: number;
 }
 
@@ -96,14 +108,38 @@ function toOrganisation(row: DbOrganisation): OrganisationRow {
       ...(row.decided_at === null ? {} : { decidedAt: row.decided_at.toISOString() }),
       ...(row.reason_key === null ? {} : { reasonKey: row.reason_key }),
     },
+    credentials: row.credentials,
+    documents: row.documents,
     seatCount: row.seat_count,
   };
 }
 
 const SELECT_ORG =
   `SELECT id, kind, legal_name, corridor_id, side, verification_status,
-          submitted_at, decided_at, reason_key, seat_count
+          submitted_at, decided_at, reason_key, credentials, seat_count,
+          (SELECT COALESCE(jsonb_agg(jsonb_build_object(
+                    'key', d.doc_key,
+                    'contentType', d.content_type,
+                    'sizeBytes', octet_length(d.bytes)) ORDER BY d.doc_key), '[]'::jsonb)
+           FROM identity_verification_documents d
+           WHERE d.organisation_id = identity_organisations.id) AS documents
    FROM identity_organisations`;
+
+/**
+ * The file really is what it says. The declared content type is the client's
+ * claim; the first bytes are the file's. A mismatch is refused rather than
+ * relabelled, so ops never opens an HTML page served as "image/png".
+ */
+const MAGIC: Record<string, number[]> = {
+  'application/pdf': [0x25, 0x50, 0x44, 0x46], // %PDF
+  'image/jpeg': [0xff, 0xd8, 0xff],
+  'image/png': [0x89, 0x50, 0x4e, 0x47],
+};
+
+export function matchesContentType(contentType: string, bytes: Uint8Array): boolean {
+  const magic = MAGIC[contentType];
+  return magic !== undefined && magic.every((b, i) => bytes[i] === b);
+}
 
 @Injectable()
 export class OrganisationsService {
@@ -439,6 +475,46 @@ export class OrganisationsService {
     return this.db.tx(async (tx) => {
       const res = await tx.query<DbOrganisation>(`${SELECT_ORG} ORDER BY submitted_at DESC`);
       return res.rows.map(toOrganisation);
+    });
+  }
+
+  /**
+   * Attach (or replace) one verification document while the application is
+   * pending. False covers not-your-organisation, not-pending and unknown id
+   * alike; the controller answers all three with the same 404.
+   */
+  async attachDocument(
+    organisationId: string,
+    key: string,
+    contentType: string,
+    bytes: Buffer,
+  ): Promise<boolean> {
+    if (!matchesContentType(contentType, bytes)) {
+      throw new BadRequestException('document_type_mismatch');
+    }
+    const sha256 = createHash('sha256').update(bytes).digest('hex');
+    return this.db.tx(async (tx) => {
+      const res = await tx.query<{ identity_attach_verification_document: boolean }>(
+        'SELECT identity_attach_verification_document($1, $2, $3, $4, $5)',
+        [organisationId, key, contentType, bytes, sha256],
+      );
+      return res.rows[0]?.identity_attach_verification_document === true;
+    });
+  }
+
+  /** One document's bytes, for the ops reviewer. RLS returns nothing to anyone else. */
+  async document(
+    organisationId: string,
+    key: string,
+  ): Promise<{ contentType: string; bytes: Buffer } | null> {
+    return this.db.tx(async (tx) => {
+      const res = await tx.query<{ content_type: string; bytes: Buffer }>(
+        `SELECT content_type, bytes FROM identity_verification_documents
+         WHERE organisation_id = $1 AND doc_key = $2`,
+        [organisationId, key],
+      );
+      const row = res.rows[0];
+      return row === undefined ? null : { contentType: row.content_type, bytes: row.bytes };
     });
   }
 

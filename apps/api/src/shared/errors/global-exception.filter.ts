@@ -80,6 +80,20 @@ export class GlobalExceptionFilter implements ExceptionFilter {
       return;
     }
 
+    // --- body-parser refusals ------------------------------------------------
+    // The raw() parsers mounted in main.ts (chunk uploads, verification
+    // documents) throw http-errors, not HttpExceptions. Their 4xx is the
+    // client's fault and `expose` marks the message safe; a 500 here told a
+    // user with an oversized file that the server broke.
+    if (isExposedClientError(exception)) {
+      response.status(exception.status).json({
+        statusCode: exception.status,
+        message: exception.message,
+        ...(requestId !== undefined ? { requestId } : {}),
+      });
+      return;
+    }
+
     // --- everything else ----------------------------------------------------
     // Log the real cause server-side; return nothing useful to the caller.
     this.logger.error(
@@ -115,6 +129,13 @@ const VALIDATION_ERROR_NAMES = new Set([
   // actual digests stay on the error object, server-side.
   'ChecksumMismatchError',
 ]);
+
+/** An http-errors 4xx its author marked safe to show (body-parser sets `expose`). */
+function isExposedClientError(err: unknown): err is Error & { status: number } {
+  if (!(err instanceof Error)) return false;
+  const { status, expose } = err as Error & { status?: unknown; expose?: unknown };
+  return expose === true && typeof status === 'number' && status >= 400 && status < 500;
+}
 
 function isDomainValidationError(err: unknown): err is Error {
   return err instanceof Error && VALIDATION_ERROR_NAMES.has(err.name);

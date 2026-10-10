@@ -72,6 +72,20 @@ export const providerVerificationSchema = z
     reasonKey: z.string().optional(),
     /** Shape comes from the corridor's documentRequirements (§4.3). */
     credentials: z.record(z.string(), z.unknown()),
+    /**
+     * Files uploaded against the corridor's `file` requirements (identity
+     * document, medical certificate, ...). Metadata only; the bytes are
+     * fetched by ops on demand. Absent where the source has none (fixtures).
+     */
+    documents: z
+      .array(
+        z.object({
+          key: z.string().min(1),
+          contentType: z.string().min(1),
+          sizeBytes: z.number().int().nonnegative(),
+        }),
+      )
+      .optional(),
   })
   .refine((v) => v.status === 'pending' || v.decidedAt !== undefined, {
     message: 'a decided verification must carry decidedAt',
