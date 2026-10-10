@@ -2,6 +2,7 @@
 
 import Link from '../../components/ui/link';
 import { useCallback, useEffect, useState } from 'react';
+import { CircleCheck, Inbox as InboxIcon, PenLine } from 'lucide-react';
 import { api, type CaseRecord } from '../../lib/api/endpoints';
 import { useDateFormat, useT } from '../../lib/i18n/provider';
 import { useSession } from '../../lib/session/session';
@@ -104,9 +105,9 @@ function Inbox(): React.JSX.Element {
         subtitle={t.inboxDescription}
       >
         <StatGrid className="lg:grid-cols-3">
-          <StatTile label={t.dashToTriage} value={triage.length} emphasis testId="tile-triage" />
-          <StatTile label={t.dashToAnswer} value={answering.length} testId="tile-answer" />
-          <StatTile label={t.dashAnswered7d} value={answered.length} testId="tile-answered" />
+          <StatTile label={t.dashToTriage} value={triage.length} emphasis icon={InboxIcon} testId="tile-triage" />
+          <StatTile label={t.dashToAnswer} value={answering.length} icon={PenLine} testId="tile-answer" />
+          <StatTile label={t.dashAnswered7d} value={answered.length} icon={CircleCheck} testId="tile-answered" />
         </StatGrid>
       </DashboardHeader>
 

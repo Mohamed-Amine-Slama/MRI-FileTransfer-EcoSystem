@@ -6,7 +6,12 @@ import { cn } from '../../lib/utils';
 export function CardRoot({ className, ...props }: HTMLAttributes<HTMLElement>): React.JSX.Element {
   return (
     <section
-      className={cn('rounded-lg border bg-card text-card-foreground shadow-sm', className)}
+      className={cn(
+        // A table inside a card is already framed by it: drop the table's own
+        // border and shadow so the two don't draw a double edge.
+        'rounded-lg border bg-card text-card-foreground shadow-sm [&_[data-slot=table]]:border-0 [&_[data-slot=table]]:shadow-none',
+        className,
+      )}
       {...props}
     />
   );

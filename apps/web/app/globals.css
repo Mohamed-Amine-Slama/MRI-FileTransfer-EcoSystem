@@ -383,3 +383,45 @@
     text-wrap: balance;
   }
 }
+
+/*
+ * The application sidebar (components/shell/AppChrome.tsx): an icon rail that
+ * opens while it is in use.
+ *
+ * "In use" is a selector list, which is why this is CSS and not utilities:
+ * hovered; holding KEYBOARD focus (:focus-visible, so a mouse click on a link
+ * does not leave the rail stuck open after navigating); or holding an open
+ * menu or a focused select, whose popups sit outside the rail and would
+ * otherwise collapse it from under the pointer. `:is()` is forgiving, so a
+ * browser without `:has()` drops those branches and keeps hover and the pin.
+ *
+ * `.app-rail` is the sidebar's column itself, so the page beside it narrows
+ * and widens with it. Opening is delayed a beat so a pointer crossing the rail
+ * on its way somewhere else does not reflow the page; closing is immediate.
+ */
+@layer components {
+  .app-rail {
+    width: 4rem;
+    transition: width var(--dur-base) var(--ease-out);
+  }
+
+  .app-rail:is(:hover, :has(:focus-visible, [data-state='open'], select:focus)):not([data-pinned]) {
+    width: 16rem;
+    transition-delay: 120ms;
+  }
+
+  .app-rail[data-pinned] {
+    width: 16rem;
+  }
+
+  .app-rail .rail-reveal {
+    opacity: 0;
+    white-space: nowrap;
+    transition: opacity var(--dur-fast) var(--ease-out);
+  }
+
+  .app-rail:is([data-pinned], :hover, :has(:focus-visible, [data-state='open'], select:focus)) .rail-reveal {
+    opacity: 1;
+    transition-delay: 120ms;
+  }
+}

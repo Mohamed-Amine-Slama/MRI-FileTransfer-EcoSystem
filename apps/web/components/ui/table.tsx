@@ -16,7 +16,10 @@ export function Table({
   ...props
 }: HTMLAttributes<HTMLTableElement> & { containerClassName?: string }): React.JSX.Element {
   return (
-    <div className={cn('w-full overflow-x-auto rounded-lg border bg-card shadow-sm', containerClassName)}>
+    <div
+      data-slot="table"
+      className={cn('w-full overflow-x-auto rounded-lg border bg-card shadow-sm', containerClassName)}
+    >
       <table className={cn('w-full caption-bottom text-sm tabular-nums', className)} {...props} />
     </div>
   );

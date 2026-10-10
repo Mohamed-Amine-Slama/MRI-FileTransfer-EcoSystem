@@ -104,7 +104,9 @@ export function Card({
   return (
     <CardRoot className={className}>
       {(title !== undefined || actions !== undefined) && (
-        <CardHeader className="flex-row flex-wrap items-center justify-between gap-2">
+        // The rule under the title separates a card's name from its contents,
+        // which matters once a screen holds several cards side by side.
+        <CardHeader className="flex-row flex-wrap items-center justify-between gap-2 border-b pb-3 sm:pb-4">
           {title !== undefined && <CardTitle>{title}</CardTitle>}
           {actions}
         </CardHeader>
@@ -294,12 +296,14 @@ export function PageHeader({
   actions?: ReactNode;
 }): React.JSX.Element {
   return (
-    <header className="mb-6 space-y-1">
-      <div className="flex flex-wrap items-center justify-between gap-3">
-        <h1 className="font-display text-2xl font-normal tracking-tight">{title}</h1>
-        {actions !== undefined && <div className="flex flex-wrap items-center gap-2">{actions}</div>}
+    <header className="mb-6 flex flex-wrap items-end justify-between gap-x-6 gap-y-3 border-b pb-5">
+      <div className="min-w-0 space-y-1">
+        <h1 className="font-display text-2xl font-normal tracking-tight sm:text-3xl">{title}</h1>
+        {description !== undefined && (
+          <p className="max-w-prose text-sm text-muted-foreground">{description}</p>
+        )}
       </div>
-      {description !== undefined && <p className="text-sm text-muted-foreground">{description}</p>}
+      {actions !== undefined && <div className="flex flex-wrap items-center gap-2">{actions}</div>}
     </header>
   );
 }
@@ -321,7 +325,7 @@ export function Main({
   return (
     <main
       className={cn(
-        'mx-auto w-full space-y-4 px-4 py-6 sm:px-6',
+        'mx-auto w-full space-y-4 px-4 py-6 sm:px-6 lg:px-8 lg:py-8',
         wide ? 'max-w-7xl' : 'max-w-3xl',
         className,
       )}
